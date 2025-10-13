@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(oooasts\\.vercel\\.app|asts-komatsu\\.vercel\\.app|oooasts-komatsu\\.vercel\\.app|astskomatsu\\.vercel\\.app|oooasts-china\\.vercel\\.app)"
+        }
+      ],
+      "destination": "https://asts.vercel.app/:path*",
+      "permanent": true
+    }
+  ]
+}
