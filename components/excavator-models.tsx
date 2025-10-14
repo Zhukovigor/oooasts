@@ -210,7 +210,7 @@ export default function ExcavatorModels() {
                 <Card className="overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
                   <div className="relative h-64 w-full">
                     <Image
-                      src="/images/design-mode/SANY-Kitay_42549_4858854752.jpg"
+                      src="/images/design-mode/Zoomlion%2050%20%D0%BC%D0%B5%D1%82%D1%80%D0%BE%D0%B2.jpg"
                       alt="Zoomlion 50 метров"
                       fill
                       className="object-cover"
