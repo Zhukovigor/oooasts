@@ -1,62 +1,29 @@
-import { createClient } from "@/lib/supabase/server" // Fixed import name
+"use client"
+
+import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { notFound } from "next/navigation"
-import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
 import Footer from "@/components/footer"
-import { translateSpecKey } from "@/lib/catalog-translations"
 
-type Props = {
+interface ModelPageProps {
+  category: any
+  model: any
   params: { category: string; model: string }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase = await createClient() // Added await
-  const { data: model } = await supabase
-    .from("catalog_models")
-    .select("name, description")
-    .eq("slug", params.model)
-    .single()
+export default function ModelPage({ category, model, params }: ModelPageProps) {
+  const [openSections, setOpenSections] = useState({
+    specifications: true,
+    description: false
+  })
 
-  if (!model) {
-    return {
-      title: "Модель не найдена",
-    }
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
   }
-
-  return {
-    title: `${model.name} | Каталог | ООО АСТС`,
-    description: model.description || `Купить ${model.name}`,
-  }
-}
-
-export default async function ModelPage({ params }: Props) {
-  const supabase = await createClient() // Added await
-
-  const { data: category } = await supabase.from("catalog_categories").select("*").eq("slug", params.category).single()
-
-  if (!category) {
-    notFound()
-  }
-
-  const { data: model } = await supabase
-    .from("catalog_models")
-    .select("*")
-    .eq("slug", params.model)
-    .eq("category_id", category.id)
-    .eq("is_active", true)
-    .single()
-
-  if (!model) {
-    notFound()
-  }
-
-  // Increment views
-  await supabase
-    .from("catalog_models")
-    .update({ views_count: (model.views_count || 0) + 1 })
-    .eq("id", model.id)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -158,35 +125,84 @@ export default async function ModelPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Full Specifications */}
+        {/* Accordion Sections */}
+        <div className="space-y-4">
+          {/* Specifications Accordion */}
           {model.specifications && (
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
-              <div className="grid md:grid-cols-2 gap-8">
-                {Object.entries(model.specifications as Record<string, Record<string, string>>).map(([category, specs]) => (
-                  <div key={category} className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
-                    <div className="space-y-3">
-                      {Object.entries(specs).map(([key, value]) => (
-                        <div key={key} className="flex justify-between py-2 border-b">
-                          <span className="text-gray-600">{key}</span>
-                          <span className="font-medium text-gray-900">{value}</span>
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <button
+                className="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
+                onClick={() => toggleSection('specifications')}
+              >
+                <h2 className="text-2xl font-bold text-gray-900">Характеристики</h2>
+                <svg
+                  className={`w-6 h-6 text-gray-500 transition-transform duration-300 ${
+                    openSections.specifications ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div
+                  className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                    openSections.specifications ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                <div className="px-8 py-6 border-t">
+                  <div className="grid md:grid-cols-2 gap-8">
+                    {Object.entries(model.specifications as Record<string, Record<string, string>>).map(([category, specs]) => (
+                      <div key={category} className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
+                        <div className="space-y-3">
+                          {Object.entries(specs).map(([key, value]) => (
+                            <div key={key} className="flex justify-between py-2 border-b">
+                              <span className="text-gray-600">{key}</span>
+                              <span className="font-medium text-gray-900">{value}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             </div>
           )}
 
-        {/* Description */}
-        {model.description && (
-          <div className="bg-white rounded-lg shadow-sm p-8 mt-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">О товаре</h2>
-            <p className="text-gray-700 leading-relaxed">{model.description}</p>
-          </div>
-        )}
+          {/* Description Accordion */}
+          {model.description && (
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <button
+                className="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
+                onClick={() => toggleSection('description')}
+              >
+                <h2 className="text-2xl font-bold text-gray-900">О товаре</h2>
+                <svg
+                  className={`w-6 h-6 text-gray-500 transition-transform duration-300 ${
+                    openSections.description ? 'rotate-180' : ''
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <div
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                  openSections.description ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className="px-8 py-6 border-t">
+                  <p className="text-gray-700 leading-relaxed">{model.description}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
