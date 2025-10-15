@@ -1,18 +1,17 @@
-import { createClient } from "@/lib/supabase/server" // Fixed import name
+import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import Image from "next/image"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
 import Footer from "@/components/footer"
-import { translateSpecKey } from "@/lib/catalog-translations"
 
 type Props = {
   params: { category: string; model: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase = await createClient() // Added await
+  const supabase = await createClient()
   const { data: model } = await supabase
     .from("catalog_models")
     .select("name, description")
@@ -31,8 +30,43 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+// Функция для преобразования спецификаций
+function transformSpecifications(specs: any) {
+  if (!specs) return null
+  
+  // Если это уже объект с категориями, возвращаем как есть
+  if (typeof specs === 'object' && !Array.isArray(specs)) {
+    // Проверяем первую категорию - если это объект, значит уже правильный формат
+    const firstKey = Object.keys(specs)[0]
+    if (firstKey && typeof specs[firstKey] === 'object') {
+      return specs
+    }
+    
+    // Если это плоский объект, группируем по категориям
+    return {
+      "Основные характеристики": specs
+    }
+  }
+  
+  return specs
+}
+
+// Функция для определения типа техники
+function getEquipmentType(model: any, category: any) {
+  const name = model.name?.toLowerCase() || ''
+  const categoryName = category.name?.toLowerCase() || ''
+  
+  if (name.includes('бетононасос') || categoryName.includes('бетононасос')) {
+    return 'concrete_pump'
+  }
+  if (name.includes('экскаватор') || categoryName.includes('экскаватор')) {
+    return 'excavator'
+  }
+  return 'other'
+}
+
 export default async function ModelPage({ params }: Props) {
-  const supabase = await createClient() // Added await
+  const supabase = await createClient()
 
   const { data: category } = await supabase.from("catalog_categories").select("*").eq("slug", params.category).single()
 
@@ -57,6 +91,10 @@ export default async function ModelPage({ params }: Props) {
     .from("catalog_models")
     .update({ views_count: (model.views_count || 0) + 1 })
     .eq("id", model.id)
+
+  // Преобразуем спецификации
+  const specifications = transformSpecifications(model.specifications)
+  const equipmentType = getEquipmentType(model, category)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -116,69 +154,100 @@ export default async function ModelPage({ params }: Props) {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{model.name}</h1>
 
-            {/* Key Specs */}
+            {/* Key Specs - разные для разных типов техники */}
             <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              {model.working_weight && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Рабочий вес</span>
-                  <span className="font-bold text-gray-900">{model.working_weight} кг</span>
-                </div>
-              )}
-              {model.bucket_volume && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Объем ковша</span>
-                  <span className="font-bold text-gray-900">{model.bucket_volume} м³</span>
-                </div>
-              )}
-              {model.max_digging_depth && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Макс. глубина копания</span>
-                  <span className="font-bold text-gray-900">{model.max_digging_depth} м</span>
-                </div>
-              )}
-              {model.engine_manufacturer && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Производитель двигателя</span>
-                  <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
-                </div>
-              )}
-              {model.engine_power && (
-                <div className="flex justify-between py-3">
-                  <span className="text-gray-600">Мощность</span>
-                  <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
-                </div>
+              {equipmentType === 'concrete_pump' ? (
+                // Спецификации для бетононасосов
+                <>
+                  {model.working_weight && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Рабочий вес</span>
+                      <span className="font-bold text-gray-900">{model.working_weight} кг</span>
+                    </div>
+                  )}
+                  {model.engine_manufacturer && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Производитель двигателя</span>
+                      <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
+                    </div>
+                  )}
+                  {model.engine_power && (
+                    <div className="flex justify-between py-3">
+                      <span className="text-gray-600">Мощность</span>
+                      <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Спецификации для экскаваторов и другой техники
+                <>
+                  {model.working_weight && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Рабочий вес</span>
+                      <span className="font-bold text-gray-900">{model.working_weight} кг</span>
+                    </div>
+                  )}
+                  {model.bucket_volume && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Объем ковша</span>
+                      <span className="font-bold text-gray-900">{model.bucket_volume} м³</span>
+                    </div>
+                  )}
+                  {model.max_digging_depth && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Макс. глубина копания</span>
+                      <span className="font-bold text-gray-900">{model.max_digging_depth} м</span>
+                    </div>
+                  )}
+                  {model.engine_manufacturer && (
+                    <div className="flex justify-between py-3 border-b">
+                      <span className="text-gray-600">Производитель двигателя</span>
+                      <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
+                    </div>
+                  )}
+                  {model.engine_power && (
+                    <div className="flex justify-between py-3">
+                      <span className="text-gray-600">Мощность</span>
+                      <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             {/* Price & CTA */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="text-2xl font-bold text-gray-900 mb-4">Цена по запросу</div>
+              <div className="text-2xl font-bold text-gray-900 mb-4">
+                {model.price_on_request ? 'Цена по запросу' : `₽${model.price?.toLocaleString()}`}
+              </div>
               <OrderModal model={model} />
             </div>
           </div>
         </div>
 
         {/* Full Specifications */}
-          {model.specifications && (
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
-              <div className="grid md:grid-cols-2 gap-8">
-                {Object.entries(model.specifications as Record<string, Record<string, string>>).map(([category, specs]) => (
-                  <div key={category} className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
-                    <div className="space-y-3">
-                      {Object.entries(specs).map(([key, value]) => (
-                        <div key={key} className="flex justify-between py-2 border-b">
-                          <span className="text-gray-600">{key}</span>
-                          <span className="font-medium text-gray-900">{value}</span>
-                        </div>
-                      ))}
-                    </div>
+        {specifications && (
+          <div className="bg-white rounded-lg shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
+            <div className="grid md:grid-cols-2 gap-8">
+              {Object.entries(specifications as Record<string, Record<string, string>>).map(([specCategory, specs]) => (
+                <div key={specCategory} className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{specCategory}</h3>
+                  <div className="space-y-3">
+                    {Object.entries(specs).map(([key, value]) => (
+                      <div key={key} className="flex justify-between py-2 border-b">
+                        <span className="text-gray-600">{key}</span>
+                        <span className="font-medium text-gray-900">
+                          {typeof value === 'number' ? value.toString() : String(value)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
         {/* Description */}
         {model.description && (
