@@ -162,11 +162,18 @@ export default async function ModelPage({ params }: Props) {
         {model.specifications && (
           <div className="bg-white rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
-            <div className="grid md:grid-cols-2 gap-x-12 gap-y-4">
-              {Object.entries(model.specifications as Record<string, any>).map(([key, value]) => (
-                <div key={key} className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">{translateSpecKey(key)}</span>
-                  <span className="font-medium text-gray-900">{String(value)}</span>
+            <div className="space-y-8">
+              {Object.entries(model.specifications as Record<string, Record<string, string>>).map(([category, specs]) => (
+                <div key={category}>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">{category}</h3>
+                  <div className="grid md:grid-cols-2 gap-x-12 gap-y-4">
+                    {Object.entries(specs).map(([key, value]) => (
+                      <div key={key} className="flex justify-between py-3 border-b">
+                        <span className="text-gray-600">{key}</span>
+                        <span className="font-medium text-gray-900">{value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
