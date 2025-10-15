@@ -55,7 +55,7 @@ function translateSpecKey(key: string): string {
     "stroke_length": "Длина хода",
     "hydraulic_tank": "Гидравлический бак",
     "vertical_reach": "Вертикальная подача",
-    "pump_output_low": "Производительность насоса",
+    "pump_output": "Производительность насоса",
     "horizontal_reach": "Горизонтальная подача",
     "boom_sections": "Секции стрелы",
     "pressure_low": "Давление (низкое)",
@@ -72,29 +72,81 @@ function translateSpecKey(key: string): string {
     "max_digging_reach": "Макс. радиус копания",
     "engine_manufacturer": "Производитель двигателя",
     "rated_power": "Номинальная мощность",
+    "stick_length": "Длина рукояти",
+    "boom_length": "Длина стрелы",
+    "max_dumping_height": "Макс. высота разгрузки",
+    "max_digging_height": "Макс. высота копания",
+    "max_working_radius": "Макс. радиус работ",
+    "ground_pressure": "Удельное давление на грунт",
+
+    // Двигатель
+    "engine_origin": "Страна происхождения",
+    "engine_assembly": "Страна сборки",
+    "power": "Мощность",
+    "rpm": "Обороты",
+    "cylinders": "Количество цилиндров",
+    "engine_displacement": "Рабочий объем двигателя",
+
+    // Ходовая часть
+    "max_forward_speed": "Макс. скорость движения вперед",
+    "max_backward_speed": "Макс. скорость движения назад",
+    "min_turning_radius": "Мин. радиус поворота",
+    "track_base": "База гусеничного хода",
 
     // Емкости
-    "Топливный бак": "Топливный бак",
-    "Масло двигателя": "Масло двигателя",
-    "Гидравлический бак": "Гидравлический бак",
-    "Система охлаждения": "Система охлаждения",
-    "Гидравлическая система": "Гидравлическая система"
+    "engine_oil": "Масло двигателя",
+    "cooling_system": "Система охлаждения",
+    "hydraulic_system": "Гидравлическая система",
+
+    // Габариты
+    "transport_length": "Транспортная длина",
+    "transport_width": "Транспортная ширина",
+    "transport_height": "Транспортная высота",
+
+    // Бренд
+    "brand": "Бренд",
+    "manufacturer_country": "Страна производитель",
+    "assembly_country": "Страна сборки"
   }
 
   return translations[key] || key
 }
 
-// Функция для перевода категорий
-function translateCategory(category: string): string {
-  const categoryTranslations: Record<string, string> = {
+// Функция для определения категории
+function getCategory(key: string): string {
+  const categoryMapping: Record<string, string> = {
+    // Шасси и ходовая часть
     "chassis": "Шасси",
-    "delivery": "Условия поставки",
-    "warranty": "Гарантия",
+    "total_width": "Шасси",
+    "total_height": "Шасси", 
+    "total_length": "Шасси",
+    "max_forward_speed": "Ходовая часть",
+    "max_backward_speed": "Ходовая часть",
+    "min_turning_radius": "Ходовая часть",
+    "track_base": "Ходовая часть",
+    
+    // Емкости
     "fuel_tank": "Емкости",
     "water_tank": "Емкости",
+    "hydraulic_tank": "Емкости",
+    "engine_oil": "Емкости",
+    "cooling_system": "Емкости",
+    "hydraulic_system": "Емкости",
+    
+    // Двигатель
     "engine_model": "Двигатель",
     "engine_power": "Двигатель",
     "emission_standard": "Двигатель",
+    "engine_manufacturer": "Двигатель",
+    "rated_power": "Двигатель",
+    "engine_origin": "Двигатель",
+    "engine_assembly": "Двигатель",
+    "power": "Двигатель",
+    "rpm": "Двигатель",
+    "cylinders": "Двигатель",
+    "engine_displacement": "Двигатель",
+    
+    // Рабочие характеристики
     "pressure": "Рабочие характеристики",
     "depth_reach": "Рабочие характеристики",
     "hose_length": "Рабочие характеристики",
@@ -102,55 +154,81 @@ function translateCategory(category: string): string {
     "pipe_diameter": "Рабочие характеристики",
     "stroke_length": "Рабочие характеристики",
     "vertical_reach": "Рабочие характеристики",
-    "pump_output_low": "Рабочие характеристики",
+    "pump_output": "Рабочие характеристики",
     "horizontal_reach": "Рабочие характеристики",
     "boom_sections": "Рабочие характеристики",
-    "total_width": "Габариты",
-    "total_height": "Габариты",
-    "total_length": "Габариты"
+    "operating_weight": "Рабочие характеристики",
+    "bucket_capacity": "Рабочие характеристики",
+    "max_digging_depth": "Рабочие характеристики",
+    "max_digging_reach": "Рабочие характеристики",
+    "stick_length": "Рабочие характеристики",
+    "boom_length": "Рабочие характеристики",
+    "max_dumping_height": "Рабочие характеристики",
+    "max_digging_height": "Рабочие характеристики",
+    "max_working_radius": "Рабочие характеристики",
+    "ground_pressure": "Рабочие характеристики",
+    
+    // Габариты
+    "transport_length": "Габариты",
+    "transport_width": "Габариты",
+    "transport_height": "Габариты",
+    
+    // Условия поставки
+    "delivery": "Условия поставки",
+    
+    // Гарантия
+    "warranty": "Гарантия",
+    
+    // Дополнительная информация
+    "brand": "Дополнительная информация",
+    "manufacturer_country": "Дополнительная информация",
+    "assembly_country": "Дополнительная информация"
   }
 
-  return categoryTranslations[category] || category
+  return categoryMapping[key] || "Дополнительная информация"
 }
 
 // Функция для группировки характеристик по категориям
 function groupSpecificationsByCategory(specs: Record<string, any>) {
-  const categories: Record<string, Record<string, any>> = {
-    "Шасси": {},
-    "Двигатель": {},
-    "Емкости": {},
-    "Габариты": {},
-    "Рабочие характеристики": {},
-    "Условия поставки": {},
-    "Гарантия": {},
-    "Дополнительная информация": {}
-  }
+  const categories: Record<string, Record<string, any>> = {}
 
   Object.entries(specs).forEach(([key, value]) => {
-    const translatedKey = translateSpecKey(key)
-    const category = translateCategory(key)
-    
-    if (categories[category]) {
+    if (value !== null && value !== undefined && value !== '') {
+      const translatedKey = translateSpecKey(key)
+      const category = getCategory(key)
+      
+      if (!categories[category]) {
+        categories[category] = {}
+      }
+      
       categories[category][translatedKey] = value
-    } else {
-      categories["Дополнительная информация"][translatedKey] = value
-    }
-  })
-
-  // Удаляем пустые категории
-  Object.keys(categories).forEach(category => {
-    if (Object.keys(categories[category]).length === 0) {
-      delete categories[category]
     }
   })
 
   return categories
 }
 
+// Порядок отображения категорий
+const categoryOrder = [
+  "Рабочие характеристики",
+  "Двигатель", 
+  "Ходовая часть",
+  "Шасси",
+  "Емкости",
+  "Габариты",
+  "Условия поставки",
+  "Гарантия",
+  "Дополнительная информация"
+]
+
 export default async function ModelPage({ params }: Props) {
   const supabase = await createClient()
 
-  const { data: category } = await supabase.from("catalog_categories").select("*").eq("slug", params.category).single()
+  const { data: category } = await supabase
+    .from("catalog_categories")
+    .select("*")
+    .eq("slug", params.category)
+    .single()
 
   if (!category) {
     notFound()
@@ -178,6 +256,15 @@ export default async function ModelPage({ params }: Props) {
   const groupedSpecifications = model.specifications 
     ? groupSpecificationsByCategory(model.specifications)
     : null
+
+  // Сортируем категории согласно порядку
+  const sortedCategories = groupedSpecifications 
+    ? Object.entries(groupedSpecifications).sort(([a], [b]) => {
+        const indexA = categoryOrder.indexOf(a)
+        const indexB = categoryOrder.indexOf(b)
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB)
+      })
+    : []
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -280,18 +367,18 @@ export default async function ModelPage({ params }: Props) {
         </div>
 
         {/* Full Specifications */}
-        {groupedSpecifications && (
+        {sortedCategories.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
             <div className="grid md:grid-cols-2 gap-8">
-              {Object.entries(groupedSpecifications).map(([category, specs]) => (
-                <div key={category} className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
-                  <div className="space-y-3">
+              {sortedCategories.map(([category, specs]) => (
+                <div key={category} className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{category}</h3>
+                  <div className="space-y-2">
                     {Object.entries(specs).map(([key, value]) => (
-                      <div key={key} className="flex justify-between py-2 border-b">
-                        <span className="text-gray-600">{key}</span>
-                        <span className="font-medium text-gray-900">
+                      <div key={key} className="flex justify-between py-1">
+                        <span className="text-gray-600 text-sm">{key}</span>
+                        <span className="font-medium text-gray-900 text-sm text-right">
                           {typeof value === 'number' ? value.toString() : String(value)}
                         </span>
                       </div>
