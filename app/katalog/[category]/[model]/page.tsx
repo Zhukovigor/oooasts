@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
-import Image from "next/image"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
 import Footer from "@/components/footer"
+import { ImageGallery } from "@/components/image-gallery"
 
 type Props = {
   params: { category: string; model: string }
@@ -62,55 +62,51 @@ function translateSpecKey(key: string): string {
     "pressure_high": "Давление (высокое)",
     "pump_cycles_low": "Циклы насоса (низкие)",
     "pump_cycles_high": "Циклы насоса (высокие)",
+    "pump_output_low": "Производительность насоса",
     "pump_output_high": "Производительность (высокая)",
     "cylinder_diameter": "Диаметр цилиндра",
 
-    // Экскаваторы
-    "bucket_capacity": "Объем ковша",
-    "operating_weight": "Рабочий вес",
-    "max_digging_depth": "Макс. глубина копания",
-    "max_digging_reach": "Макс. радиус копания",
-    "engine_manufacturer": "Производитель двигателя",
-    "rated_power": "Номинальная мощность",
-    "stick_length": "Длина рукояти",
-    "boom_length": "Длина стрелы",
-    "max_dumping_height": "Макс. высота разгрузки",
-    "max_digging_height": "Макс. высота копания",
-    "max_working_radius": "Макс. радиус работ",
-    "ground_pressure": "Удельное давление на грунт",
-
-    // Двигатель
-    "engine_origin": "Страна происхождения",
-    "engine_assembly": "Страна сборки",
-    "power": "Мощность",
-    "rpm": "Обороты",
-    "cylinders": "Количество цилиндров",
-    "engine_displacement": "Рабочий объем двигателя",
-
-    // Ходовая часть
-    "max_forward_speed": "Макс. скорость движения вперед",
-    "max_backward_speed": "Макс. скорость движения назад",
-    "min_turning_radius": "Мин. радиус поворота",
-    "track_base": "База гусеничного хода",
-
-    // Емкости
-    "engine_oil": "Масло двигателя",
-    "cooling_system": "Система охлаждения",
-    "hydraulic_system": "Гидравлическая система",
-
-    // Габариты
-    "transport_length": "Транспортная длина",
-    "transport_width": "Транспортная ширина",
-    "transport_height": "Транспортная высота",
-
-    // Бренд
-    "brand": "Бренд",
-    "manufacturer_country": "Страна производитель",
-    "assembly_country": "Страна сборки",
-
-    // Дополнительные
-    "pump_output_low": "Производительность насоса (низкая)",
-    "pump_output_high": "Производительность насоса (высокая)"
+    // Экскаваторы (русские ключи)
+    "Топливный бак": "Топливный бак",
+    "Масло двигателя": "Масло двигателя",
+    "Гидравлический бак": "Гидравлический бак",
+    "Система охлаждения": "Система охлаждения",
+    "Гидравлическая система": "Гидравлическая система",
+    "Транспортная длина": "Транспортная длина",
+    "Транспортная высота": "Транспортная высота",
+    "Транспортная ширина": "Транспортная ширина",
+    "Длина гусеничной ленты": "Длина гусеничной ленты",
+    "Ширина гусеничного хода": "Ширина гусеничного хода",
+    "Обороты": "Обороты",
+    "Мощность": "Мощность",
+    "Страна сборки": "Страна сборки",
+    "Модель двигателя": "Модель двигателя",
+    "Количество цилиндров": "Количество цилиндров",
+    "Страна происхождения": "Страна происхождения",
+    "Экологический стандарт": "Экологический стандарт",
+    "Рабочий объем двигателя": "Рабочий объем двигателя",
+    "Производитель двигателя": "Производитель двигателя",
+    "Ширина гусеницы": "Ширина гусеницы",
+    "Мин. радиус поворота": "Мин. радиус поворота",
+    "База гусеничного хода": "База гусеничного хода",
+    "Скорость движения назад": "Скорость движения назад",
+    "Скорость движения вперед": "Скорость движения вперед",
+    "Объем ковша": "Объем ковша",
+    "Рабочий вес": "Рабочий вес",
+    "Длина стрелы": "Длина стрелы",
+    "Длина рукояти": "Длина рукояти",
+    "Макс. радиус работ": "Макс. радиус работ",
+    "Макс. высота копания": "Макс. высота копания",
+    "Усилие копания ковша": "Усилие копания ковша",
+    "Макс. глубина копания": "Макс. глубина копания",
+    "Макс. высота разгрузки": "Макс. высота разгрузки",
+    "Усилие копания рукояти": "Усилие копания рукояти",
+    "Удельное давление на грунт": "Удельное давление на грунт",
+    "Бренд": "Бренд",
+    "Режимы работы": "Режимы работы",
+    "Экономия топлива": "Экономия топлива",
+    "Страна производитель": "Страна производитель",
+    "Гидравлическая система": "Гидравлическая система"
   }
 
   return translations[key] || key
@@ -130,6 +126,8 @@ function getCategory(key: string): string {
     "max_digging_height": "Рабочие характеристики",
     "max_working_radius": "Рабочие характеристики",
     "ground_pressure": "Рабочие характеристики",
+    "bucket_digging_force": "Рабочие характеристики",
+    "arm_digging_force": "Рабочие характеристики",
 
     // Рабочие характеристики (бетононасосы)
     "pressure": "Рабочие характеристики",
@@ -169,6 +167,9 @@ function getCategory(key: string): string {
     "min_turning_radius": "Ходовая часть",
     "track_base": "Ходовая часть",
     "chassis": "Ходовая часть",
+    "track_width": "Ходовая часть",
+    "forward_speed": "Ходовая часть",
+    "backward_speed": "Ходовая часть",
     
     // Емкости
     "fuel_tank": "Емкости",
@@ -185,6 +186,8 @@ function getCategory(key: string): string {
     "total_width": "Габариты",
     "total_height": "Габариты",
     "total_length": "Габариты",
+    "track_length": "Габариты",
+    "track_frame_width": "Габариты",
     
     // Условия поставки
     "delivery": "Условия поставки",
@@ -195,26 +198,98 @@ function getCategory(key: string): string {
     // Дополнительная информация
     "brand": "Дополнительная информация",
     "manufacturer_country": "Дополнительная информация",
-    "assembly_country": "Дополнительная информация"
+    "assembly_country": "Дополнительная информация",
+    "work_modes": "Дополнительная информация",
+    "fuel_saving": "Дополнительная информация",
+    "hydraulic_system_type": "Дополнительная информация"
   }
 
   return categoryMapping[key] || "Дополнительная информация"
+}
+
+// Функция для извлечения всех характеристик из вложенных объектов (для экскаваторов)
+function extractNestedSpecifications(specs: Record<string, any>): Record<string, any> {
+  const flattened: Record<string, any> = {}
+
+  function extractFromObject(obj: any, categoryPrefix: string = '') {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      Object.entries(obj).forEach(([key, value]) => {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          // Рекурсивно извлекаем из вложенных объектов
+          extractFromObject(value, categoryPrefix ? `${categoryPrefix}_${key}` : key)
+        } else {
+          // Сохраняем простые значения с префиксом категории
+          const fullKey = categoryPrefix ? `${categoryPrefix}_${key}` : key
+          flattened[fullKey] = value
+        }
+      })
+    }
+  }
+
+  // Обрабатываем корневой объект спецификаций
+  Object.entries(specs).forEach(([category, categoryData]) => {
+    if (categoryData && typeof categoryData === 'object') {
+      Object.entries(categoryData).forEach(([key, value]) => {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          // Если значение - объект, рекурсивно извлекаем
+          extractFromObject(value, `${category}_${key}`)
+        } else {
+          // Простое значение
+          flattened[`${category}_${key}`] = value
+        }
+      })
+    }
+  })
+
+  return flattened
 }
 
 // Функция для группировки характеристик по категориям
 function groupSpecificationsByCategory(specs: Record<string, any>) {
   const categories: Record<string, Record<string, any>> = {}
 
-  Object.entries(specs).forEach(([key, value]) => {
+  // Определяем формат данных
+  const isNestedFormat = Object.values(specs).some(value => 
+    value && typeof value === 'object' && !Array.isArray(value)
+  )
+
+  let flatSpecs: Record<string, any> = {}
+
+  if (isNestedFormat) {
+    // Экскаваторы - извлекаем из вложенной структуры
+    flatSpecs = extractNestedSpecifications(specs)
+  } else {
+    // Бетононасосы - уже плоский формат
+    flatSpecs = specs
+  }
+
+  // Группируем характеристики по категориям
+  Object.entries(flatSpecs).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== '') {
-      const translatedKey = translateSpecKey(key)
-      const category = getCategory(key)
+      // Определяем категорию и чистый ключ
+      let category = "Дополнительная информация"
+      let cleanKey = key
+
+      // Для экскаваторов: извлекаем категорию из префикса
+      if (isNestedFormat && key.includes('_')) {
+        const [categoryPrefix, ...rest] = key.split('_')
+        category = categoryPrefix
+        cleanKey = rest.join('_')
+      } else {
+        // Для бетононасосов: используем функцию getCategory
+        category = getCategory(key)
+      }
+
+      const translatedKey = translateSpecKey(cleanKey)
       
       if (!categories[category]) {
         categories[category] = {}
       }
       
-      categories[category][translatedKey] = value
+      // Не добавляем дубликаты
+      if (!categories[category][translatedKey]) {
+        categories[category][translatedKey] = value
+      }
     }
   })
 
@@ -284,36 +359,38 @@ export default async function ModelPage({ params }: Props) {
     const keySpecs = []
 
     // Для экскаваторов
-    if (specs.operating_weight) {
-      keySpecs.push({ label: "Рабочий вес", value: `${specs.operating_weight} кг` })
+    if (model.working_weight) {
+      keySpecs.push({ label: "Рабочий вес", value: `${model.working_weight} кг` })
     }
-    if (specs.bucket_capacity) {
-      keySpecs.push({ label: "Объем ковша", value: `${specs.bucket_capacity} м³` })
+    if (model.bucket_volume) {
+      keySpecs.push({ label: "Объем ковша", value: `${model.bucket_volume} м³` })
     }
-    if (specs.max_digging_depth) {
-      keySpecs.push({ label: "Макс. глубина копания", value: `${specs.max_digging_depth} м` })
+    if (model.max_digging_depth) {
+      keySpecs.push({ label: "Макс. глубина копания", value: `${model.max_digging_depth} м` })
     }
-    if (specs.max_digging_reach) {
-      keySpecs.push({ label: "Макс. радиус копания", value: `${specs.max_digging_reach} м` })
+    if (model.max_reach) {
+      keySpecs.push({ label: "Макс. радиус работ", value: `${model.max_reach} м` })
     }
 
     // Для бетононасосов
-    if (specs.pump_output) {
-      keySpecs.push({ label: "Производительность", value: `${specs.pump_output} м³/ч` })
+    if (specs.pump_output_low || specs.pump_output_high) {
+      const output = specs.pump_output_low || specs.pump_output_high
+      keySpecs.push({ label: "Производительность", value: `${output} м³/ч` })
     }
-    if (specs.pressure) {
-      keySpecs.push({ label: "Давление", value: `${specs.pressure} МПа` })
+    if (specs.pressure_low || specs.pressure_high) {
+      const pressure = specs.pressure_low || specs.pressure_high
+      keySpecs.push({ label: "Давление", value: `${pressure} МПа` })
     }
     if (specs.vertical_reach) {
       keySpecs.push({ label: "Вертикальная подача", value: `${specs.vertical_reach} м` })
     }
 
     // Общие
-    if (specs.engine_power) {
-      keySpecs.push({ label: "Мощность двигателя", value: `${specs.engine_power} кВт` })
+    if (model.engine_power) {
+      keySpecs.push({ label: "Мощность двигателя", value: `${model.engine_power} кВт` })
     }
-    if (specs.engine_manufacturer) {
-      keySpecs.push({ label: "Производитель двигателя", value: specs.engine_manufacturer })
+    if (model.engine_manufacturer) {
+      keySpecs.push({ label: "Производитель двигателя", value: model.engine_manufacturer })
     }
 
     return keySpecs
@@ -349,30 +426,11 @@ export default async function ModelPage({ params }: Props) {
         <div className="grid md:grid-cols-2 gap-12 mb-12">
           {/* Images */}
           <div>
-            <div className="relative h-96 bg-white rounded-lg shadow-sm mb-4">
-              {model.main_image && (
-                <Image
-                  src={model.main_image || "/placeholder.svg"}
-                  alt={model.name}
-                  fill
-                  className="object-contain p-8"
-                />
-              )}
-            </div>
-            {model.images && model.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
-                {model.images.map((img: string, idx: number) => (
-                  <div key={idx} className="relative h-20 bg-white rounded border hover:border-blue-600 cursor-pointer">
-                    <Image
-                      src={img || "/placeholder.svg"}
-                      alt={`${model.name} ${idx + 1}`}
-                      fill
-                      className="object-contain p-2"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            <ImageGallery
+              images={model.images || []}
+              mainImage={model.main_image}
+              name={model.name}
+            />
           </div>
 
           {/* Info */}
@@ -396,7 +454,9 @@ export default async function ModelPage({ params }: Props) {
 
             {/* Price & CTA */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="text-2xl font-bold text-gray-900 mb-4">Цена по запросу</div>
+              <div className="text-2xl font-bold text-gray-900 mb-4">
+                {model.price_on_request ? "Цена по запросу" : `${model.price?.toLocaleString('ru-RU')} ${model.currency}`}
+              </div>
               <OrderModal model={model} />
             </div>
           </div>
