@@ -147,10 +147,10 @@ export default function ModelPage({ category, model, params }: ModelPageProps) {
                 </svg>
               </button>
               <div
-                  className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                    openSections.specifications ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
-                  }`}
-                >
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                  openSections.specifications ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
                 <div className="px-8 py-6 border-t">
                   <div className="grid md:grid-cols-2 gap-8">
                     {Object.entries(model.specifications as Record<string, Record<string, string>>).map(([category, specs]) => (
