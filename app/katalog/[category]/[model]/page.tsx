@@ -30,39 +30,121 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-// Функция для преобразования спецификаций
-function transformSpecifications(specs: any) {
-  if (!specs) return null
-  
-  // Если это уже объект с категориями, возвращаем как есть
-  if (typeof specs === 'object' && !Array.isArray(specs)) {
-    // Проверяем первую категорию - если это объект, значит уже правильный формат
-    const firstKey = Object.keys(specs)[0]
-    if (firstKey && typeof specs[firstKey] === 'object') {
-      return specs
-    }
+// Функция для перевода ключей характеристик
+function translateSpecKey(key: string): string {
+  const translations: Record<string, string> = {
+    // Общие
+    "chassis": "Шасси",
+    "delivery": "Поставка",
+    "warranty": "Гарантия",
+    "fuel_tank": "Топливный бак",
+    "water_tank": "Водяной бак",
+    "engine_model": "Модель двигателя",
+    "engine_power": "Мощность двигателя",
+    "emission_standard": "Экологический стандарт",
     
-    // Если это плоский объект, группируем по категориям
-    return {
-      "Основные характеристики": specs
-    }
+    // Бетононасосы
+    "pressure": "Давление",
+    "depth_reach": "Глубина подачи",
+    "hose_length": "Длина шланга",
+    "pump_cycles": "Циклы насоса",
+    "total_width": "Общая ширина",
+    "total_height": "Общая высота",
+    "total_length": "Общая длина",
+    "pipe_diameter": "Диаметр трубы",
+    "stroke_length": "Длина хода",
+    "hydraulic_tank": "Гидравлический бак",
+    "vertical_reach": "Вертикальная подача",
+    "pump_output_low": "Производительность насоса",
+    "horizontal_reach": "Горизонтальная подача",
+    "boom_sections": "Секции стрелы",
+    "pressure_low": "Давление (низкое)",
+    "pressure_high": "Давление (высокое)",
+    "pump_cycles_low": "Циклы насоса (низкие)",
+    "pump_cycles_high": "Циклы насоса (высокие)",
+    "pump_output_high": "Производительность (высокая)",
+    "cylinder_diameter": "Диаметр цилиндра",
+
+    // Экскаваторы
+    "bucket_capacity": "Объем ковша",
+    "operating_weight": "Рабочий вес",
+    "max_digging_depth": "Макс. глубина копания",
+    "max_digging_reach": "Макс. радиус копания",
+    "engine_manufacturer": "Производитель двигателя",
+    "rated_power": "Номинальная мощность",
+
+    // Емкости
+    "Топливный бак": "Топливный бак",
+    "Масло двигателя": "Масло двигателя",
+    "Гидравлический бак": "Гидравлический бак",
+    "Система охлаждения": "Система охлаждения",
+    "Гидравлическая система": "Гидравлическая система"
   }
-  
-  return specs
+
+  return translations[key] || key
 }
 
-// Функция для определения типа техники
-function getEquipmentType(model: any, category: any) {
-  const name = model.name?.toLowerCase() || ''
-  const categoryName = category.name?.toLowerCase() || ''
-  
-  if (name.includes('бетононасос') || categoryName.includes('бетононасос')) {
-    return 'concrete_pump'
+// Функция для перевода категорий
+function translateCategory(category: string): string {
+  const categoryTranslations: Record<string, string> = {
+    "chassis": "Шасси",
+    "delivery": "Условия поставки",
+    "warranty": "Гарантия",
+    "fuel_tank": "Емкости",
+    "water_tank": "Емкости",
+    "engine_model": "Двигатель",
+    "engine_power": "Двигатель",
+    "emission_standard": "Двигатель",
+    "pressure": "Рабочие характеристики",
+    "depth_reach": "Рабочие характеристики",
+    "hose_length": "Рабочие характеристики",
+    "pump_cycles": "Рабочие характеристики",
+    "pipe_diameter": "Рабочие характеристики",
+    "stroke_length": "Рабочие характеристики",
+    "vertical_reach": "Рабочие характеристики",
+    "pump_output_low": "Рабочие характеристики",
+    "horizontal_reach": "Рабочие характеристики",
+    "boom_sections": "Рабочие характеристики",
+    "total_width": "Габариты",
+    "total_height": "Габариты",
+    "total_length": "Габариты"
   }
-  if (name.includes('экскаватор') || categoryName.includes('экскаватор')) {
-    return 'excavator'
+
+  return categoryTranslations[category] || category
+}
+
+// Функция для группировки характеристик по категориям
+function groupSpecificationsByCategory(specs: Record<string, any>) {
+  const categories: Record<string, Record<string, any>> = {
+    "Шасси": {},
+    "Двигатель": {},
+    "Емкости": {},
+    "Габариты": {},
+    "Рабочие характеристики": {},
+    "Условия поставки": {},
+    "Гарантия": {},
+    "Дополнительная информация": {}
   }
-  return 'other'
+
+  Object.entries(specs).forEach(([key, value]) => {
+    const translatedKey = translateSpecKey(key)
+    const category = translateCategory(key)
+    
+    if (categories[category]) {
+      categories[category][translatedKey] = value
+    } else {
+      categories["Дополнительная информация"][translatedKey] = value
+    }
+  })
+
+  // Удаляем пустые категории
+  Object.keys(categories).forEach(category => {
+    if (Object.keys(categories[category]).length === 0) {
+      delete categories[category]
+    }
+  })
+
+  return categories
 }
 
 export default async function ModelPage({ params }: Props) {
@@ -92,9 +174,10 @@ export default async function ModelPage({ params }: Props) {
     .update({ views_count: (model.views_count || 0) + 1 })
     .eq("id", model.id)
 
-  // Преобразуем спецификации
-  const specifications = transformSpecifications(model.specifications)
-  const equipmentType = getEquipmentType(model, category)
+  // Группируем и переводим спецификации
+  const groupedSpecifications = model.specifications 
+    ? groupSpecificationsByCategory(model.specifications)
+    : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -154,85 +237,56 @@ export default async function ModelPage({ params }: Props) {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{model.name}</h1>
 
-            {/* Key Specs - разные для разных типов техники */}
+            {/* Key Specs */}
             <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              {equipmentType === 'concrete_pump' ? (
-                // Спецификации для бетононасосов
-                <>
-                  {model.working_weight && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Рабочий вес</span>
-                      <span className="font-bold text-gray-900">{model.working_weight} кг</span>
-                    </div>
-                  )}
-                  {model.engine_manufacturer && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Производитель двигателя</span>
-                      <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
-                    </div>
-                  )}
-                  {model.engine_power && (
-                    <div className="flex justify-between py-3">
-                      <span className="text-gray-600">Мощность</span>
-                      <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                // Спецификации для экскаваторов и другой техники
-                <>
-                  {model.working_weight && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Рабочий вес</span>
-                      <span className="font-bold text-gray-900">{model.working_weight} кг</span>
-                    </div>
-                  )}
-                  {model.bucket_volume && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Объем ковша</span>
-                      <span className="font-bold text-gray-900">{model.bucket_volume} м³</span>
-                    </div>
-                  )}
-                  {model.max_digging_depth && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Макс. глубина копания</span>
-                      <span className="font-bold text-gray-900">{model.max_digging_depth} м</span>
-                    </div>
-                  )}
-                  {model.engine_manufacturer && (
-                    <div className="flex justify-between py-3 border-b">
-                      <span className="text-gray-600">Производитель двигателя</span>
-                      <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
-                    </div>
-                  )}
-                  {model.engine_power && (
-                    <div className="flex justify-between py-3">
-                      <span className="text-gray-600">Мощность</span>
-                      <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
-                    </div>
-                  )}
-                </>
+              {model.working_weight && (
+                <div className="flex justify-between py-3 border-b">
+                  <span className="text-gray-600">Рабочий вес</span>
+                  <span className="font-bold text-gray-900">{model.working_weight} кг</span>
+                </div>
+              )}
+              {model.bucket_volume && (
+                <div className="flex justify-between py-3 border-b">
+                  <span className="text-gray-600">Объем ковша</span>
+                  <span className="font-bold text-gray-900">{model.bucket_volume} м³</span>
+                </div>
+              )}
+              {model.max_digging_depth && (
+                <div className="flex justify-between py-3 border-b">
+                  <span className="text-gray-600">Макс. глубина копания</span>
+                  <span className="font-bold text-gray-900">{model.max_digging_depth} м</span>
+                </div>
+              )}
+              {model.engine_manufacturer && (
+                <div className="flex justify-between py-3 border-b">
+                  <span className="text-gray-600">Производитель двигателя</span>
+                  <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
+                </div>
+              )}
+              {model.engine_power && (
+                <div className="flex justify-between py-3">
+                  <span className="text-gray-600">Мощность</span>
+                  <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
+                </div>
               )}
             </div>
 
             {/* Price & CTA */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="text-2xl font-bold text-gray-900 mb-4">
-                {model.price_on_request ? 'Цена по запросу' : `₽${model.price?.toLocaleString()}`}
-              </div>
+              <div className="text-2xl font-bold text-gray-900 mb-4">Цена по запросу</div>
               <OrderModal model={model} />
             </div>
           </div>
         </div>
 
         {/* Full Specifications */}
-        {specifications && (
+        {groupedSpecifications && (
           <div className="bg-white rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
             <div className="grid md:grid-cols-2 gap-8">
-              {Object.entries(specifications as Record<string, Record<string, string>>).map(([specCategory, specs]) => (
-                <div key={specCategory} className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">{specCategory}</h3>
+              {Object.entries(groupedSpecifications).map(([category, specs]) => (
+                <div key={category} className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">{category}</h3>
                   <div className="space-y-3">
                     {Object.entries(specs).map(([key, value]) => (
                       <div key={key} className="flex justify-between py-2 border-b">
