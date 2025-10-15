@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server" // Fixed import name
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const supabase = await createClient() // Added await
+    const supabase = createAdminClient()
 
     // Insert order into database
     const { data: order, error: dbError } = await supabase

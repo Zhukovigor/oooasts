@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
+import Footer from "@/components/footer"
 
 export const metadata: Metadata = {
   title: "Каталог спецтехники | ООО АСТС",
@@ -78,6 +79,9 @@ export default async function KatalogPage() {
           ))}
         </div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { X } from "lucide-react"
+import { X, Check } from "lucide-react"
 import Image from "next/image"
 
 type OrderModalProps = {
@@ -17,6 +17,7 @@ type OrderModalProps = {
 export function OrderModal({ model }: OrderModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -27,6 +28,7 @@ export function OrderModal({ model }: OrderModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setIsSuccess(false)
 
     try {
       const response = await fetch("/api/catalog/order", {
@@ -40,8 +42,7 @@ export function OrderModal({ model }: OrderModalProps) {
       })
 
       if (response.ok) {
-        alert("Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.")
-        setIsOpen(false)
+        setIsSuccess(true)
         setFormData({ name: "", phone: "", email: "", comment: "" })
       } else {
         alert("Произошла ошибка. Пожалуйста, попробуйте позже.")
@@ -52,6 +53,11 @@ export function OrderModal({ model }: OrderModalProps) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleClose = () => {
+    setIsOpen(false)
+    setIsSuccess(false)
   }
 
   return (
@@ -69,7 +75,7 @@ export function OrderModal({ model }: OrderModalProps) {
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-2xl font-bold text-gray-900">Оформление заказа</h2>
-              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X size={24} />
               </button>
             </div>
@@ -163,6 +169,15 @@ export function OrderModal({ model }: OrderModalProps) {
               >
                 {isSubmitting ? "Отправка..." : "Оформить заказ"}
               </button>
+
+              {isSuccess && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                  <Check className="flex-shrink-0" size={20} />
+                  <p className="text-sm font-medium">
+                    Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.
+                  </p>
+                </div>
+              )}
             </form>
           </div>
         </div>

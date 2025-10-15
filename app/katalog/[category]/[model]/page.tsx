@@ -4,6 +4,8 @@ import Image from "next/image"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
+import Footer from "@/components/footer"
+import { translateSpecKey } from "@/lib/catalog-translations"
 
 type Props = {
   params: { category: string; model: string }
@@ -163,7 +165,7 @@ export default async function ModelPage({ params }: Props) {
             <div className="grid md:grid-cols-2 gap-x-12 gap-y-4">
               {Object.entries(model.specifications as Record<string, any>).map(([key, value]) => (
                 <div key={key} className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600 capitalize">{key.replace(/_/g, " ")}</span>
+                  <span className="text-gray-600">{translateSpecKey(key)}</span>
                   <span className="font-medium text-gray-900">{String(value)}</span>
                 </div>
               ))}
@@ -179,6 +181,9 @@ export default async function ModelPage({ params }: Props) {
           </div>
         )}
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }

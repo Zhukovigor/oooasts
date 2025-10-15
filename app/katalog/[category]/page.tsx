@@ -3,6 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import Footer from "@/components/footer"
 
 type Props = {
   params: { category: string }
@@ -196,6 +197,9 @@ export default async function CategoryPage({ params }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }
