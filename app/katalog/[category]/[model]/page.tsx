@@ -106,7 +106,11 @@ function translateSpecKey(key: string): string {
     // Бренд
     "brand": "Бренд",
     "manufacturer_country": "Страна производитель",
-    "assembly_country": "Страна сборки"
+    "assembly_country": "Страна сборки",
+
+    // Дополнительные
+    "pump_output_low": "Производительность насоса (низкая)",
+    "pump_output_high": "Производительность насоса (высокая)"
   }
 
   return translations[key] || key
@@ -115,23 +119,36 @@ function translateSpecKey(key: string): string {
 // Функция для определения категории
 function getCategory(key: string): string {
   const categoryMapping: Record<string, string> = {
-    // Шасси и ходовая часть
-    "chassis": "Шасси",
-    "total_width": "Шасси",
-    "total_height": "Шасси", 
-    "total_length": "Шасси",
-    "max_forward_speed": "Ходовая часть",
-    "max_backward_speed": "Ходовая часть",
-    "min_turning_radius": "Ходовая часть",
-    "track_base": "Ходовая часть",
-    
-    // Емкости
-    "fuel_tank": "Емкости",
-    "water_tank": "Емкости",
-    "hydraulic_tank": "Емкости",
-    "engine_oil": "Емкости",
-    "cooling_system": "Емкости",
-    "hydraulic_system": "Емкости",
+    // Рабочие характеристики (экскаваторы)
+    "operating_weight": "Рабочие характеристики",
+    "bucket_capacity": "Рабочие характеристики",
+    "max_digging_depth": "Рабочие характеристики",
+    "max_digging_reach": "Рабочие характеристики",
+    "stick_length": "Рабочие характеристики",
+    "boom_length": "Рабочие характеристики",
+    "max_dumping_height": "Рабочие характеристики",
+    "max_digging_height": "Рабочие характеристики",
+    "max_working_radius": "Рабочие характеристики",
+    "ground_pressure": "Рабочие характеристики",
+
+    // Рабочие характеристики (бетононасосы)
+    "pressure": "Рабочие характеристики",
+    "depth_reach": "Рабочие характеристики",
+    "hose_length": "Рабочие характеристики",
+    "pump_cycles": "Рабочие характеристики",
+    "pipe_diameter": "Рабочие характеристики",
+    "stroke_length": "Рабочие характеристики",
+    "vertical_reach": "Рабочие характеристики",
+    "pump_output": "Рабочие характеристики",
+    "pump_output_low": "Рабочие характеристики",
+    "pump_output_high": "Рабочие характеристики",
+    "horizontal_reach": "Рабочие характеристики",
+    "boom_sections": "Рабочие характеристики",
+    "pressure_low": "Рабочие характеристики",
+    "pressure_high": "Рабочие характеристики",
+    "pump_cycles_low": "Рабочие характеристики",
+    "pump_cycles_high": "Рабочие характеристики",
+    "cylinder_diameter": "Рабочие характеристики",
     
     // Двигатель
     "engine_model": "Двигатель",
@@ -146,32 +163,28 @@ function getCategory(key: string): string {
     "cylinders": "Двигатель",
     "engine_displacement": "Двигатель",
     
-    // Рабочие характеристики
-    "pressure": "Рабочие характеристики",
-    "depth_reach": "Рабочие характеристики",
-    "hose_length": "Рабочие характеристики",
-    "pump_cycles": "Рабочие характеристики",
-    "pipe_diameter": "Рабочие характеристики",
-    "stroke_length": "Рабочие характеристики",
-    "vertical_reach": "Рабочие характеристики",
-    "pump_output": "Рабочие характеристики",
-    "horizontal_reach": "Рабочие характеристики",
-    "boom_sections": "Рабочие характеристики",
-    "operating_weight": "Рабочие характеристики",
-    "bucket_capacity": "Рабочие характеристики",
-    "max_digging_depth": "Рабочие характеристики",
-    "max_digging_reach": "Рабочие характеристики",
-    "stick_length": "Рабочие характеристики",
-    "boom_length": "Рабочие характеристики",
-    "max_dumping_height": "Рабочие характеристики",
-    "max_digging_height": "Рабочие характеристики",
-    "max_working_radius": "Рабочие характеристики",
-    "ground_pressure": "Рабочие характеристики",
+    // Ходовая часть
+    "max_forward_speed": "Ходовая часть",
+    "max_backward_speed": "Ходовая часть",
+    "min_turning_radius": "Ходовая часть",
+    "track_base": "Ходовая часть",
+    "chassis": "Ходовая часть",
+    
+    // Емкости
+    "fuel_tank": "Емкости",
+    "water_tank": "Емкости",
+    "hydraulic_tank": "Емкости",
+    "engine_oil": "Емкости",
+    "cooling_system": "Емкости",
+    "hydraulic_system": "Емкости",
     
     // Габариты
     "transport_length": "Габариты",
     "transport_width": "Габариты",
     "transport_height": "Габариты",
+    "total_width": "Габариты",
+    "total_height": "Габариты",
+    "total_length": "Габариты",
     
     // Условия поставки
     "delivery": "Условия поставки",
@@ -213,7 +226,6 @@ const categoryOrder = [
   "Рабочие характеристики",
   "Двигатель", 
   "Ходовая часть",
-  "Шасси",
   "Емкости",
   "Габариты",
   "Условия поставки",
@@ -265,6 +277,49 @@ export default async function ModelPage({ params }: Props) {
         return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB)
       })
     : []
+
+  // Определяем основные характеристики для блока Key Specs
+  const getKeySpecs = () => {
+    const specs = model.specifications || {}
+    const keySpecs = []
+
+    // Для экскаваторов
+    if (specs.operating_weight) {
+      keySpecs.push({ label: "Рабочий вес", value: `${specs.operating_weight} кг` })
+    }
+    if (specs.bucket_capacity) {
+      keySpecs.push({ label: "Объем ковша", value: `${specs.bucket_capacity} м³` })
+    }
+    if (specs.max_digging_depth) {
+      keySpecs.push({ label: "Макс. глубина копания", value: `${specs.max_digging_depth} м` })
+    }
+    if (specs.max_digging_reach) {
+      keySpecs.push({ label: "Макс. радиус копания", value: `${specs.max_digging_reach} м` })
+    }
+
+    // Для бетононасосов
+    if (specs.pump_output) {
+      keySpecs.push({ label: "Производительность", value: `${specs.pump_output} м³/ч` })
+    }
+    if (specs.pressure) {
+      keySpecs.push({ label: "Давление", value: `${specs.pressure} МПа` })
+    }
+    if (specs.vertical_reach) {
+      keySpecs.push({ label: "Вертикальная подача", value: `${specs.vertical_reach} м` })
+    }
+
+    // Общие
+    if (specs.engine_power) {
+      keySpecs.push({ label: "Мощность двигателя", value: `${specs.engine_power} кВт` })
+    }
+    if (specs.engine_manufacturer) {
+      keySpecs.push({ label: "Производитель двигателя", value: specs.engine_manufacturer })
+    }
+
+    return keySpecs
+  }
+
+  const keySpecs = getKeySpecs()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -325,38 +380,19 @@ export default async function ModelPage({ params }: Props) {
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{model.name}</h1>
 
             {/* Key Specs */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              {model.working_weight && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Рабочий вес</span>
-                  <span className="font-bold text-gray-900">{model.working_weight} кг</span>
-                </div>
-              )}
-              {model.bucket_volume && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Объем ковша</span>
-                  <span className="font-bold text-gray-900">{model.bucket_volume} м³</span>
-                </div>
-              )}
-              {model.max_digging_depth && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Макс. глубина копания</span>
-                  <span className="font-bold text-gray-900">{model.max_digging_depth} м</span>
-                </div>
-              )}
-              {model.engine_manufacturer && (
-                <div className="flex justify-between py-3 border-b">
-                  <span className="text-gray-600">Производитель двигателя</span>
-                  <span className="font-bold text-gray-900">{model.engine_manufacturer}</span>
-                </div>
-              )}
-              {model.engine_power && (
-                <div className="flex justify-between py-3">
-                  <span className="text-gray-600">Мощность</span>
-                  <span className="font-bold text-gray-900">{model.engine_power} кВт</span>
-                </div>
-              )}
-            </div>
+            {keySpecs.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                {keySpecs.map((spec, index) => (
+                  <div 
+                    key={spec.label} 
+                    className={`flex justify-between py-3 ${index < keySpecs.length - 1 ? 'border-b' : ''}`}
+                  >
+                    <span className="text-gray-600">{spec.label}</span>
+                    <span className="font-bold text-gray-900">{spec.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Price & CTA */}
             <div className="bg-white rounded-lg shadow-sm p-6">
