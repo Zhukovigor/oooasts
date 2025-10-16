@@ -83,6 +83,17 @@ export default function Footer() {
                 </svg>
               </a>
               <a
+                href="https://vkvideo.ru/@oooasts"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-12 h-12 bg-[#07F] hover:bg-[#0066DD] text-white rounded-full flex items-center justify-center transition-colors duration-300"
+                aria-label="ВК Видео"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                </svg>
+              </a>
+              <a
                 href="https://dzen.ru/oooasts"
                 target="_blank"
                 rel="noopener noreferrer"
