@@ -285,6 +285,20 @@ export default function Footer() {
             </a>
           </div>
         </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          viewport={{ once: true }}
+          className="mt-8 pt-6 border-t border-gray-200"
+        >
+          <p className="text-sm text-gray-500 text-center leading-relaxed max-w-4xl mx-auto">
+            Информация, размещенная на сайте, носит информационный характер и не является публичной офертой согласно
+            статье 437 ГК РФ. ООО «АСТС» оставляет за собой право в одностороннем порядке и без уведомления вносить
+            изменения, удалять, исправлять, дополнять, либо иным способом обновлять информацию на сайте.
+          </p>
+        </motion.div>
       </div>
     </footer>
   )
