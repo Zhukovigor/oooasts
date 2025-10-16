@@ -11,7 +11,7 @@ import "./globals.css"
 const CANONICAL_URL = "https://oooasts.ru"
 
 export const metadata: Metadata = {
-  title: "Купить экскаватор Komatsu PC200, PC300, PC400 | ООО АСТС - поставка из Китая",
+  title: "Поставщик строительной спецтехники | ООО АСТС - Поставка грузов из Китая в Россию",
   description:
     "Купить экскаватор Komatsu PC200, PC300, PC400 из Китая ⭐ Новые и б/у экскаваторы ⭐ Полное документальное сопровождение ⭐ Выгодные цены ⭐ Доставка по РФ",
   metadataBase: new URL(CANONICAL_URL),

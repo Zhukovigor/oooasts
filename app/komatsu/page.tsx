@@ -28,7 +28,7 @@ export default function KomatsuCatalogPage() {
   const models = [
     {
       name: "Komatsu PC200",
-      description: "Универсальный экскаватор среднего класса",
+      description: "Универсальный экскаватор среднего класс��",
       weight: "19.9 - 21.1 т",
       power: "110 кВт (148 л.с.)",
       bucket: "0.8 - 1.0 м³",
