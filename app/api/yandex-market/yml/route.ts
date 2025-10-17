@@ -146,6 +146,52 @@ function generateSpecs(category: string, brand: string, model: string, index: nu
   return baseSpecs
 }
 
+// Функция для создания пустого, но валидного YML при ошибках
+function createEmptyYml(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
+  
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="${new Date().toISOString()}">
+<transport>
+<name>ООО АСТС - Поставщик спецтехники из Китая</name>
+<company>ООО АСТС</company>
+<url>${baseUrl}</url>
+<phone>+7 (919) 042-24-92</phone>
+<categories>
+<category id="1">Спецтехника</category>
+<category id="2" parentId="1">Экскаваторы</category>
+<category id="3" parentId="1">Автобетононасосы</category>
+<category id="4" parentId="1">Бульдозеры</category>
+<category id="5" parentId="1">Автокраны</category>
+<category id="6" parentId="1">Погрузчики</category>
+<category id="7" parentId="1">Автогрейдеры</category>
+<category id="8" parentId="1">Дорожные катки</category>
+<category id="9" parentId="1">Трубоукладчики</category>
+<category id="10" parentId="1">Компакторы</category>
+<category id="11" parentId="1">Автобетоносмесители</category>
+<category id="12">Грузовая техника</category>
+<category id="13" parentId="12">Седельные тягачи</category>
+<category id="14" parentId="12">Самосвалы</category>
+<category id="15" parentId="12">Эвакуаторы</category>
+<category id="16" parentId="12">Лесовозы</category>
+<category id="17" parentId="12">Тралы</category>
+<category id="18" parentId="12">Полуприцепы</category>
+<category id="19" parentId="12">Автовышки</category>
+<category id="20" parentId="12">Рефрижераторы</category>
+<category id="21" parentId="12">Краны-манипуляторы</category>
+<category id="22" parentId="12">Автовозы</category>
+<category id="23" parentId="12">Фургоны</category>
+</categories>
+<currencies>
+<currency id="RUR" rate="1"/>
+</currencies>
+<offers>
+<!-- Временно нет доступных предложений -->
+</offers>
+</transport>
+</yml_catalog>`
+}
+
 export async function GET() {
   try {
     const supabase = createAdminClient()
@@ -157,7 +203,18 @@ export async function GET() {
       .select("slug, name")
       .eq("type", "equipment")
 
-    if (categoriesError) throw new Error(`Categories error: ${categoriesError.message}`)
+    if (categoriesError) {
+      console.error("Categories error:", categoriesError)
+      // Возвращаем пустой, но валидный YML
+      const emptyYml = createEmptyYml()
+      return new Response(emptyYml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      })
+    }
 
     // Собираем всю технику из всех категорий
     let allEquipment: any[] = []
@@ -187,6 +244,18 @@ export async function GET() {
     }
 
     console.log(`Found ${allEquipment.length} equipment items`)
+
+    // Если нет оборудования, возвращаем пустой валидный YML
+    if (allEquipment.length === 0) {
+      const emptyYml = createEmptyYml()
+      return new Response(emptyYml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      })
+    }
 
     // Формируем YML для транспортных средств
     let ymlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`
@@ -333,10 +402,13 @@ export async function GET() {
 
   } catch (error) {
     console.error("YML generation error:", error)
-    return new Response(`<?xml version="1.0"?><error>YML generation failed: ${error}</error>`, {
-      status: 500,
+    // При любой ошибке возвращаем пустой, но валидный YML
+    const emptyYml = createEmptyYml()
+    return new Response(emptyYml, {
+      status: 200,
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },
     })
   }
