@@ -150,43 +150,42 @@ function generateSpecs(category: string, brand: string, model: string, index: nu
 function createEmptyYml(): string {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
   
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="windows-1251"?>
 <yml_catalog date="${new Date().toISOString()}">
 <shop>
-<name>ООО АСТС - Поставщик спецтехники из Китая</name>
-<company>ООО АСТС</company>
+<name>ASTS - SpecTech from China</name>
+<company>ASTS LLC</company>
 <url>${baseUrl}</url>
-<phone>+7 (919) 042-24-92</phone>
+<phone>+79190422492</phone>
 <categories>
-<category id="1">Спецтехника</category>
-<category id="2" parentId="1">Экскаваторы</category>
-<category id="3" parentId="1">Автобетононасосы</category>
-<category id="4" parentId="1">Бульдозеры</category>
-<category id="5" parentId="1">Автокраны</category>
-<category id="6" parentId="1">Погрузчики</category>
-<category id="7" parentId="1">Автогрейдеры</category>
-<category id="8" parentId="1">Дорожные катки</category>
-<category id="9" parentId="1">Трубоукладчики</category>
-<category id="10" parentId="1">Компакторы</category>
-<category id="11" parentId="1">Автобетоносмесители</category>
-<category id="12">Грузовая техника</category>
-<category id="13" parentId="12">Седельные тягачи</category>
-<category id="14" parentId="12">Самосвалы</category>
-<category id="15" parentId="12">Эвакуаторы</category>
-<category id="16" parentId="12">Лесовозы</category>
-<category id="17" parentId="12">Тралы</category>
-<category id="18" parentId="12">Полуприцепы</category>
-<category id="19" parentId="12">Автовышки</category>
-<category id="20" parentId="12">Рефрижераторы</category>
-<category id="21" parentId="12">Краны-манипуляторы</category>
-<category id="22" parentId="12">Автовозы</category>
-<category id="23" parentId="12">Фургоны</category>
+<category id="1">Special Equipment</category>
+<category id="2" parentId="1">Excavators</category>
+<category id="3" parentId="1">Concrete Pumps</category>
+<category id="4" parentId="1">Bulldozers</category>
+<category id="5" parentId="1">Cranes</category>
+<category id="6" parentId="1">Loaders</category>
+<category id="7" parentId="1">Graders</category>
+<category id="8" parentId="1">Road Rollers</category>
+<category id="9" parentId="1">Pipe Layers</category>
+<category id="10" parentId="1">Compactors</category>
+<category id="11" parentId="1">Concrete Mixers</category>
+<category id="12">Trucks</category>
+<category id="13" parentId="12">Trucks</category>
+<category id="14" parentId="12">Dump Trucks</category>
+<category id="15" parentId="12">Tow Trucks</category>
+<category id="16" parentId="12">Timber Trucks</category>
+<category id="17" parentId="12">Trailers</category>
+<category id="18" parentId="12">Semi Trailers</category>
+<category id="19" parentId="12">Aerial Platforms</category>
+<category id="20" parentId="12">Refrigerators</category>
+<category id="21" parentId="12">Manipulators</category>
+<category id="22" parentId="12">Car Carriers</category>
+<category id="23" parentId="12">Vans</category>
 </categories>
 <currencies>
 <currency id="RUR" rate="1"/>
 </currencies>
 <offers>
-<!-- Временно нет доступных предложений -->
 </offers>
 </shop>
 </yml_catalog>`
@@ -205,12 +204,11 @@ export async function GET() {
 
     if (categoriesError) {
       console.error("Categories error:", categoriesError)
-      // Возвращаем пустой, но валидный YML
       const emptyYml = createEmptyYml()
       return new Response(emptyYml, {
         status: 200,
         headers: {
-          'Content-Type': 'application/xml; charset=utf-8',
+          'Content-Type': 'application/xml; charset=windows-1251',
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
         },
       })
@@ -233,7 +231,6 @@ export async function GET() {
       }
 
       if (equipment) {
-        // Добавляем информацию о категории к каждому оборудованию
         const equipmentWithCategory = equipment.map(item => ({
           ...item,
           category_slug: category.slug,
@@ -245,52 +242,51 @@ export async function GET() {
 
     console.log(`Found ${allEquipment.length} equipment items`)
 
-    // Если нет оборудования, возвращаем пустой валидный YML
     if (allEquipment.length === 0) {
       const emptyYml = createEmptyYml()
       return new Response(emptyYml, {
         status: 200,
         headers: {
-          'Content-Type': 'application/xml; charset=utf-8',
+          'Content-Type': 'application/xml; charset=windows-1251',
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
         },
       })
     }
 
-    // Формируем YML для транспортных средств - используем стандартную структуру shop
-    let ymlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`
+    // Формируем YML с правильной кодировкой
+    let ymlContent = `<?xml version="1.0" encoding="windows-1251"?>\n`
     ymlContent += `<yml_catalog date="${new Date().toISOString()}">\n`
     ymlContent += `<shop>\n`
-    ymlContent += `<name>ООО АСТС - Поставщик спецтехники из Китая</name>\n`
-    ymlContent += `<company>ООО АСТС</company>\n`
+    ymlContent += `<name>ASTS - SpecTech from China</name>\n`
+    ymlContent += `<company>ASTS LLC</company>\n`
     ymlContent += `<url>${baseUrl}</url>\n`
-    ymlContent += `<phone>+7 (919) 042-24-92</phone>\n`
+    ymlContent += `<phone>+79190422492</phone>\n`
     
-    // Категории для транспортных средств
+    // Категории на английском для избежания проблем с кодировкой
     ymlContent += `<categories>\n`
-    ymlContent += `<category id="1">Спецтехника</category>\n`
-    ymlContent += `<category id="2" parentId="1">Экскаваторы</category>\n`
-    ymlContent += `<category id="3" parentId="1">Автобетононасосы</category>\n`
-    ymlContent += `<category id="4" parentId="1">Бульдозеры</category>\n`
-    ymlContent += `<category id="5" parentId="1">Автокраны</category>\n`
-    ymlContent += `<category id="6" parentId="1">Погрузчики</category>\n`
-    ymlContent += `<category id="7" parentId="1">Автогрейдеры</category>\n`
-    ymlContent += `<category id="8" parentId="1">Дорожные катки</category>\n`
-    ymlContent += `<category id="9" parentId="1">Трубоукладчики</category>\n`
-    ymlContent += `<category id="10" parentId="1">Компакторы</category>\n`
-    ymlContent += `<category id="11" parentId="1">Автобетоносмесители</category>\n`
-    ymlContent += `<category id="12">Грузовая техника</category>\n`
-    ymlContent += `<category id="13" parentId="12">Седельные тягачи</category>\n`
-    ymlContent += `<category id="14" parentId="12">Самосвалы</category>\n`
-    ymlContent += `<category id="15" parentId="12">Эвакуаторы</category>\n`
-    ymlContent += `<category id="16" parentId="12">Лесовозы</category>\n`
-    ymlContent += `<category id="17" parentId="12">Тралы</category>\n`
-    ymlContent += `<category id="18" parentId="12">Полуприцепы</category>\n`
-    ymlContent += `<category id="19" parentId="12">Автовышки</category>\n`
-    ymlContent += `<category id="20" parentId="12">Рефрижераторы</category>\n`
-    ymlContent += `<category id="21" parentId="12">Краны-манипуляторы</category>\n`
-    ymlContent += `<category id="22" parentId="12">Автовозы</category>\n`
-    ymlContent += `<category id="23" parentId="12">Фургоны</category>\n`
+    ymlContent += `<category id="1">Special Equipment</category>\n`
+    ymlContent += `<category id="2" parentId="1">Excavators</category>\n`
+    ymlContent += `<category id="3" parentId="1">Concrete Pumps</category>\n`
+    ymlContent += `<category id="4" parentId="1">Bulldozers</category>\n`
+    ymlContent += `<category id="5" parentId="1">Cranes</category>\n`
+    ymlContent += `<category id="6" parentId="1">Loaders</category>\n`
+    ymlContent += `<category id="7" parentId="1">Graders</category>\n`
+    ymlContent += `<category id="8" parentId="1">Road Rollers</category>\n`
+    ymlContent += `<category id="9" parentId="1">Pipe Layers</category>\n`
+    ymlContent += `<category id="10" parentId="1">Compactors</category>\n`
+    ymlContent += `<category id="11" parentId="1">Concrete Mixers</category>\n`
+    ymlContent += `<category id="12">Trucks</category>\n`
+    ymlContent += `<category id="13" parentId="12">Trucks</category>\n`
+    ymlContent += `<category id="14" parentId="12">Dump Trucks</category>\n`
+    ymlContent += `<category id="15" parentId="12">Tow Trucks</category>\n`
+    ymlContent += `<category id="16" parentId="12">Timber Trucks</category>\n`
+    ymlContent += `<category id="17" parentId="12">Trailers</category>\n`
+    ymlContent += `<category id="18" parentId="12">Semi Trailers</category>\n`
+    ymlContent += `<category id="19" parentId="12">Aerial Platforms</category>\n`
+    ymlContent += `<category id="20" parentId="12">Refrigerators</category>\n`
+    ymlContent += `<category id="21" parentId="12">Manipulators</category>\n`
+    ymlContent += `<category id="22" parentId="12">Car Carriers</category>\n`
+    ymlContent += `<category id="23" parentId="12">Vans</category>\n`
     ymlContent += `</categories>\n`
     
     // Курсы валют
@@ -302,22 +298,19 @@ export async function GET() {
     ymlContent += `<offers>\n`
     
     allEquipment.forEach((equipment, index) => {
-      const categoryMapping = CATEGORY_MAPPING[equipment.category_slug] || { id: '1', name: 'Спецтехника' }
+      const categoryMapping = CATEGORY_MAPPING[equipment.category_slug] || { id: '1', name: 'Special Equipment' }
       const categoryId = categoryMapping.id
       const type = categoryMapping.name
       
-      // Получаем бренд и модель
       const availableBrands = BRANDS_BY_CATEGORY[equipment.category_slug] || ['Komatsu']
       const brand = availableBrands[index % availableBrands.length]
       const availableModels = MODELS[brand] || ['Standard']
       const model = availableModels[index % availableModels.length]
       
-      // Генерируем цену и характеристики
       const basePrice = getBasePrice(equipment.category_slug)
       const price = equipment.price ? equipment.price.toString() : (basePrice + (index % 10) * (basePrice * 0.1)).toFixed(0)
       const specs = generateSpecs(equipment.category_slug, brand, model, index)
       
-      // Формируем URL
       const equipmentUrl = `${baseUrl}/katalog/${equipment.category_slug}/${equipment.slug}`
       
       ymlContent += `<offer id="${equipment.id}">\n`
@@ -326,49 +319,45 @@ export async function GET() {
       ymlContent += `<currencyId>RUR</currencyId>\n`
       ymlContent += `<categoryId>${categoryId}</categoryId>\n`
       
-      // Изображение
       const imageUrl = equipment.images && equipment.images.length > 0 
         ? equipment.images[0] 
         : `${baseUrl}/images/tech-${categoryId}.jpg`
       ymlContent += `<picture>${escapeYml(imageUrl)}</picture>\n`
       
-      // Обязательные поля для транспортных средств
-      ymlContent += `<name>${escapeYml(equipment.title || `${brand} ${model} - ${type}`)}</name>\n`
+      // Название на английском для избежания проблем
+      const name = equipment.title || `${brand} ${model} - ${type}`
+      ymlContent += `<name>${escapeYml(name)}</name>\n`
       ymlContent += `<vendor>${escapeYml(brand)}</vendor>\n`
       ymlContent += `<vendorCode>ASTS-${equipment.id}</vendorCode>\n`
       
       const description = equipment.description 
         ? equipment.description.substring(0, 500)
-        : `Продажа ${type.toLowerCase()} ${brand} ${model}. Прямые поставки из Китая. Гарантия качества.`
+        : `Sale of ${type.toLowerCase()} ${brand} ${model}. Direct supplies from China. Quality guarantee.`
       ymlContent += `<description>${escapeYml(description)}</description>\n`
       
-      // Дополнительные параметры для транспортных средств
+      // Параметры для транспортных средств
       ymlContent += `<param name="vehicleType">${escapeYml(type)}</param>\n`
       ymlContent += `<param name="mark">${escapeYml(brand)}</param>\n`
       ymlContent += `<param name="model">${escapeYml(model)}</param>\n`
       ymlContent += `<param name="year">${specs.year}</param>\n`
       ymlContent += `<param name="condition">${specs.condition === "Новое" ? "new" : "used"}</param>\n`
       
-      // Дополнительные параметры для фильтрации
-      ymlContent += `<param name="Вид техники">${escapeYml(type)}</param>\n`
-      ymlContent += `<param name="Производитель">${escapeYml(brand)}</param>\n`
-      ymlContent += `<param name="Страна производства">${specs.country}</param>\n`
-      ymlContent += `<param name="Гарантия">${specs.warranty}</param>\n`
+      // Дополнительные параметры
+      ymlContent += `<param name="Type">${escapeYml(type)}</param>\n`
+      ymlContent += `<param name="Brand">${escapeYml(brand)}</param>\n`
+      ymlContent += `<param name="Country">${specs.country}</param>\n`
+      ymlContent += `<param name="Warranty">${specs.warranty}</param>\n`
       
       // Технические параметры
-      if (specs.weight) ymlContent += `<param name="Вес" unit="кг">${specs.weight}</param>\n`
-      if (specs.power) ymlContent += `<param name="Мощность" unit="л.с.">${specs.power}</param>\n`
-      if (specs.capacity) ymlContent += `<param name="Грузоподъемность" unit="т">${specs.capacity}</param>\n`
-      if (specs.hours) ymlContent += `<param name="Моточасы">${specs.hours}</param>\n`
-      if (specs.height) ymlContent += `<param name="Высота подачи" unit="м">${specs.height}</param>\n`
-      if (specs.volume) ymlContent += `<param name="Объем" unit="м³">${specs.volume}</param>\n`
+      if (specs.weight) ymlContent += `<param name="Weight" unit="kg">${specs.weight}</param>\n`
+      if (specs.power) ymlContent += `<param name="Power" unit="hp">${specs.power}</param>\n`
+      if (specs.capacity) ymlContent += `<param name="Capacity" unit="t">${specs.capacity}</param>\n`
+      if (specs.hours) ymlContent += `<param name="Hours">${specs.hours}</param>\n`
+      if (specs.height) ymlContent += `<param name="Height" unit="m">${specs.height}</param>\n`
+      if (specs.volume) ymlContent += `<param name="Volume" unit="m3">${specs.volume}</param>\n`
       
-      // Параметры двигателя для транспортных средств
-      ymlContent += `<param name="enginePower" unit="hp">${specs.power}</param>\n`
-      ymlContent += `<param name="mileage" unit="km">${(parseInt(specs.hours) * 2).toString()}</param>\n`
-      
-      // Условия продажи
-      ymlContent += `<sales_notes>Спецтехника в наличии и под заказ! Поставка спецтехники из Китая • Доставка по России • Контроль качества • Поставка в короткие сроки • Лизинг от 5% • Отличные цены</sales_notes>\n`
+      // Условия продажи на английском
+      ymlContent += `<sales_notes>Special equipment in stock and on order! Supply of special equipment from China • Delivery across Russia • Quality control • Supply in short time • Leasing from 5% • Great prices</sales_notes>\n`
       
       // Доставка
       ymlContent += `<delivery>true</delivery>\n`
@@ -390,7 +379,7 @@ export async function GET() {
     return new Response(ymlContent, {
       status: 200,
       headers: {
-        'Content-Type': 'application/xml; charset=utf-8',
+        'Content-Type': 'application/xml; charset=windows-1251',
         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
         'X-Content-Type-Options': 'nosniff',
       },
@@ -398,12 +387,11 @@ export async function GET() {
 
   } catch (error) {
     console.error("YML generation error:", error)
-    // При любой ошибке возвращаем пустой, но валидный YML
     const emptyYml = createEmptyYml()
     return new Response(emptyYml, {
       status: 200,
       headers: {
-        'Content-Type': 'application/xml; charset=utf-8',
+        'Content-Type': 'application/xml; charset=windows-1251',
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },
     })
