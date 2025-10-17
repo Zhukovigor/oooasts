@@ -22,8 +22,8 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: "/logo.jpg",
-    apple: "/logo.jpg",
+    icon: "/images/logo.png",
+    apple: "/images/logo.png",
   },
   keywords: [
     // Экскаваторы - базовые запросы
@@ -239,16 +239,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: `${CANONICAL_URL}/logo.jpg`,
+        url: `${CANONICAL_URL}/og-image.jpg`,
         width: 1200,
         height: 630,
         alt: "ООО АСТС - Поставка спецтехники из Китая",
-      },
-      {
-        url: `${CANONICAL_URL}/images/komatsu-pc400.jpg`,
-        width: 1200,
-        height: 630,
-        alt: "Экскаватор Komatsu PC400",
       },
     ],
   },
@@ -256,7 +250,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Купить экскаватор Komatsu PC200, PC300, PC400 | ООО АСТС",
     description: "Поставка новых и б/у экскаваторов Komatsu из Китая",
-    images: [`${CANONICAL_URL}/logo.jpg`],
+    images: [`${CANONICAL_URL}/og-image.jpg`],
   },
   robots: {
     index: true,
@@ -351,8 +345,8 @@ export default function RootLayout({
               "@type": "Organization",
               name: "ООО АСТС",
               url: CANONICAL_URL,
-              logo: `${CANONICAL_URL}/logo.jpg`,
-              image: `${CANONICAL_URL}/logo.jpg`,
+              logo: `${CANONICAL_URL}/images/logo.png`,
+              image: `${CANONICAL_URL}/images/logo.png`,
               description:
                 "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion.",
               address: {
@@ -379,7 +373,7 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "LocalBusiness",
               name: "ООО АСТС",
-              image: `${CANONICAL_URL}/logo.jpg`,
+              image: `${CANONICAL_URL}/images/logo.png`,
               description: "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов из Китая",
               address: {
                 "@type": "PostalAddress",
@@ -408,7 +402,7 @@ export default function RootLayout({
                 name: "ООО АСТС",
                 logo: {
                   "@type": "ImageObject",
-                  url: `${CANONICAL_URL}/logo.jpg`,
+                  url: `${CANONICAL_URL}/images/logo.png`,
                 },
               },
             }),

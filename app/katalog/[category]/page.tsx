@@ -10,10 +10,10 @@ type Props = {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase = await createClient() // Added await
+  const supabase = await createClient()
   const { data: category } = await supabase
     .from("catalog_categories")
-    .select("name, description")
+    .select("name, description, image_url")
     .eq("slug", params.category)
     .single()
 
@@ -23,9 +23,34 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
+  const categoryUrl = `https://oooasts.ru/katalog/${params.category}`
+  const ogImage = category.image_url || "https://oooasts.ru/og-image.jpg"
+
   return {
     title: `${category.name} | Каталог | ООО АСТС`,
     description: category.description || `Каталог ${category.name.toLowerCase()}`,
+    openGraph: {
+      title: `${category.name} | Каталог | ООО АСТС`,
+      description: category.description || `Каталог ${category.name.toLowerCase()}`,
+      url: categoryUrl,
+      siteName: "ООО АСТС",
+      locale: "ru_RU",
+      type: "website",
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: category.name,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${category.name} | Каталог | ООО АСТС`,
+      description: category.description || `Каталог ${category.name.toLowerCase()}`,
+      images: [ogImage],
+    },
   }
 }
 

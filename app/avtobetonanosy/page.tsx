@@ -34,7 +34,24 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Автобетононасосы SANY и Zoomlion | ООО АСТС",
     description: "Поставка автобетононасосов из Китая. Модели от 31 до 62 метров.",
+    url: "https://oooasts.ru/avtobetonanosy",
+    siteName: "ООО АСТС",
+    locale: "ru_RU",
     type: "website",
+    images: [
+      {
+        url: "https://oooasts.ru/images/sany-concrete-pump.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Автобетононасосы SANY и Zoomlion",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Автобетононасосы SANY и Zoomlion | ООО АСТС",
+    description: "Поставка автобетононасосов из Китая. Модели от 31 до 62 метров.",
+    images: ["https://oooasts.ru/images/sany-concrete-pump.jpg"],
   },
 }
 
