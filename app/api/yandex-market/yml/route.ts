@@ -13,193 +13,180 @@ function escapeYml(unsafe: string): string {
     .replace(/'/g, "&apos;")
 }
 
-// Полный список брендов для всех категорий спецтехники
-const BRANDS = {
-  // Экскаваторы
-  excavator: [
-    'Komatsu', 'Caterpillar', 'Hitachi', 'Volvo', 'Liebherr', 'Hyundai', 'Doosan', 
-    'Kobelco', 'Case', 'JCB', 'SANY', 'XCMG', 'Zoomlion', 'LiuGong', 'Lonking',
-    'Shantui', 'SDLG', 'Sunward', 'Takeuchi', 'Yanmar', 'Kubota', 'Bobcat',
-    'New Holland', 'Terex', 'O&K', 'Demag', 'Bomag', 'Atlas', 'Mecalac'
-  ],
-  
-  // Автобетононасосы
-  concrete_pump: [
-    'SANY', 'Zoomlion', 'Schwing', 'Putzmeister', 'CIFA', 'Mecbo', 'Concord',
-    'Junjin', 'Kyokuto', 'Morgen', 'Reed', 'Allentown', 'Mayco', 'Dynamic',
-    'Ajax', 'Muller', 'Stetter', 'Elba', 'Hess', 'Haomei'
-  ],
-  
-  // Бульдозеры
-  bulldozer: [
-    'Komatsu', 'Caterpillar', 'Shantui', 'LiuGong', 'XGMA', 'SEM', 'YTO',
-    'Changlin', 'Lovol', 'Shandong', 'Bharat', 'BEML', 'Chetra', 'ChTZ',
-    'Fiatallis', 'Hanomag', 'International', 'John Deere'
-  ],
-  
-  // Автокраны
-  crane: [
-    'XCMG', 'SANY', 'Liebherr', 'Tadano', 'Grove', 'Manitowoc', 'Kato',
-    'Kobelco', 'Link-Belt', 'P&H', 'Demag', 'IHI', 'Favelle', 'Raimondi',
-    'Zoomlion', 'Fushun', 'Dalian', 'Samsung', 'Hyundai'
-  ],
-  
-  // Погрузчики
-  loader: [
-    'Volvo', 'Caterpillar', 'Komatsu', 'LiuGong', 'XCMG', 'Lonking', 'SDLG',
-    'Shantui', 'Doosan', 'Hyundai', 'JCB', 'Case', 'New Holland', 'John Deere',
-    'Kawasaki', 'Hitachi', 'Terex', 'O&K', 'LeTourneau', 'Clark'
-  ],
-  
-  // Автогрейдеры
-  grader: [
-    'Caterpillar', 'Komatsu', 'Volvo', 'John Deere', 'Champion', 'Dresser',
-    'Galion', 'Austin-Western', 'Buffalo', 'BEML', 'LiuGong', 'XCMG',
-    'Shantui', 'SEM', 'Terex', 'Changan', 'Lovol'
-  ],
-  
-  // Катки дорожные
-  roller: [
-    'Bomag', 'Hamm', 'Dynapac', 'Volvo', 'Caterpillar', 'SANY', 'XCMG',
-    'Zoomlion', 'Ammann', 'Sakai', 'Ingersoll Rand', 'Wacker Neuson',
-    'Weichai', 'LiuGong', 'Lonking', 'Vibromax', 'Case'
-  ],
-  
-  // Трубоукладчики
-  pipelayer: [
-    'Caterpillar', 'Komatsu', 'Liebherr', 'John Deere', 'Case', 'Hitachi',
-    'Kobelco', 'XCMG', 'SANY', 'Zoomlion', 'LiuGong', 'Shantui'
-  ],
-  
-  // Компакторы
-  compactor: [
-    'Caterpillar', 'Bomag', 'Hamm', 'Dynapac', 'Volvo', 'SANY', 'XCMG',
-    'Zoomlion', 'Ammann', 'Sakai', 'Wacker Neuson', 'Weichai', 'LiuGong'
-  ],
-  
-  // Седельные тягачи
-  truck: [
-    'FAW', 'Sinotruk', 'Shaanxi', 'Beiben', 'Howo', 'JAC', 'Foton', 'Dongfeng',
-    'Shacman', 'CAMC', 'Volvo', 'Scania', 'MAN', 'Mercedes-Benz', 'DAF',
-    'Iveco', 'Renault', 'Kamaz', 'MAZ', 'KRAZ'
-  ],
-  
-  // Самосвалы
-  dump_truck: [
-    'BelAZ', 'Caterpillar', 'Komatsu', 'Hitachi', 'Liebherr', 'Volvo',
-    'Terex', 'Euclid', 'Howo', 'Sinotruk', 'Shaanxi', 'Shacman', 'XCMG',
-    'SANY', 'Zoomlion', 'LiuGong', 'Bell', 'Aveling'
-  ],
-  
-  // Автобетоносмесители
-  concrete_mixer: [
-    'SANY', 'Zoomlion', 'XCMG', 'Liebherr', 'Schwing', 'Putzmeister', 'CIFA',
-    'Junjin', 'Kyokuto', 'Mecbo', 'Concord', 'Haomei', 'LiuGong', 'Shantui'
-  ],
-  
-  // Эвакуаторы
-  tow_truck: [
-    'Chevrolet', 'Ford', 'International', 'Freightliner', 'Kenworth', 'Peterbilt',
-    'Volvo', 'Mack', 'Isuzu', 'Hino', 'Fuso', 'Iveco', 'MAN', 'Mercedes-Benz'
-  ],
-  
-  // Лесовозы
-  timber_truck: [
-    'Scania', 'Volvo', 'MAN', 'Mercedes-Benz', 'DAF', 'Iveco', 'Renault',
-    'Kamaz', 'MAZ', 'Ural', 'ZIL', 'FAW', 'Sinotruk', 'Shaanxi'
-  ],
-  
-  // Тралы
-  trailer: [
-    'Goldhofer', 'Scheuerle', 'Kamag', 'Nicolas', 'Cometto', 'Talbert',
-    'Rogers', 'Landoll', 'Witzco', 'Trail King', 'Doolittle', 'Fontaine'
-  ],
-  
-  // Полуприцепы
-  semi_trailer: [
-    'Schmitz', 'Kogel', 'Krone', 'Wielton', 'Lamberet', 'Chereau', 'Gray-Adams',
-    'Reitnouer', 'Timpte', 'Stoughton', 'Vanguard', 'Utility', 'Great Dane'
-  ],
-  
-  // Автовышки
-  aerial_platform: [
-    'JLG', 'Genie', 'Skyjack', 'Snorkel', 'Haulotte', 'Niftylift', 'Time',
-    'Runshare', 'Dinolift', 'Sinoboom', 'XCMG', 'SANY', 'Zoomlion'
-  ],
-  
-  // Рефрижераторы
-  refrigerator: [
-    'Carrier', 'Thermo King', 'Mitsubishi', 'Denso', 'Sanden', 'Hubbard',
-    'Kingtec', 'FRIGOBLOCK', 'ThermoLite', 'Coldline'
-  ],
-  
-  // Краны-манипуляторы
-  manipulator: [
-    'Fassi', 'Hiab', 'Palfinger', 'Atlas', 'Cormach', 'Effer', 'Iowa',
-    'MBB', 'Mullan', 'Stellar', 'Tirre', 'UNIC', 'Venieri'
-  ],
-  
-  // Автовозы
-  car_carrier: [
-    'Cottrell', 'Benson', 'Duncan', 'Drewry', 'Jays', 'Kaufman', 'Precision',
-    'Trailmaster', 'Wheeler', 'Transcraft', 'Miller', 'Supreme'
-  ],
-  
-  // Фургоны
-  van: [
-    'Mercedes-Benz', 'Ford', 'Volkswagen', 'Fiat', 'Renault', 'Peugeot',
-    'Citroen', 'Iveco', 'GAZ', 'Hyundai', 'Kia', 'Nissan', 'Toyota'
-  ]
+// Соответствие категорий каталога ID для Яндекс
+const CATEGORY_MAPPING: { [key: string]: { id: string; name: string } } = {
+  'ekskavatory': { id: '2', name: 'Экскаваторы' },
+  'pogruzchiki': { id: '6', name: 'Погрузчики' },
+  'buldozery': { id: '4', name: 'Бульдозеры' },
+  'avtokrany': { id: '5', name: 'Автокраны' },
+  'avtobetononasosy': { id: '3', name: 'Автобетононасосы' },
+  'avtogreydery': { id: '7', name: 'Автогрейдеры' },
+  'karki-dorozhnye': { id: '8', name: 'Дорожные катки' },
+  'truboukladchiki': { id: '9', name: 'Трубоукладчики' },
+  'avtobetonosmesiteli': { id: '11', name: 'Автобетоносмесители' },
+  'tyagachi': { id: '13', name: 'Седельные тягачи' },
+  'samosvaly': { id: '14', name: 'Самосвалы' },
+  'traly': { id: '17', name: 'Тралы' },
+  'polupritsepy': { id: '18', name: 'Полуприцепы' },
+  'avtovyshki': { id: '19', name: 'Автовышки' },
+  'manipulyatory': { id: '21', name: 'Краны-манипуляторы' },
+  'furgony': { id: '23', name: 'Фургоны' }
 }
 
-// Модели для каждого бренда
-const MODELS = {
-  // Экскаваторы
-  excavator: {
-    'Komatsu': ['PC200', 'PC210', 'PC220', 'PC300', 'PC350', 'PC400', 'PC450'],
-    'Caterpillar': ['320', '325', '330', '336', '349', '374', '390'],
-    'Hitachi': ['ZX200', 'ZX210', 'ZX250', 'ZX330', 'ZX350', 'ZX470'],
-    'Volvo': ['EC210', 'EC240', 'EC290', 'EC350', 'EC380', 'EC480'],
-    'SANY': ['SY215', 'SY235', 'SY265', 'SY335', 'SY365', 'SY465'],
-    'XCMG': ['XE215', 'XE230', 'XE270', 'XE335', 'XE370', 'XE490']
-  },
-  
-  // Автобетононасосы
-  concrete_pump: {
-    'SANY': ['33 метра', '37 метра', '42 метра', '47 метра', '52 метра', '56 метра'],
-    'Zoomlion': ['33 метра', '38 метра', '43 метра', '48 метра', '53 метра', '58 метра'],
-    'Schwing': ['32 метра', '36 метра', '41 метра', '46 метра', '51 метра', '56 метра']
-  },
-  
-  // Бульдозеры
-  bulldozer: {
-    'Komatsu': ['D65', 'D75', 'D85', 'D155', 'D275', 'D375'],
-    'Caterpillar': ['D6', 'D7', 'D8', 'D9', 'D10', 'D11'],
-    'Shantui': ['SD16', 'SD22', 'SD32', 'SD42', 'SD52']
-  },
-  
-  // Автокраны
-  crane: {
-    'XCMG': ['25 тонн', '50 тонн', '70 тонн', '100 тонн', '130 тонн', '160 тонн'],
-    'SANY': ['25 тонн', '55 тонн', '80 тонн', '110 тонн', '130 тонн', '160 тонн'],
-    'Liebherr': ['50 тонн', '75 тонн', '100 тонн', '130 тонн', '160 тонн', '200 тонн']
+// Бренды для разных категорий
+const BRANDS_BY_CATEGORY: { [key: string]: string[] } = {
+  'ekskavatory': ['Komatsu', 'Caterpillar', 'Hitachi', 'Volvo', 'SANY', 'XCMG', 'Zoomlion', 'LiuGong'],
+  'pogruzchiki': ['Volvo', 'Caterpillar', 'Komatsu', 'LiuGong', 'XCMG', 'Lonking', 'SDLG'],
+  'buldozery': ['Komatsu', 'Caterpillar', 'Shantui', 'LiuGong', 'SEM'],
+  'avtokrany': ['XCMG', 'SANY', 'Liebherr', 'Tadano', 'Grove'],
+  'avtobetononasosy': ['SANY', 'Zoomlion', 'Schwing', 'Putzmeister'],
+  'avtogreydery': ['Caterpillar', 'Komatsu', 'Volvo', 'John Deere'],
+  'karki-dorozhnye': ['Bomag', 'Hamm', 'Dynapac', 'Volvo', 'SANY'],
+  'truboukladchiki': ['Caterpillar', 'Komatsu', 'Liebherr'],
+  'avtobetonosmesiteli': ['SANY', 'Zoomlion', 'XCMG', 'Liebherr'],
+  'tyagachi': ['FAW', 'Sinotruk', 'Shaanxi', 'Volvo', 'Scania', 'MAN'],
+  'samosvaly': ['Howo', 'Sinotruk', 'Shaanxi', 'Shacman', 'XCMG', 'SANY'],
+  'traly': ['Goldhofer', 'Scheuerle', 'Kamag', 'Nicolas'],
+  'polupritsepy': ['Schmitz', 'Kogel', 'Krone', 'Wielton'],
+  'avtovyshki': ['JLG', 'Genie', 'Skyjack', 'XCMG', 'SANY'],
+  'manipulyatory': ['Fassi', 'Hiab', 'Palfinger', 'Atlas'],
+  'furgony': ['Mercedes-Benz', 'Ford', 'Volkswagen', 'Fiat']
+}
+
+// Модели для брендов
+const MODELS: { [key: string]: { [key: string]: string[] } } = {
+  'Komatsu': ['PC200', 'PC210', 'PC220', 'PC300', 'PC350', 'PC400'],
+  'Caterpillar': ['320', '325', '330', '336', '349', '374'],
+  'Hitachi': ['ZX200', 'ZX210', 'ZX250', 'ZX330', 'ZX350'],
+  'Volvo': ['EC210', 'EC240', 'EC290', 'EC350', 'EC380'],
+  'SANY': ['SY215', 'SY235', 'SY265', 'SY335', 'SY365'],
+  'XCMG': ['XE215', 'XE230', 'XE270', 'XE335', 'XE370'],
+  'Zoomlion': ['ZE205', 'ZE230', 'ZE265', 'ZE335'],
+  'LiuGong': ['CLG856', 'CLG862', 'CLG888', 'CLG915'],
+  'Shantui': ['SD16', 'SD22', 'SD32'],
+  'Lonking': ['CDM856', 'CDM862'],
+  'SDLG': ['L956', 'L968'],
+  'SEM': ['SD16', 'SD22'],
+  'Liebherr': ['LTM1050', 'LTM1100', 'LTM1160'],
+  'Tadano': ['TR250', 'TR300', 'TR350'],
+  'Grove': ['RT540', 'RT650', 'RT750'],
+  'Schwing': ['32X', '36X', '41X'],
+  'Putzmeister': ['32M', '36M', '42M'],
+  'John Deere': ['672', '772', '872'],
+  'Bomag': ['BW120', 'BW140', 'BW160'],
+  'Hamm': ['HD120', 'HD140'],
+  'Dynapac': ['CC1200', 'CC1400'],
+  'FAW': ['J6', 'J7'],
+  'Sinotruk': ['Howo', 'Hohan'],
+  'Shaanxi': ['X3000', 'M3000'],
+  'Scania': ['R450', 'R500'],
+  'MAN': ['TGX', 'TGS'],
+  'Howo': ['ZZ3257', 'ZZ3317'],
+  'Shacman': ['X3000', 'M3000'],
+  'Goldhofer': ['THP/SL', 'STZ/XL'],
+  'Scheuerle': ['SPMT'],
+  'Kamag': ['K24', 'K25'],
+  'Nicolas': ['Tractomas'],
+  'Schmitz': ['S.CS', 'S.KO'],
+  'Kogel': ['KGT', 'KIP'],
+  'Krone': ['Cool Liner', 'Prof Liner'],
+  'Wielton': ['SDS', 'KIP'],
+  'JLG': ['600S', '800S', '1000S'],
+  'Genie': ['S-60', 'S-80', 'S-100'],
+  'Skyjack': ['SJ63', 'SJ85'],
+  'Fassi': ['F145', 'F165', 'F185'],
+  'Hiab': ['115', '135', '155'],
+  'Palfinger': ['11501', '13502'],
+  'Atlas': ['100.2', '120.2'],
+  'Mercedes-Benz': ['Sprinter', 'Vito'],
+  'Ford': ['Transit', 'Custom'],
+  'Volkswagen': ['Crafter', 'Transporter'],
+  'Fiat': ['Ducato', 'Talento']
+}
+
+// Базовые цены по типам техники
+function getBasePrice(category: string): number {
+  const prices: { [key: string]: number } = {
+    'ekskavatory': 6500000,
+    'avtobetononasosy': 12500000,
+    'buldozery': 8500000,
+    'avtokrany': 9500000,
+    'pogruzchiki': 4500000,
+    'avtogreydery': 7000000,
+    'karki-dorozhnye': 3500000,
+    'truboukladchiki': 12000000,
+    'avtobetonosmesiteli': 5500000,
+    'tyagachi': 3500000,
+    'samosvaly': 4800000,
+    'traly': 3800000,
+    'polupritsepy': 1800000,
+    'avtovyshki': 5200000,
+    'manipulyatory': 2800000,
+    'furgony': 1500000
   }
+  
+  return prices[category] || 5000000
+}
+
+// Генерация характеристик для техники
+function generateSpecs(category: string, brand: string, model: string, index: number) {
+  const baseSpecs = {
+    year: (2021 + (index % 4)).toString(),
+    weight: (10000 + (index % 20) * 1000).toString(),
+    power: (150 + (index % 15) * 20).toString(),
+    capacity: (15 + (index % 10)).toString(),
+    hours: (800 + (index % 20) * 100).toString(),
+    height: (30 + (index % 10)).toString(),
+    volume: (6 + (index % 5)).toString(),
+    condition: index % 5 === 0 ? "Б/у" : "Новое",
+    country: ["Китай", "Япония", "Германия", "Корея", "США"][index % 5],
+    warranty: index % 5 === 0 ? "12 месяцев" : "24 месяца"
+  }
+
+  return baseSpecs
 }
 
 export async function GET() {
   try {
     const supabase = createAdminClient()
-    const { data: articles, error } = await supabase
-      .from("articles")
-      .select("*")
-      .eq("status", "published")
-      .not("published_at", "is", null)
-      .order("published_at", { ascending: false })
-      .limit(100)
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
 
-    if (error) throw new Error(`Database error: ${error.message}`)
+    // Получаем все категории техники
+    const { data: categories, error: categoriesError } = await supabase
+      .from("categories")
+      .select("slug, name")
+      .eq("type", "equipment")
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts-nsk.ru"
+    if (categoriesError) throw new Error(`Categories error: ${categoriesError.message}`)
+
+    // Собираем всю технику из всех категорий
+    let allEquipment: any[] = []
+
+    for (const category of categories || []) {
+      const { data: equipment, error: equipmentError } = await supabase
+        .from("equipment")
+        .select("*")
+        .eq("category_slug", category.slug)
+        .eq("status", "active")
+        .limit(50)
+
+      if (equipmentError) {
+        console.error(`Error fetching equipment for ${category.slug}:`, equipmentError)
+        continue
+      }
+
+      if (equipment) {
+        // Добавляем информацию о категории к каждому оборудованию
+        const equipmentWithCategory = equipment.map(item => ({
+          ...item,
+          category_slug: category.slug,
+          category_name: category.name
+        }))
+        allEquipment = [...allEquipment, ...equipmentWithCategory]
+      }
+    }
+
+    console.log(`Found ${allEquipment.length} equipment items`)
 
     // Формируем YML для транспортных средств
     let ymlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`
@@ -245,16 +232,36 @@ export async function GET() {
     // Предложения
     ymlContent += `<offers>\n`
     
-    articles?.forEach((article, index) => {
-      const articleUrl = `${baseUrl}/transport/${article.slug}`
-      const { categoryId, type, brand, model, price, specs } = getProductInfo(article, index)
+    allEquipment.forEach((equipment, index) => {
+      const categoryMapping = CATEGORY_MAPPING[equipment.category_slug] || { id: '1', name: 'Спецтехника' }
+      const categoryId = categoryMapping.id
+      const type = categoryMapping.name
       
-      ymlContent += `<offer id="${article.id}">\n`
-      ymlContent += `<url>${escapeYml(articleUrl)}</url>\n`
+      // Получаем бренд и модель
+      const availableBrands = BRANDS_BY_CATEGORY[equipment.category_slug] || ['Komatsu']
+      const brand = availableBrands[index % availableBrands.length]
+      const availableModels = MODELS[brand] || ['Standard']
+      const model = availableModels[index % availableModels.length]
+      
+      // Генерируем цену и характеристики
+      const basePrice = getBasePrice(equipment.category_slug)
+      const price = equipment.price ? equipment.price.toString() : (basePrice + (index % 10) * (basePrice * 0.1)).toFixed(0)
+      const specs = generateSpecs(equipment.category_slug, brand, model, index)
+      
+      // Формируем URL
+      const equipmentUrl = `${baseUrl}/katalog/${equipment.category_slug}/${equipment.slug}`
+      
+      ymlContent += `<offer id="${equipment.id}">\n`
+      ymlContent += `<url>${escapeYml(equipmentUrl)}</url>\n`
       ymlContent += `<price>${price}</price>\n`
       ymlContent += `<currencyId>RUR</currencyId>\n`
       ymlContent += `<categoryId>${categoryId}</categoryId>\n`
-      ymlContent += `<picture>${escapeYml(article.main_image || `${baseUrl}/images/tech-${categoryId}.jpg`)}</picture>\n`
+      
+      // Изображение
+      const imageUrl = equipment.images && equipment.images.length > 0 
+        ? equipment.images[0] 
+        : `${baseUrl}/images/tech-${categoryId}.jpg`
+      ymlContent += `<picture>${escapeYml(imageUrl)}</picture>\n`
       
       // Обязательные поля для транспортных средств
       ymlContent += `<mark>${escapeYml(brand)}</mark>\n`
@@ -263,12 +270,17 @@ export async function GET() {
       ymlContent += `<condition>${specs.condition === "Новое" ? "new" : "used"}</condition>\n`
       
       // Основная информация
-      ymlContent += `<name>${escapeYml(article.title || `${brand} ${model} - ${type}`)}</name>\n`
+      const name = equipment.title || `${brand} ${model} - ${type}`
+      ymlContent += `<name>${escapeYml(name)}</name>\n`
       ymlContent += `<vendor>${escapeYml(brand)}</vendor>\n`
-      ymlContent += `<vendorCode>ASTS-${article.id}</vendorCode>\n`
-      ymlContent += `<description>${escapeYml(article.excerpt || article.content?.substring(0, 500) || `Продажа ${type.toLowerCase()} ${brand} ${model}. ${specs.description}`)}</description>\n`
+      ymlContent += `<vendorCode>ASTS-${equipment.id}</vendorCode>\n`
       
-      // Дополнительные параметры для фильтрации
+      const description = equipment.description 
+        ? equipment.description.substring(0, 500)
+        : `Продажа ${type.toLowerCase()} ${brand} ${model}. Прямые поставки из Китая. Гарантия качества.`
+      ymlContent += `<description>${escapeYml(description)}</description>\n`
+      
+      // Дополнительные параметры
       ymlContent += `<param name="Вид техники">${escapeYml(type)}</param>\n`
       ymlContent += `<param name="Производитель">${escapeYml(brand)}</param>\n`
       ymlContent += `<param name="Модель">${escapeYml(model)}</param>\n`
@@ -285,7 +297,7 @@ export async function GET() {
       if (specs.height) ymlContent += `<param name="Высота подачи" unit="м">${specs.height}</param>\n`
       if (specs.volume) ymlContent += `<param name="Объем" unit="м³">${specs.volume}</param>\n`
       
-      // Параметры двигателя для транспортных средств
+      // Параметры для транспортных средств
       ymlContent += `<param name="enginePower" unit="hp">${specs.power}</param>\n`
       ymlContent += `<param name="mileage" unit="km">${(parseInt(specs.hours) * 2).toString()}</param>\n`
       ymlContent += `<param name="vehicleType">${escapeYml(type)}</param>\n`
@@ -315,193 +327,17 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        'X-Content-Type-Options': 'nosniff',
       },
     })
 
   } catch (error) {
     console.error("YML generation error:", error)
-    return new Response(`<?xml version="1.0"?><error>YML generation failed</error>`, {
+    return new Response(`<?xml version="1.0"?><error>YML generation failed: ${error}</error>`, {
       status: 500,
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
       },
     })
   }
-}
-
-// Функция для определения информации о товаре
-function getProductInfo(article: any, index: number) {
-  const title = article.title?.toLowerCase() || ""
-  const content = article.content?.toLowerCase() || ""
-  
-  // Определяем тип техники по заголовку и содержанию
-  let categoryId = "1"
-  let type = "Спецтехника"
-  let brandArray = BRANDS.excavator
-  let modelType = "excavator"
-  
-  if (title.includes('экскаватор') || content.includes('экскаватор')) {
-    categoryId = "2"
-    type = "Экскаватор"
-    brandArray = BRANDS.excavator
-    modelType = "excavator"
-  } else if (title.includes('бетононасос') || content.includes('бетононасос')) {
-    categoryId = "3"
-    type = "Автобетононасос"
-    brandArray = BRANDS.concrete_pump
-    modelType = "concrete_pump"
-  } else if (title.includes('бульдозер') || content.includes('бульдозер')) {
-    categoryId = "4"
-    type = "Бульдозер"
-    brandArray = BRANDS.bulldozer
-    modelType = "bulldozer"
-  } else if ((title.includes('кран') && !title.includes('манипулятор')) || content.includes('автокран')) {
-    categoryId = "5"
-    type = "Автокран"
-    brandArray = BRANDS.crane
-    modelType = "crane"
-  } else if (title.includes('погрузчик') || content.includes('погрузчик')) {
-    categoryId = "6"
-    type = "Погрузчик"
-    brandArray = BRANDS.loader
-    modelType = "loader"
-  } else if (title.includes('автогрейдер') || content.includes('автогрейдер')) {
-    categoryId = "7"
-    type = "Автогрейдер"
-    brandArray = BRANDS.grader
-    modelType = "grader"
-  } else if (title.includes('каток') || content.includes('дорожный каток')) {
-    categoryId = "8"
-    type = "Дорожный каток"
-    brandArray = BRANDS.roller
-    modelType = "roller"
-  } else if (title.includes('трубоукладчик') || content.includes('трубоукладчик')) {
-    categoryId = "9"
-    type = "Трубоукладчик"
-    brandArray = BRANDS.pipelayer
-    modelType = "pipelayer"
-  } else if (title.includes('компактор') || content.includes('компактор')) {
-    categoryId = "10"
-    type = "Компактор"
-    brandArray = BRANDS.compactor
-    modelType = "compactor"
-  } else if (title.includes('бетоносмеситель') || content.includes('бетоносмеситель')) {
-    categoryId = "11"
-    type = "Автобетоносмеситель"
-    brandArray = BRANDS.concrete_mixer
-    modelType = "concrete_mixer"
-  } else if (title.includes('тягач') || content.includes('седельный тягач')) {
-    categoryId = "13"
-    type = "Седельный тягач"
-    brandArray = BRANDS.truck
-    modelType = "truck"
-  } else if (title.includes('самосвал') || content.includes('самосвал')) {
-    categoryId = "14"
-    type = "Самосвал"
-    brandArray = BRANDS.dump_truck
-    modelType = "dump_truck"
-  } else if (title.includes('эвакуатор') || content.includes('эвакуатор')) {
-    categoryId = "15"
-    type = "Эвакуатор"
-    brandArray = BRANDS.tow_truck
-    modelType = "tow_truck"
-  } else if (title.includes('лесовоз') || content.includes('лесовоз')) {
-    categoryId = "16"
-    type = "Лесовоз"
-    brandArray = BRANDS.timber_truck
-    modelType = "timber_truck"
-  } else if (title.includes('трал') || content.includes('трал')) {
-    categoryId = "17"
-    type = "Трал"
-    brandArray = BRANDS.trailer
-    modelType = "trailer"
-  } else if (title.includes('полуприцеп') || content.includes('полуприцеп')) {
-    categoryId = "18"
-    type = "Полуприцеп"
-    brandArray = BRANDS.semi_trailer
-    modelType = "semi_trailer"
-  } else if (title.includes('автовышка') || content.includes('автовышка')) {
-    categoryId = "19"
-    type = "Автовышка"
-    brandArray = BRANDS.aerial_platform
-    modelType = "aerial_platform"
-  } else if (title.includes('рефрижератор') || content.includes('рефрижератор')) {
-    categoryId = "20"
-    type = "Рефрижератор"
-    brandArray = BRANDS.refrigerator
-    modelType = "refrigerator"
-  } else if (title.includes('манипулятор') || content.includes('кран-манипулятор')) {
-    categoryId = "21"
-    type = "Кран-манипулятор"
-    brandArray = BRANDS.manipulator
-    modelType = "manipulator"
-  } else if (title.includes('автовоз') || content.includes('автовоз')) {
-    categoryId = "22"
-    type = "Автовоз"
-    brandArray = BRANDS.car_carrier
-    modelType = "car_carrier"
-  } else if (title.includes('фургон') || content.includes('фургон')) {
-    categoryId = "23"
-    type = "Фургон"
-    brandArray = BRANDS.van
-    modelType = "van"
-  }
-  
-  // Выбираем бренд и модель
-  const brand = brandArray[index % brandArray.length]
-  let model = "Standard"
-  
-  if (MODELS[modelType] && MODELS[modelType][brand]) {
-    const models = MODELS[modelType][brand]
-    model = models[index % models.length]
-  }
-  
-  // Генерируем реалистичные характеристики
-  const basePrice = getBasePrice(type)
-  const price = (basePrice + (index % 10) * (basePrice * 0.1)).toFixed(0)
-  
-  const specs = {
-    year: (2021 + (index % 4)).toString(),
-    weight: (10000 + (index % 20) * 1000).toString(),
-    power: (150 + (index % 15) * 20).toString(),
-    capacity: (15 + (index % 10)).toString(),
-    hours: (800 + (index % 20) * 100).toString(),
-    height: (30 + (index % 10)).toString(),
-    volume: (6 + (index % 5)).toString(),
-    condition: index % 5 === 0 ? "Б/у" : "Новое",
-    country: ["Китай", "Япония", "Германия", "Корея", "США"][index % 5],
-    warranty: index % 5 === 0 ? "12 месяцев" : "24 месяца",
-    description: `${type} ${brand} ${model}. Прямые поставки без посредников. Гарантия качества.`
-  }
-  
-  return { categoryId, type, brand, model, price, specs }
-}
-
-// Базовые цены по типам техники
-function getBasePrice(type: string): number {
-  const prices: {[key: string]: number} = {
-    'Экскаватор': 6500000,
-    'Автобетононасос': 12500000,
-    'Бульдозер': 8500000,
-    'Автокран': 9500000,
-    'Погрузчик': 4500000,
-    'Автогрейдер': 7000000,
-    'Дорожный каток': 3500000,
-    'Трубоукладчик': 12000000,
-    'Компактор': 2800000,
-    'Автобетоносмеситель': 5500000,
-    'Седельный тягач': 3500000,
-    'Самосвал': 4800000,
-    'Эвакуатор': 2200000,
-    'Лесовоз': 4200000,
-    'Трал': 3800000,
-    'Полуприцеп': 1800000,
-    'Автовышка': 5200000,
-    'Рефрижератор': 3200000,
-    'Кран-манипулятор': 2800000,
-    'Автовоз': 4500000,
-    'Фургон': 1500000
-  }
-  
-  return prices[type] || 5000000
 }
