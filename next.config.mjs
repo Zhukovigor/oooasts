@@ -1,14 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  output: 'export', // Важно: экспорт статических файлов
+  trailingSlash: true,
   images: {
-    unoptimized: true,
+    unoptimized: true, // Для статического экспорта
   },
+  // Убедитесь, что basePath правильный, если приложение не в корне
+  // basePath: '/your-app-path',
 }
 
-export default nextConfig
+module.exports = nextConfig
