@@ -295,6 +295,7 @@ export default function RootLayout({
 
         <meta name="google-site-verification" content="2v-vYX6Wszq50FTPt5WDDrW5bxHWOHp1MdGtrf9tbSI" />
         <meta name="yandex-verification" content="04df37bb570ff95c" />
+        <meta name="yandex-verification" content="af7a35725a67ba4e" />
 
         <Script id="top-mail-ru" strategy="afterInteractive">
           {`
