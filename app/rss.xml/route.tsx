@@ -37,7 +37,7 @@ export async function GET() {
       return new NextResponse("Error fetching articles", { status: 500 })
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.su"
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
 
     // Generate RSS feed
     const rss = `<?xml version="1.0" encoding="UTF-8"?>
