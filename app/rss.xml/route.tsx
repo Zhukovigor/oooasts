@@ -1,11 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 
-// Revalidate every hour
+// Ревалидация каждый час
 export const revalidate = 3600
 
-// Helper function to escape XML special characters
+// Улучшенная функция для экранирования специальных XML-символов
 function escapeXml(unsafe: string): string {
+  if (!unsafe) return ""
+  
   return unsafe
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -14,16 +16,23 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, "&apos;")
 }
 
-// Helper function to strip HTML tags from content
+// Функция для удаления HTML-тегов из контента
 function stripHtml(html: string): string {
+  if (!html) return ""
   return html.replace(/<[^>]*>/g, "")
+}
+
+// Функция для гарантии правильного кодирования всех амперсандов во всём XML
+function sanitizeXmlContent(xml: string): string {
+  // Находим все неэкранированные амперсанды, которые не являются частью XML-сущностей
+  return xml.replace(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;)/g, "&amp;")
 }
 
 export async function GET() {
   try {
     const supabase = createAdminClient()
 
-    // Fetch published articles, ordered by publication date
+    // Получаем опубликованные статьи, отсортированные по дате публикации
     const { data: articles, error } = await supabase
       .from("articles")
       .select("*")
@@ -33,13 +42,13 @@ export async function GET() {
       .limit(50)
 
     if (error) {
-      console.error("Error fetching articles:", error)
-      return new NextResponse("Error fetching articles", { status: 500 })
+      console.error("Ошибка при получении статей:", error)
+      return new NextResponse("Ошибка при получении статей", { status: 500 })
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
 
-    // Generate RSS feed
+    // Генерируем RSS-ленту
     const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" 
      xmlns:yandex="http://news.yandex.ru" 
@@ -55,11 +64,25 @@ ${articles
     const articleUrl = `${baseUrl}/stati/${article.slug}`
     const pubDate = new Date(article.published_at).toUTCString()
 
-    // Clean content for full-text (remove HTML tags)
+    // Очищаем контент для полного текста (удаляем HTML-теги)
     const fullText = article.content ? stripHtml(article.content) : article.excerpt || ""
 
+    // Гарантируем правильное форматирование URL изображения
+    let mediaContent = ""
+    if (article.main_image) {
+      const imageUrl = article.main_image.startsWith("http") 
+        ? article.main_image 
+        : `${baseUrl}${article.main_image.startsWith("/") ? "" : "/"}${article.main_image}`
+      
+      mediaContent = `
+      <media:group>
+        <media:content url="${escapeXml(imageUrl)}" type="image/jpeg"/>
+        <media:thumbnail url="${escapeXml(imageUrl)}"/>
+      </media:group>`
+    }
+
     return `    <item>
-      <title>${escapeXml(article.title)}</title>
+      <title>${escapeXml(article.title || "")}</title>
       <link>${escapeXml(articleUrl)}</link>
       <description>${escapeXml(article.excerpt || "")}</description>
       <author>${escapeXml(article.author || "ООО «АСТС»")}</author>
@@ -67,29 +90,24 @@ ${articles
       <pubDate>${pubDate}</pubDate>
       <guid isPermaLink="true">${escapeXml(articleUrl)}</guid>
       <yandex:genre>message</yandex:genre>
-      <yandex:full-text>${escapeXml(fullText)}</yandex:full-text>${
-        article.main_image
-          ? `
-      <media:group>
-        <media:content url="${escapeXml(article.main_image.startsWith("http") ? article.main_image : `${baseUrl}${article.main_image}`)}" type="image/jpeg"/>
-        <media:thumbnail url="${escapeXml(article.main_image.startsWith("http") ? article.main_image : `${baseUrl}${article.main_image}`)}"/>
-      </media:group>`
-          : ""
-      }
+      <yandex:full-text>${escapeXml(fullText)}</yandex:full-text>${mediaContent}
     </item>`
   })
   .join("\n")}
   </channel>
 </rss>`
 
-    return new NextResponse(rss, {
+    // Применяем финальную санитизацию для обработки оставшихся неэкранированных амперсандов
+    const sanitizedRss = sanitizeXmlContent(rss)
+
+    return new NextResponse(sanitizedRss, {
       headers: {
         "Content-Type": "application/xml; charset=UTF-8",
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
       },
     })
   } catch (error) {
-    console.error("Error generating RSS feed:", error)
-    return new NextResponse("Error generating RSS feed", { status: 500 })
+    console.error("Ошибка при генерации RSS-ленты:", error)
+    return new NextResponse("Ошибка при генерации RSS-ленты", { status: 500 })
   }
 }
