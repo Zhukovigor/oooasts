@@ -1,9 +1,0 @@
-{
-  "build": {
-    "command": "npm run build",
-    "output": "out"
-  },
-  "start": {
-    "command": "npx serve out -p 3000"
-  }
-}

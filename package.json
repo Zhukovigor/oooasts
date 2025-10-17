@@ -3,12 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
-    "start": "echo 'Static export - use serve instead'",
+    "dev": "next dev",
     "lint": "next lint",
-    "export": "next export",
-    "serve": "serve out"
+    "start": "next start"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
