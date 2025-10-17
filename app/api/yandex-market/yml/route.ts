@@ -201,16 +201,16 @@ export async function GET() {
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts-nsk.ru"
 
-    // Формируем YML
+    // Формируем YML для транспортных средств
     let ymlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`
     ymlContent += `<yml_catalog date="${new Date().toISOString()}">\n`
-    ymlContent += `<shop>\n`
+    ymlContent += `<transport>\n`
     ymlContent += `<name>ООО АСТС - Поставщик спецтехники из Китая</name>\n`
     ymlContent += `<company>ООО АСТС</company>\n`
     ymlContent += `<url>${baseUrl}</url>\n`
     ymlContent += `<phone>+7 (919) 042-24-92</phone>\n`
     
-    // Полный список категорий
+    // Категории для транспортных средств
     ymlContent += `<categories>\n`
     ymlContent += `<category id="1">Спецтехника</category>\n`
     ymlContent += `<category id="2" parentId="1">Экскаваторы</category>\n`
@@ -246,15 +246,21 @@ export async function GET() {
     ymlContent += `<offers>\n`
     
     articles?.forEach((article, index) => {
-      const articleUrl = `${baseUrl}/stati/${article.slug}`
+      const articleUrl = `${baseUrl}/transport/${article.slug}`
       const { categoryId, type, brand, model, price, specs } = getProductInfo(article, index)
       
-      ymlContent += `<offer id="${article.id}" available="true">\n`
+      ymlContent += `<offer id="${article.id}">\n`
       ymlContent += `<url>${escapeYml(articleUrl)}</url>\n`
       ymlContent += `<price>${price}</price>\n`
       ymlContent += `<currencyId>RUR</currencyId>\n`
       ymlContent += `<categoryId>${categoryId}</categoryId>\n`
       ymlContent += `<picture>${escapeYml(article.main_image || `${baseUrl}/images/tech-${categoryId}.jpg`)}</picture>\n`
+      
+      // Обязательные поля для транспортных средств
+      ymlContent += `<mark>${escapeYml(brand)}</mark>\n`
+      ymlContent += `<model>${escapeYml(model)}</model>\n`
+      ymlContent += `<year>${specs.year}</year>\n`
+      ymlContent += `<condition>${specs.condition === "Новое" ? "new" : "used"}</condition>\n`
       
       // Основная информация
       ymlContent += `<name>${escapeYml(article.title || `${brand} ${model} - ${type}`)}</name>\n`
@@ -262,7 +268,7 @@ export async function GET() {
       ymlContent += `<vendorCode>ASTS-${article.id}</vendorCode>\n`
       ymlContent += `<description>${escapeYml(article.excerpt || article.content?.substring(0, 500) || `Продажа ${type.toLowerCase()} ${brand} ${model}. ${specs.description}`)}</description>\n`
       
-      // Параметры для фильтрации
+      // Дополнительные параметры для фильтрации
       ymlContent += `<param name="Вид техники">${escapeYml(type)}</param>\n`
       ymlContent += `<param name="Производитель">${escapeYml(brand)}</param>\n`
       ymlContent += `<param name="Модель">${escapeYml(model)}</param>\n`
@@ -271,13 +277,18 @@ export async function GET() {
       ymlContent += `<param name="Страна производства">${specs.country}</param>\n`
       ymlContent += `<param name="Гарантия">${specs.warranty}</param>\n`
       
-      // Специфичные параметры
+      // Технические параметры
       if (specs.weight) ymlContent += `<param name="Вес" unit="кг">${specs.weight}</param>\n`
       if (specs.power) ymlContent += `<param name="Мощность" unit="л.с.">${specs.power}</param>\n`
       if (specs.capacity) ymlContent += `<param name="Грузоподъемность" unit="т">${specs.capacity}</param>\n`
       if (specs.hours) ymlContent += `<param name="Моточасы">${specs.hours}</param>\n`
       if (specs.height) ymlContent += `<param name="Высота подачи" unit="м">${specs.height}</param>\n`
       if (specs.volume) ymlContent += `<param name="Объем" unit="м³">${specs.volume}</param>\n`
+      
+      // Параметры двигателя для транспортных средств
+      ymlContent += `<param name="enginePower" unit="hp">${specs.power}</param>\n`
+      ymlContent += `<param name="mileage" unit="km">${(parseInt(specs.hours) * 2).toString()}</param>\n`
+      ymlContent += `<param name="vehicleType">${escapeYml(type)}</param>\n`
       
       // Условия продажи
       ymlContent += `<sales_notes>Спецтехника в наличии и под заказ! Поставка спецтехники из Китая • Доставка по России • Контроль качества • Поставка в короткие сроки • Лизинг от 5% • Отличные цены</sales_notes>\n`
@@ -289,11 +300,14 @@ export async function GET() {
       ymlContent += `<option cost="50000" days="7-10"/>\n`
       ymlContent += `</delivery-options>\n`
       
+      // Наличие
+      ymlContent += `<available>true</available>\n`
+      
       ymlContent += `</offer>\n`
     })
     
     ymlContent += `</offers>\n`
-    ymlContent += `</shop>\n`
+    ymlContent += `</transport>\n`
     ymlContent += `</yml_catalog>`
 
     return new Response(ymlContent, {
