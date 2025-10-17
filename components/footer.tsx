@@ -8,6 +8,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
 import { submitLead } from "@/app/actions/submit-lead"
+import { FooterCatalogMenu } from "./footer-catalog-menu"
 
 export default function Footer() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -38,7 +39,7 @@ export default function Footer() {
 
       <div className="container mx-auto px-6 py-16 relative z-10">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -79,7 +80,7 @@ export default function Footer() {
                 aria-label="ВКонтакте"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15.07 2H8.93C3.33 2 2 3.33 2 8.93v6.14C2 20.67 3.33 22 8.93 22h6.14c5.6 0 6.93-1.33 6.93-6.93V8.93C22 3.33 20.67 2 15.07 2zm3.15 14.31h-1.34c-.53 0-.69-.42-1.65-1.39-.83-.82-1.2-.93-1.41-.93-.29 0-.37.08-.37.47v1.27c0 .34-.11.54-1 .54-1.47 0-3.1-.89-4.25-2.55-1.72-2.37-2.19-4.16-2.19-4.52 0-.21.08-.4.47-.4h1.34c.35 0 .48.16.62.53.68 1.98 1.83 3.72 2.3 3.72.18 0 .26-.08.26-.53v-2.06c-.06-.98-.58-1.06-.58-1.41 0-.17.14-.34.36-.34h2.1c.3 0 .4.16.4.5v2.77c0 .3.13.4.21.4.18 0 .33-.1.66-.43 1.02-1.14 1.75-2.9 1.75-2.9.1-.2.25-.4.6-.4z" />
+                  <path d="M15.07 2H8.93C3.33 2 2 3.33 2 8.93v6.14C2 20.67 3.33 22 8.93 22h6.14c5.6 0 6.93-1.33 6.93-6.93V8.93C22 3.33 20.67 2 15.07 2zm3.15 14.31h-1.34c-.53 0-.69-.42-1.65-1.39-.83-.82-1.2-.93-1.41-.93-.29 0-.37.08-.37.47v1.27c0 .34-.11.54-1 .54-1.47 0-3.1-.89-4.25-2.55-1.72-2.37-2.19-4.16-2.19-4.52 0-.21.08-.4.47-.4z" />
                 </svg>
               </a>
               <a
@@ -213,6 +214,15 @@ export default function Footer() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            viewport={{ once: true }}
+          >
+            <FooterCatalogMenu />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             viewport={{ once: true }}
           >
@@ -261,6 +271,15 @@ export default function Footer() {
                 </a>
               </div>
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            viewport={{ once: true }}
+          >
+            {/* Additional content can be added here if needed */}
           </motion.div>
         </div>
 
