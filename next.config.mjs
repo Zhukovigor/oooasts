@@ -5,8 +5,8 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Явно указываем distDir
-  distDir: 'out',
+  // Отключаем API routes для статического экспорта
+  skipTrailingSlashRedirect: true,
 }
 
 export default nextConfig
