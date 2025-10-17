@@ -152,7 +152,7 @@ function createEmptyYml(): string {
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <yml_catalog date="${new Date().toISOString()}">
-<transport>
+<shop>
 <name>ООО АСТС - Поставщик спецтехники из Китая</name>
 <company>ООО АСТС</company>
 <url>${baseUrl}</url>
@@ -188,7 +188,7 @@ function createEmptyYml(): string {
 <offers>
 <!-- Временно нет доступных предложений -->
 </offers>
-</transport>
+</shop>
 </yml_catalog>`
 }
 
@@ -257,10 +257,10 @@ export async function GET() {
       })
     }
 
-    // Формируем YML для транспортных средств
+    // Формируем YML для транспортных средств - используем стандартную структуру shop
     let ymlContent = `<?xml version="1.0" encoding="UTF-8"?>\n`
     ymlContent += `<yml_catalog date="${new Date().toISOString()}">\n`
-    ymlContent += `<transport>\n`
+    ymlContent += `<shop>\n`
     ymlContent += `<name>ООО АСТС - Поставщик спецтехники из Китая</name>\n`
     ymlContent += `<company>ООО АСТС</company>\n`
     ymlContent += `<url>${baseUrl}</url>\n`
@@ -333,14 +333,7 @@ export async function GET() {
       ymlContent += `<picture>${escapeYml(imageUrl)}</picture>\n`
       
       // Обязательные поля для транспортных средств
-      ymlContent += `<mark>${escapeYml(brand)}</mark>\n`
-      ymlContent += `<model>${escapeYml(model)}</model>\n`
-      ymlContent += `<year>${specs.year}</year>\n`
-      ymlContent += `<condition>${specs.condition === "Новое" ? "new" : "used"}</condition>\n`
-      
-      // Основная информация
-      const name = equipment.title || `${brand} ${model} - ${type}`
-      ymlContent += `<name>${escapeYml(name)}</name>\n`
+      ymlContent += `<name>${escapeYml(equipment.title || `${brand} ${model} - ${type}`)}</name>\n`
       ymlContent += `<vendor>${escapeYml(brand)}</vendor>\n`
       ymlContent += `<vendorCode>ASTS-${equipment.id}</vendorCode>\n`
       
@@ -349,12 +342,16 @@ export async function GET() {
         : `Продажа ${type.toLowerCase()} ${brand} ${model}. Прямые поставки из Китая. Гарантия качества.`
       ymlContent += `<description>${escapeYml(description)}</description>\n`
       
-      // Дополнительные параметры
+      // Дополнительные параметры для транспортных средств
+      ymlContent += `<param name="vehicleType">${escapeYml(type)}</param>\n`
+      ymlContent += `<param name="mark">${escapeYml(brand)}</param>\n`
+      ymlContent += `<param name="model">${escapeYml(model)}</param>\n`
+      ymlContent += `<param name="year">${specs.year}</param>\n`
+      ymlContent += `<param name="condition">${specs.condition === "Новое" ? "new" : "used"}</param>\n`
+      
+      // Дополнительные параметры для фильтрации
       ymlContent += `<param name="Вид техники">${escapeYml(type)}</param>\n`
       ymlContent += `<param name="Производитель">${escapeYml(brand)}</param>\n`
-      ymlContent += `<param name="Модель">${escapeYml(model)}</param>\n`
-      ymlContent += `<param name="Год выпуска">${specs.year}</param>\n`
-      ymlContent += `<param name="Состояние">${specs.condition}</param>\n`
       ymlContent += `<param name="Страна производства">${specs.country}</param>\n`
       ymlContent += `<param name="Гарантия">${specs.warranty}</param>\n`
       
@@ -366,10 +363,9 @@ export async function GET() {
       if (specs.height) ymlContent += `<param name="Высота подачи" unit="м">${specs.height}</param>\n`
       if (specs.volume) ymlContent += `<param name="Объем" unit="м³">${specs.volume}</param>\n`
       
-      // Параметры для транспортных средств
+      // Параметры двигателя для транспортных средств
       ymlContent += `<param name="enginePower" unit="hp">${specs.power}</param>\n`
       ymlContent += `<param name="mileage" unit="km">${(parseInt(specs.hours) * 2).toString()}</param>\n`
-      ymlContent += `<param name="vehicleType">${escapeYml(type)}</param>\n`
       
       // Условия продажи
       ymlContent += `<sales_notes>Спецтехника в наличии и под заказ! Поставка спецтехники из Китая • Доставка по России • Контроль качества • Поставка в короткие сроки • Лизинг от 5% • Отличные цены</sales_notes>\n`
@@ -388,7 +384,7 @@ export async function GET() {
     })
     
     ymlContent += `</offers>\n`
-    ymlContent += `</transport>\n`
+    ymlContent += `</shop>\n`
     ymlContent += `</yml_catalog>`
 
     return new Response(ymlContent, {
