@@ -15,6 +15,7 @@ export default function ApplicationForm() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
+  const [consent, setConsent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +28,7 @@ export default function ApplicationForm() {
       if (result.success) {
         setSubmitStatus("success")
         setFormData({ name: "", phone: "", email: "", message: "" })
+        setConsent(false)
       } else {
         setSubmitStatus("error")
       }
@@ -128,9 +130,24 @@ export default function ApplicationForm() {
               />
             </div>
 
+            <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="consent"
+                required
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-1 w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+              />
+              <label htmlFor="consent" className="text-sm text-gray-700 leading-relaxed">
+                Оставляя заявку, вы соглашаетесь на обработку персональных данных, условия пользовательского соглашения,
+                получение информации об акциях, ценах и скидках от ООО «АСТС».
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !consent}
               className="w-full bg-gray-900 text-white font-bold py-4 px-8 rounded-lg hover:bg-gray-800 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-lg tracking-wide"
             >
               {isSubmitting ? "ОТПРАВКА..." : "ОТПРАВИТЬ ЗАЯВКУ"}

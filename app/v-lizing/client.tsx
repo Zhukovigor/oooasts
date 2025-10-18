@@ -16,6 +16,7 @@ export default function LeasingPageClient() {
   // Form state
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [consent, setConsent] = useState(false)
 
   // FAQ state
   const [openFaq, setOpenFaq] = useState<string | null>(null)
@@ -46,6 +47,7 @@ export default function LeasingPageClient() {
         text: "Спасибо! Мы свяжемся с вами в ближайшее время для обсуждения условий лизинга.",
       })
       ;(e.target as HTMLFormElement).reset()
+      setConsent(false)
     } else {
       setMessage({ type: "error", text: result.error || "Произошла ошибка" })
     }
@@ -503,9 +505,24 @@ export default function LeasingPageClient() {
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-md focus:border-gray-900 focus:outline-none text-gray-900 font-medium resize-none disabled:opacity-50"
               />
 
+              <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="consent-leasing"
+                  required
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                />
+                <label htmlFor="consent-leasing" className="text-sm text-gray-700 leading-relaxed">
+                  Оставляя заявку, вы соглашаетесь на обработку персональных данных, условия пользовательского
+                  соглашения, получение информации об акциях, ценах и скидках от ООО «АСТС».
+                </label>
+              </div>
+
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !consent}
                 className="w-full px-8 py-4 bg-gray-900 hover:bg-gray-700 text-white font-bold rounded-md transition-colors duration-300 tracking-wide text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "ОТПРАВКА..." : "ОТПРАВИТЬ ЗАЯВКУ"}

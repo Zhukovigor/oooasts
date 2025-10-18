@@ -18,14 +18,15 @@ export default function VacanciesClient() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [phone, setPhone] = useState("")
+  const [consent, setConsent] = useState(false)
 
   const formatPhoneNumber = (value: string) => {
     // Удаляем все нецифровые символы
-    const cleaned = value.replace(/\D/g, '')
-    
+    const cleaned = value.replace(/\D/g, "")
+
     // Ограничиваем длину (11 цифр максимум)
     const digits = cleaned.slice(0, 11)
-    
+
     if (!digits) return ""
 
     // Форматируем номер
@@ -44,22 +45,29 @@ export default function VacanciesClient() {
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value
-    
+
     // Если пользователь удаляет символы, разрешаем это
     if (input.length < phone.length) {
       setPhone(input)
       return
     }
-    
+
     const formatted = formatPhoneNumber(input)
     setPhone(formatted)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Разрешаем: backspace, delete, tab, escape, enter, стрелки
-    if (e.key === 'Backspace' || e.key === 'Delete' || 
-        e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter' ||
-        e.key.includes('Arrow') || e.key === 'Home' || e.key === 'End') {
+    if (
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "Tab" ||
+      e.key === "Escape" ||
+      e.key === "Enter" ||
+      e.key.includes("Arrow") ||
+      e.key === "Home" ||
+      e.key === "End"
+    ) {
       return
     }
 
@@ -71,7 +79,7 @@ export default function VacanciesClient() {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    const pastedData = e.clipboardData.getData('text')
+    const pastedData = e.clipboardData.getData("text")
     const formatted = formatPhoneNumber(pastedData)
     setPhone(formatted)
   }
@@ -82,11 +90,11 @@ export default function VacanciesClient() {
     setMessage(null)
 
     const formData = new FormData(e.currentTarget)
-    
+
     // Добавляем отформатированный телефон в formData
-    const phoneInput = e.currentTarget.querySelector('#phone') as HTMLInputElement
+    const phoneInput = e.currentTarget.querySelector("#phone") as HTMLInputElement
     if (phoneInput) {
-      formData.set('phone', phone)
+      formData.set("phone", phone)
     }
 
     const result = await submitJobApplication(formData)
@@ -97,6 +105,7 @@ export default function VacanciesClient() {
       setMessage({ type: "success", text: "Спасибо! Ваша заявка отправлена. Мы свяжемся с вами в ближайшее время." })
       ;(e.target as HTMLFormElement).reset()
       setPhone("") // Сбрасываем телефон
+      setConsent(false)
     } else {
       setMessage({ type: "error", text: result.error || "Произошла ошибка при отправке заявки" })
     }
@@ -451,6 +460,21 @@ export default function VacanciesClient() {
                   />
                 </div>
 
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="consent-vacancy"
+                    required
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="consent-vacancy" className="text-sm text-gray-700 leading-relaxed">
+                    Оставляя заявку, вы соглашаетесь на обработку персональных данных, условия пользовательского
+                    соглашения, получение информации об акциях, ценах и скидках от ООО «АСТС».
+                  </label>
+                </div>
+
                 {message && (
                   <div
                     className={`p-4 rounded-lg ${message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}
@@ -461,7 +485,7 @@ export default function VacanciesClient() {
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !consent}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
                 >
                   {isSubmitting ? "Отправка..." : "Отправить заявку"}
