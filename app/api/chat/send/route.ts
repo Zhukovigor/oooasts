@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
 const TELEGRAM_BOT_TOKEN = "6465481792:AAFvJieglOSfVL3YUSJh92_k5USt4RvzrDc"
-const TELEGRAM_CHAT_IDS = [120705872] // Ваш chat ID
+const TELEGRAM_CHAT_IDS = [120705872]
 
 async function sendToTelegram(sessionId: string, message: string) {
   const text = `💬 Новое сообщение в чате\n\n👤 Сессия: ${sessionId}\n📝 Сообщение: ${message}\n\n💡 Чтобы ответить, отправьте:\n/reply ${sessionId} ваш_ответ`
@@ -22,13 +22,45 @@ async function sendToTelegram(sessionId: string, message: string) {
       const data = await response.json()
       if (!data.ok) {
         console.error(`Telegram error for chat ${chatId}:`, data)
-      } else {
-        console.log(`Message sent to Telegram chat ${chatId}`)
       }
     } catch (error) {
       console.error(`Failed to send to Telegram chat ${chatId}:`, error)
     }
   }
+}
+
+async function getN8nResponse(message: string, sessionId: string): Promise<string> {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL
+  const fallbackResponse = "Спасибо за ваше сообщение! Менеджер свяжется с вами в ближайшее время."
+
+  if (!webhookUrl) {
+    return fallbackResponse
+  }
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatInput: message, sessionId: sessionId }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data?.output) {
+        return data.output
+      }
+    }
+  } catch (error) {
+    // Silently handle all n8n errors - webhook might be in test mode or unavailable
+  }
+
+  return fallbackResponse
 }
 
 export async function POST(req: Request) {
@@ -41,7 +73,6 @@ export async function POST(req: Request) {
 
     const supabase = await createClient()
 
-    // Сохраняем сообщение пользователя
     const { error: userMessageError } = await supabase.from("chat_messages").insert({
       session_id: sessionId,
       role: "user",
@@ -53,37 +84,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to save message" }, { status: 500 })
     }
 
-    // Отправляем уведомление в Telegram
     await sendToTelegram(sessionId, message)
 
-    // Получаем ответ от AI (n8n)
-    const webhookUrl = process.env.N8N_WEBHOOK_URL
-    
-    let botResponse = "Спасибо за ваше сообщение! Менеджер свяжется с вами в ближайшее время."
+    const botResponse = await getN8nResponse(message, sessionId)
 
-    if (webhookUrl) {
-      try {
-        const response = await fetch(webhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ chatInput: message, sessionId: sessionId }),
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data?.output) {
-            botResponse = data.output
-          }
-        }
-      } catch (n8nError) {
-        console.error("n8n webhook error:", n8nError)
-        // Продолжаем со стандартным ответом
-      }
-    }
-
-    // Сохраняем ответ бота
     const { error: botMessageError } = await supabase.from("chat_messages").insert({
       session_id: sessionId,
       role: "bot",
@@ -95,7 +99,6 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ reply: botResponse })
-
   } catch (error) {
     console.error("Chat send API error:", error)
     return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 })
