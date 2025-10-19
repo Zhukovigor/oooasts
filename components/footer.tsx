@@ -299,6 +299,12 @@ export default function Footer() {
             >
               Политика обработки данных
             </Link>
+            <Link
+              href="/o-faylah-cookie"
+              className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
+            >
+              О файлах cookie
+            </Link>
             <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium">
               Условия использования
             </a>

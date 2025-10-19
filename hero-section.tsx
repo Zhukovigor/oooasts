@@ -247,7 +247,7 @@ export default function HeroSection() {
             {/* Center: USP Badge + Navigation */}
             <div className="hidden lg:flex items-center gap-8">
               <div className="bg-blue-600 text-white px-4 py-2 text-sm font-bold whitespace-nowrap rounded-sm">
-                5лет превосходим ваши ожидания
+                Мы превосходим все ваши ожидания
               </div>
 
               <div className="flex items-center space-x-6">
