@@ -28,6 +28,7 @@ interface Equipment {
 interface Category {
   id: string
   name: string
+  slug: string
 }
 
 export default function EquipmentListClient() {
@@ -50,7 +51,7 @@ export default function EquipmentListClient() {
     try {
       const [equipmentResult, categoriesResult] = await Promise.all([
         supabase.from("catalog_models").select("*").order("created_at", { ascending: false }),
-        supabase.from("catalog_categories").select("id, name"),
+        supabase.from("catalog_categories").select("id, name, slug"),
       ])
 
       if (equipmentResult.error) throw equipmentResult.error
@@ -89,6 +90,11 @@ export default function EquipmentListClient() {
   const getCategoryName = (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
     return category?.name || "Без категории"
+  }
+
+  const getCategorySlug = (categoryId: string) => {
+    const category = categories.find((c) => c.id === categoryId)
+    return category?.slug || ""
   }
 
   const filteredEquipment = equipment.filter((item) => {
@@ -222,7 +228,11 @@ export default function EquipmentListClient() {
                           Редактировать
                         </Button>
                       </Link>
-                      <Link href={`/katalog/${item.slug}`} target="_blank" className="flex-1 lg:flex-none">
+                      <Link
+                        href={`/katalog/${getCategorySlug(item.category_id)}/${item.slug}`}
+                        target="_blank"
+                        className="flex-1 lg:flex-none"
+                      >
                         <Button variant="outline" size="sm" className="w-full bg-transparent">
                           <Eye className="w-4 h-4 mr-2" />
                           Просмотр
