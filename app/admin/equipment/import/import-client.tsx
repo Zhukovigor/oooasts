@@ -4,12 +4,88 @@ import type React from "react"
 
 import { useState } from "react"
 import { createBrowserClient } from "@supabase/ssr"
-import { Upload, FileJson, FileCode, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Upload, FileJson, FileCode, AlertCircle, CheckCircle2, Code2 } from "lucide-react"
 
 export default function ImportEquipmentClient() {
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string; count?: number } | null>(null)
   const [importType, setImportType] = useState<"json" | "sql">("json")
+  const [inputMethod, setInputMethod] = useState<"file" | "manual">("file")
+  const [manualCode, setManualCode] = useState("")
+
+  const handleManualImport = async () => {
+    if (!manualCode.trim()) {
+      setResult({
+        success: false,
+        message: "Введите код для импорта",
+      })
+      return
+    }
+
+    setImporting(true)
+    setResult(null)
+
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+
+      if (importType === "json") {
+        // Parse JSON
+        const equipment = JSON.parse(manualCode)
+        if (!Array.isArray(equipment)) {
+          throw new Error("JSON должен содержать массив техники")
+        }
+
+        // Insert equipment
+        const { data, error } = await supabase.from("catalog_models").insert(
+          equipment.map((item: any) => ({
+            category_id: item.category_id,
+            name: item.name,
+            slug: item.slug,
+            model_code: item.model_code || null,
+            description: item.description,
+            main_image: item.main_image || null,
+            images: item.images || [],
+            working_weight: item.working_weight || null,
+            bucket_volume: item.bucket_volume || null,
+            max_digging_depth: item.max_digging_depth || null,
+            max_reach: item.max_reach || null,
+            engine_manufacturer: item.engine_manufacturer || null,
+            engine_power: item.engine_power || null,
+            engine_model: item.engine_model || null,
+            specifications: item.specifications || {},
+            price: item.price || null,
+            is_active: item.is_active !== false,
+            sort_order: item.sort_order || 0,
+          })),
+        )
+
+        if (error) throw error
+
+        setResult({
+          success: true,
+          message: "Спецтехника успешно импортирована",
+          count: equipment.length,
+        })
+        setManualCode("")
+      } else {
+        // SQL import
+        setResult({
+          success: false,
+          message: "SQL импорт временно недоступен. Используйте JSON формат.",
+        })
+      }
+    } catch (error: any) {
+      setResult({
+        success: false,
+        message: error.message || "Ошибка при импорте",
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -85,7 +161,9 @@ export default function ImportEquipmentClient() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Импорт спецтехники</h1>
-        <p className="text-gray-600">Загрузите файл JSON или SQL для массового импорта техники в каталог</p>
+        <p className="text-gray-600">
+          Загрузите файл или вставьте код JSON/SQL для массового импорта техники в каталог
+        </p>
       </div>
 
       {/* Import Type Selection */}
@@ -120,30 +198,87 @@ export default function ImportEquipmentClient() {
         </div>
       </div>
 
-      {/* Upload Area */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <label
-          htmlFor="file-upload"
-          className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
-        >
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <Upload className="w-12 h-12 text-gray-400 mb-4" />
-            <p className="mb-2 text-sm text-gray-700">
-              <span className="font-semibold">Нажмите для загрузки</span> или перетащите файл
-            </p>
-            <p className="text-xs text-gray-500">
-              {importType === "json" ? "JSON файл (до 10MB)" : "SQL файл (до 10MB)"}
-            </p>
-          </div>
-          <input
-            id="file-upload"
-            type="file"
-            className="hidden"
-            accept={importType === "json" ? ".json" : ".sql"}
-            onChange={handleFileUpload}
-            disabled={importing}
-          />
-        </label>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setInputMethod("file")}
+            className={`flex-1 px-6 py-3 font-medium transition-colors ${
+              inputMethod === "file"
+                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Upload className="w-4 h-4 inline-block mr-2" />
+            Загрузить файл
+          </button>
+          <button
+            onClick={() => setInputMethod("manual")}
+            className={`flex-1 px-6 py-3 font-medium transition-colors ${
+              inputMethod === "manual"
+                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Code2 className="w-4 h-4 inline-block mr-2" />
+            Вставить код
+          </button>
+        </div>
+
+        <div className="p-6">
+          {inputMethod === "file" ? (
+            <label
+              htmlFor="file-upload"
+              className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+            >
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <Upload className="w-12 h-12 text-gray-400 mb-4" />
+                <p className="mb-2 text-sm text-gray-700">
+                  <span className="font-semibold">Нажмите для загрузки</span> или перетащите файл
+                </p>
+                <p className="text-xs text-gray-500">
+                  {importType === "json" ? "JSON файл (до 10MB)" : "SQL файл (до 10MB)"}
+                </p>
+              </div>
+              <input
+                id="file-upload"
+                type="file"
+                className="hidden"
+                accept={importType === "json" ? ".json" : ".sql"}
+                onChange={handleFileUpload}
+                disabled={importing}
+              />
+            </label>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Вставьте {importType === "json" ? "JSON" : "SQL"} код:
+                </label>
+                <textarea
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder={
+                    importType === "json"
+                      ? '[\n  {\n    "category_id": "uuid",\n    "name": "Название",\n    ...\n  }\n]'
+                      : "INSERT INTO catalog_models ..."
+                  }
+                  className="w-full h-96 px-4 py-3 font-mono text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  disabled={importing}
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  Вы можете редактировать код прямо в этом поле перед импортом
+                </p>
+              </div>
+              <button
+                onClick={handleManualImport}
+                disabled={importing || !manualCode.trim()}
+                className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {importing ? "Импортируем..." : "Импортировать"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Result Message */}
