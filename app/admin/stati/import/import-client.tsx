@@ -1,0 +1,191 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { createBrowserClient } from "@supabase/ssr"
+import { Upload, FileJson, FileCode, AlertCircle, CheckCircle2 } from "lucide-react"
+
+export default function ImportArticlesClient() {
+  const [importing, setImporting] = useState(false)
+  const [result, setResult] = useState<{ success: boolean; message: string; count?: number } | null>(null)
+  const [importType, setImportType] = useState<"json" | "sql">("json")
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    setResult(null)
+
+    try {
+      const text = await file.text()
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+
+      if (importType === "json") {
+        // Parse JSON
+        const articles = JSON.parse(text)
+        if (!Array.isArray(articles)) {
+          throw new Error("JSON должен содержать массив статей")
+        }
+
+        // Insert articles
+        const { data, error } = await supabase.from("articles").insert(
+          articles.map((article: any) => ({
+            title: article.title,
+            slug: article.slug,
+            excerpt: article.excerpt,
+            content: article.content,
+            author: article.author || "Администратор",
+            category: article.category || "Новости",
+            main_image: article.main_image || null,
+            published_at: article.published_at || new Date().toISOString(),
+            status: article.status || "published",
+            tags: article.tags || [],
+            featured: article.featured || false,
+          })),
+        )
+
+        if (error) throw error
+
+        setResult({
+          success: true,
+          message: "Статьи успешно импортированы",
+          count: articles.length,
+        })
+      } else {
+        // SQL import
+        setResult({
+          success: false,
+          message: "SQL импорт временно недоступен. Используйте JSON формат.",
+        })
+      }
+    } catch (error: any) {
+      setResult({
+        success: false,
+        message: error.message || "Ошибка при импорте",
+      })
+    } finally {
+      setImporting(false)
+      e.target.value = ""
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Импорт статей</h1>
+        <p className="text-gray-600">Загрузите файл JSON или SQL для массового импорта статей</p>
+      </div>
+
+      {/* Import Type Selection */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Выберите формат импорта</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => setImportType("json")}
+            className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
+              importType === "json" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-white"
+            }`}
+          >
+            <FileJson className={`w-8 h-8 ${importType === "json" ? "text-blue-600" : "text-gray-400"}`} />
+            <div className="text-left">
+              <div className="font-semibold text-gray-900">JSON формат</div>
+              <div className="text-sm text-gray-600">Рекомендуется для импорта</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setImportType("sql")}
+            className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all ${
+              importType === "sql" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-white"
+            }`}
+          >
+            <FileCode className={`w-8 h-8 ${importType === "sql" ? "text-blue-600" : "text-gray-400"}`} />
+            <div className="text-left">
+              <div className="font-semibold text-gray-900">SQL формат</div>
+              <div className="text-sm text-gray-600">Временно недоступен</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Upload Area */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <label
+          htmlFor="file-upload"
+          className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+        >
+          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+            <Upload className="w-12 h-12 text-gray-400 mb-4" />
+            <p className="mb-2 text-sm text-gray-700">
+              <span className="font-semibold">Нажмите для загрузки</span> или перетащите файл
+            </p>
+            <p className="text-xs text-gray-500">
+              {importType === "json" ? "JSON файл (до 10MB)" : "SQL файл (до 10MB)"}
+            </p>
+          </div>
+          <input
+            id="file-upload"
+            type="file"
+            className="hidden"
+            accept={importType === "json" ? ".json" : ".sql"}
+            onChange={handleFileUpload}
+            disabled={importing}
+          />
+        </label>
+      </div>
+
+      {/* Result Message */}
+      {result && (
+        <div
+          className={`rounded-lg p-4 flex items-start gap-3 ${
+            result.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
+          }`}
+        >
+          {result.success ? (
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          )}
+          <div>
+            <p className={`font-medium ${result.success ? "text-green-900" : "text-red-900"}`}>{result.message}</p>
+            {result.count && <p className="text-sm text-green-700 mt-1">Импортировано статей: {result.count}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {importing && (
+        <div className="flex items-center justify-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+          <span className="text-blue-900 font-medium">Импортируем статьи...</span>
+        </div>
+      )}
+
+      {/* Instructions */}
+      <div className="bg-gray-50 rounded-lg p-6 mt-6">
+        <h3 className="font-semibold text-gray-900 mb-3">Формат JSON файла:</h3>
+        <pre className="bg-white p-4 rounded border border-gray-200 overflow-x-auto text-sm">
+          {`[
+  {
+    "title": "Заголовок статьи",
+    "slug": "zagolovok-stati",
+    "excerpt": "Краткое описание",
+    "content": "Полный текст статьи",
+    "author": "Автор",
+    "category": "Категория",
+    "main_image": "URL изображения",
+    "status": "published",
+    "tags": ["тег1", "тег2"],
+    "featured": false
+  }
+]`}
+        </pre>
+      </div>
+    </div>
+  )
+}
