@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Link from "link"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, FileText, Package, Menu, X, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
