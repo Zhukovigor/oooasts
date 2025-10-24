@@ -117,7 +117,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: new Date(),
         changeFrequency: "hourly" as const,
         priority: 0.5,
-      },
+      }
 
 
     ]
