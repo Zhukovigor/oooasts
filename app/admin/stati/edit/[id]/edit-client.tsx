@@ -18,6 +18,7 @@ import {
   Heading2,
   Heading3,
   ArrowLeft,
+  Wand2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -90,23 +91,88 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
     }
   }
 
+  // Функция автоматического форматирования plain text в HTML
+  const autoFormatContent = (text: string): string => {
+    if (!text) return ""
+
+    let formattedText = text
+
+    // Обработка заголовков (строки, заканчивающиеся на ? или !)
+    formattedText = formattedText.replace(/^(.+[?!])$/gm, '<h3><strong>$1</strong></h3>')
+
+    // Обработка подзаголовков (строки с двоеточием в начале)
+    formattedText = formattedText.replace(/^([^:\n]+):/gm, '<p><strong>$1:</strong>')
+
+    // Обработка эмодзи как маркеров разделов
+    formattedText = formattedText.replace(/^(💡|🚜|💰|🇨🇳|⚙️|📞|❓|👉|💬|📩|🌐|📝)(.+)$/gm, '<h4>$1$2</h4>')
+
+    // Обработка списков с галочками
+    formattedText = formattedText.replace(/^✅ (.+)$/gm, '<li>✅ $1</li>')
+
+    // Обработка обычных пунктов списка (начинаются с дефиса, звездочки или цифры с точкой)
+    formattedText = formattedText.replace(/^[-•*] (.+)$/gm, '<li>$1</li>')
+    formattedText = formattedText.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+
+    // Обработка хештегов
+    formattedText = formattedText.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>')
+
+    // Обработка URL как ссылок
+    formattedText = formattedText.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">$1</a>'
+    )
+
+    // Разделение на параграфы (двойные переносы строк)
+    const paragraphs = formattedText.split(/\n\s*\n/)
+    
+    let finalHtml = ''
+    
+    paragraphs.forEach(paragraph => {
+      if (paragraph.trim()) {
+        // Если это уже HTML элемент (h3, h4, li), не оборачиваем в p
+        if (paragraph.match(/^<([hu]l|li|h[1-4])/)) {
+          finalHtml += paragraph + '\n'
+        } 
+        // Если это список, оборачиваем в ul
+        else if (paragraph.includes('<li>')) {
+          finalHtml += '<ul class="space-y-2 my-4">\n' + paragraph + '\n</ul>\n'
+        }
+        // Обычный текст оборачиваем в p
+        else {
+          // Убираем лишние переносы внутри параграфа
+          const cleanParagraph = paragraph.replace(/\n/g, ' ').trim()
+          if (cleanParagraph) {
+            finalHtml += `<p class="mb-4">${cleanParagraph}</p>\n`
+          }
+        }
+      }
+    })
+
+    return finalHtml.trim()
+  }
+
+  // Функция для применения автоформатирования
+  const applyAutoFormatting = () => {
+    const formattedContent = autoFormatContent(content)
+    setContent(formattedContent)
+  }
+
   // Функция для санитизации HTML контента
   const sanitizeHtml = (html: string): string => {
     return html
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/\n/g, '<br>')
-      .replace(/&lt;(strong|em|h1|h2|h3|ul|ol|li|a|img|p|br)(.*?)&gt;/g, '<$1$2>')
-      .replace(/&lt;\/(strong|em|h1|h2|h3|ul|ol|li|a|img|p)&gt;/g, '</$1>')
+      .replace(/&lt;(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|br|span)(.*?)&gt;/g, '<$1$2>')
+      .replace(/&lt;\/(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|span)&gt;/g, '</$1>')
   }
 
   // Функция для форматирования контента в предпросмотре
   const formatPreviewContent = (html: string): string => {
     const sanitized = sanitizeHtml(html)
     
-    // Добавляем базовые стили для улучшения отображения
     return `
-      <div style="font-family: system-ui, -apple-system, sans-serif; line-height: 1.6;">
+      <div class="article-content">
         ${sanitized}
       </div>
     `
@@ -140,30 +206,30 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
       case "ul":
         if (selectedText) {
           const items = selectedText.split('\n').filter(item => item.trim())
-          newText = `\n<ul>\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ul>\n`
+          newText = `\n<ul class="space-y-2 my-4">\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ul>\n`
         } else {
-          newText = `\n<ul>\n  <li>Пункт списка</li>\n</ul>\n`
+          newText = `\n<ul class="space-y-2 my-4">\n  <li>Пункт списка</li>\n</ul>\n`
         }
         break
       case "ol":
         if (selectedText) {
           const items = selectedText.split('\n').filter(item => item.trim())
-          newText = `\n<ol>\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ol>\n`
+          newText = `\n<ol class="space-y-2 my-4">\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ol>\n`
         } else {
-          newText = `\n<ol>\n  <li>Пункт списка</li>\n</ol>\n`
+          newText = `\n<ol class="space-y-2 my-4">\n  <li>Пункт списка</li>\n</ol>\n`
         }
         break
       case "link":
-        newText = `<a href="https://example.com" target="_blank" rel="noopener noreferrer">${selectedText || "текст ссылки"}</a>`
+        newText = `<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">${selectedText || "текст ссылки"}</a>`
         break
       case "image":
-        newText = `\n<img src="/images/example.jpg" alt="${selectedText || "описание изображения"}" style="width: 100%; border-radius: 0.5rem; margin: 1rem 0;" />\n`
+        newText = `\n<img src="/images/example.jpg" alt="${selectedText || "описание изображения"}" class="w-full rounded-lg my-4" />\n`
         break
       case "br":
         newText = `<br>`
         break
       case "paragraph":
-        newText = `\n<p>${selectedText || "Новый параграф"}</p>\n`
+        newText = `\n<p class="mb-4">${selectedText || "Новый параграф"}</p>\n`
         break
       default:
         return
@@ -317,9 +383,27 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                     <Label htmlFor="content" className="text-lg font-semibold">
                       Содержание статьи *
                     </Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setPreviewMode(!previewMode)}>
-                      {previewMode ? "Редактировать" : "Предпросмотр"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={applyAutoFormatting}
+                        title="Автоформатирование"
+                        className="flex items-center gap-1"
+                      >
+                        <Wand2 className="w-4 h-4" />
+                        Автоформат
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setPreviewMode(!previewMode)}
+                      >
+                        {previewMode ? "Редактировать" : "Предпросмотр"}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Formatting Toolbar */}
@@ -420,11 +504,10 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
 
                   {previewMode ? (
                     <div
-                      className="p-6 bg-white rounded-lg border min-h-[400px] prose max-w-none"
+                      className="p-6 bg-white rounded-lg border min-h-[400px] article-preview"
                       style={{ 
                         fontFamily: 'system-ui, -apple-system, sans-serif',
                         lineHeight: '1.6',
-                        whiteSpace: 'pre-wrap'
                       }}
                       dangerouslySetInnerHTML={{ 
                         __html: formatPreviewContent(content) || "<p style='color: #666;'>Контент отсутствует</p>" 
@@ -436,7 +519,25 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                         id="content"
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        placeholder="Содержание статьи (поддерживается HTML). Используйте кнопки выше для форматирования."
+                        placeholder={`Просто введите текст как в примере - система автоматически отформатирует его в красивый HTML.
+
+Пример:
+Почему D275A-5R ваш идеальный выбор?
+
+Мощный двигатель: 417 л.с. — обеспечивает высокую производительность.
+
+Умная трансмиссия: Гидромеханическая трансмиссия Torgflow для плавного хода.
+
+💡 Ключевые характеристики:
+Эксплуатационная масса: ~50,8 тонн
+Объем отвала: до 16,6 м³
+
+Мы предлагаем вам:
+✅ Поставка под заказ
+✅ Выгодный лизинг
+✅ Полная гарантия
+
+Нажмите кнопку "Автоформат" для автоматического форматирования!`}
                         rows={20}
                         className="font-mono text-sm whitespace-pre-wrap resize-vertical"
                         required
@@ -451,11 +552,14 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                 {/* Инструкция по форматированию */}
                 {!previewMode && (
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h4 className="font-semibold text-blue-900 mb-2">Инструкция по форматированию:</h4>
-                    <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                      <li>Выделите текст и нажмите кнопку для форматирования</li>
-                      <li>Для списков: выделите несколько строк текста или оставьте пустым для шаблона</li>
-                      <li>Переносы строк сохраняются автоматически</li>
+                    <h4 className="font-semibold text-blue-900 mb-2">Как работает автоформатирование:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• <strong>Заголовки:</strong> Строки с ? или ! → &lt;h3&gt;</li>
+                      <li>• <strong>Подзаголовки:</strong> Текст: с двоеточием → &lt;strong&gt;</li>
+                      <li>• <strong>Списки:</strong> ✅, •, - или 1. → &lt;ul&gt;/&lt;li&gt;</li>
+                      <li>• <strong>Разделы:</strong> Эмодзи 💡🚜💰 → &lt;h4&gt;</li>
+                      <li>• <strong>Ссылки:</strong> URL автоматически становятся кликабельными</li>
+                      <li>• <strong>Хештеги:</strong> #Текст → стилизованные теги</li>
                     </ul>
                   </div>
                 )}
@@ -654,6 +758,49 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
           </Link>
         </div>
       </form>
+
+      <style jsx>{`
+        .article-preview :global(.hashtag) {
+          display: inline-block;
+          background: #e5e7eb;
+          color: #374151;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          margin: 0 2px;
+        }
+        .article-preview :global(h3) {
+          font-size: 1.5rem;
+          font-weight: bold;
+          margin: 1.5rem 0 1rem 0;
+          color: #1f2937;
+        }
+        .article-preview :global(h4) {
+          font-size: 1.25rem;
+          font-weight: bold;
+          margin: 1.25rem 0 0.75rem 0;
+          color: #374151;
+        }
+        .article-preview :global(ul) {
+          margin: 1rem 0;
+          padding-left: 1.5rem;
+        }
+        .article-preview :global(li) {
+          margin: 0.5rem 0;
+          line-height: 1.6;
+        }
+        .article-preview :global(p) {
+          margin-bottom: 1rem;
+          line-height: 1.6;
+        }
+        .article-preview :global(a) {
+          color: #2563eb;
+          text-decoration: underline;
+        }
+        .article-preview :global(a:hover) {
+          color: #1d4ed8;
+        }
+      `}</style>
     </div>
   )
 }
