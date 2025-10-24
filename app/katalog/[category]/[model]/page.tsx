@@ -12,10 +12,14 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = await createClient()
+
+  const decodedModelSlug = decodeURIComponent(params.model)
+  const decodedCategorySlug = decodeURIComponent(params.category)
+
   const { data: model } = await supabase
     .from("catalog_models")
     .select("name, description, main_image")
-    .eq("slug", params.model)
+    .eq("slug", decodedModelSlug)
     .single()
 
   if (!model) {
@@ -24,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
-  const modelUrl = `https://oooasts.ru/katalog/${params.category}/${params.model}`
+  const modelUrl = `https://oooasts.ru/katalog/${decodedCategorySlug}/${decodedModelSlug}`
   const ogImage = model.main_image || "https://oooasts.ru/og-image.jpg"
 
   return {
@@ -336,7 +340,14 @@ const categoryOrder = [
 export default async function ModelPage({ params }: Props) {
   const supabase = await createClient()
 
-  const { data: category } = await supabase.from("catalog_categories").select("*").eq("slug", params.category).single()
+  const decodedCategorySlug = decodeURIComponent(params.category)
+  const decodedModelSlug = decodeURIComponent(params.model)
+
+  const { data: category } = await supabase
+    .from("catalog_categories")
+    .select("*")
+    .eq("slug", decodedCategorySlug)
+    .single()
 
   if (!category) {
     notFound()
@@ -345,7 +356,7 @@ export default async function ModelPage({ params }: Props) {
   const { data: model } = await supabase
     .from("catalog_models")
     .select("*")
-    .eq("slug", params.model)
+    .eq("slug", decodedModelSlug)
     .eq("category_id", category.id)
     .eq("is_active", true)
     .single()
@@ -431,7 +442,7 @@ export default async function ModelPage({ params }: Props) {
               Каталог
             </Link>
             <span>/</span>
-            <Link href={`/katalog/${params.category}`} className="hover:text-blue-600">
+            <Link href={`/katalog/${decodedCategorySlug}`} className="hover:text-blue-600">
               {category.name}
             </Link>
             <span>/</span>
