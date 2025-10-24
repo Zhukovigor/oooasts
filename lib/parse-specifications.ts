@@ -111,11 +111,29 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
 }
 
 function fixUnitOrderInText(text: string): string {
+  let fixedText = text;
+  
   // Исправляем порядок "единица Ключ: значение" на "Ключ: значение единица"
-  return text.replace(
-    /(\b(?:мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|°C|МПа)\b)\s+([А-Яа-яA-Za-z\s]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g,
-    '$2: $3 $1'
-  );
+  const unitPatterns = [
+    { pattern: /(\bмм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bсм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкг\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bл\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкВт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bл\.с\.\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bоб\/мин\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\b°\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bМПа\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+  ];
+
+  for (const unitPattern of unitPatterns) {
+    fixedText = fixedText.replace(unitPattern.pattern, unitPattern.replacement);
+  }
+
+  return fixedText;
 }
 
 function parseComplexSentence(sentence: string, category: keyof ParsedSpecifications, result: ParsedSpecifications): void {
@@ -132,7 +150,8 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
         let key = match[1].trim();
         let value = match[2].trim();
 
-        // Очистка ключа
+        // Очистка ключа от оставшихся единиц измерения в начале
+        key = key.replace(/^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+/, '');
         key = key.replace(/[•·\-—\d]/g, "").trim();
         
         // Пропускаем слишком короткие ключи или числовые значения
@@ -140,6 +159,9 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
 
         // Очистка значения
         value = value.replace(/^[•·\-—\s,]+/, "").trim();
+
+        // Дополнительная проверка и исправление порядка единиц измерения в значении
+        value = fixValueUnitOrder(value);
 
         if (value && !value.endsWith(":")) {
           result[category][key] = value;
@@ -155,4 +177,21 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
       result["Габариты"]["Размеры кузова"] = `${sizeMatch[1]} × ${sizeMatch[2]} × ${sizeMatch[3]} мм`;
     }
   }
+}
+
+// Дополнительная функция для исправления порядка единиц в значениях
+function fixValueUnitOrder(value: string): string {
+  const unitValuePatterns = [
+    /^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+(\d+(?:[.,]\d+)?)$/,
+    /^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+(\d+(?:[.,]\d+)?\s*[×x*]\s*\d+(?:[.,]\d+)?\s*[×x*]\s*\d+(?:[.,]\d+)?)$/,
+  ];
+
+  for (const pattern of unitValuePatterns) {
+    const match = value.match(pattern);
+    if (match) {
+      return `${match[2]} ${match[1]}`;
+    }
+  }
+
+  return value;
 }
