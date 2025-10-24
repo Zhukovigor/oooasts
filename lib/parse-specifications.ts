@@ -1,20 +1,20 @@
 export interface ParsedSpecifications {
-  basic: Record<string, string>
-  engine: Record<string, string>
-  hydraulics: Record<string, string>
-  dimensions: Record<string, string>
-  performance: Record<string, string>
-  other: Record<string, string>
+  "Основные параметры": Record<string, string>
+  Двигатель: Record<string, string>
+  Гидравлика: Record<string, string>
+  Габариты: Record<string, string>
+  "Рабочие характеристики": Record<string, string>
+  Прочее: Record<string, string>
 }
 
 export function parseSpecificationsFromText(text: string): ParsedSpecifications {
   const result: ParsedSpecifications = {
-    basic: {},
-    engine: {},
-    hydraulics: {},
-    dimensions: {},
-    performance: {},
-    other: {},
+    "Основные параметры": {},
+    Двигатель: {},
+    Гидравлика: {},
+    Габариты: {},
+    "Рабочие характеристики": {},
+    Прочее: {},
   }
 
   // Разбиваем текст на строки
@@ -65,60 +65,60 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
 
   // Основные параметры
   const weightMatch = fullText.match(patterns.weight)
-  if (weightMatch) result.basic["Рабочий вес"] = `${weightMatch[1]} кг`
+  if (weightMatch) result["Основные параметры"]["Рабочий вес"] = `${weightMatch[1]} кг`
 
   const bucketMatch = fullText.match(patterns.bucketVolume)
-  if (bucketMatch) result.basic["Объем ковша"] = `${bucketMatch[1]} м³`
+  if (bucketMatch) result["Основные параметры"]["Объем ковша"] = `${bucketMatch[1]} м³`
 
   // Двигатель
   const powerMatch = fullText.match(patterns.enginePower)
-  if (powerMatch) result.engine["Мощность"] = `${powerMatch[1]} кВт`
+  if (powerMatch) result.Двигатель["Мощность"] = `${powerMatch[1]} кВт`
 
   const modelMatch = fullText.match(patterns.engineModel)
-  if (modelMatch) result.engine["Модель двигателя"] = modelMatch[1]
+  if (modelMatch) result.Двигатель["Модель двигателя"] = modelMatch[1]
 
   const manufacturerMatch = fullText.match(patterns.engineManufacturer)
-  if (manufacturerMatch) result.engine["Производитель двигателя"] = manufacturerMatch[1].trim()
+  if (manufacturerMatch) result.Двигатель["Производитель двигателя"] = manufacturerMatch[1].trim()
 
   // Гидравлика
   const pressureMatch = fullText.match(patterns.maxPressure)
-  if (pressureMatch) result.hydraulics["Максимальное давление"] = `${pressureMatch[1]} МПа`
+  if (pressureMatch) result.Гидравлика["Максимальное давление"] = `${pressureMatch[1]} МПа`
 
   const pumpMatch = fullText.match(patterns.pumpOutput)
-  if (pumpMatch) result.hydraulics["Производительность насоса"] = `${pumpMatch[1]} м³/ч`
+  if (pumpMatch) result.Гидравлика["Производительность насоса"] = `${pumpMatch[1]} м³/ч`
 
   const hydraulicTankMatch = fullText.match(patterns.hydraulicTank)
-  if (hydraulicTankMatch) result.hydraulics["Гидравлический бак"] = `${hydraulicTankMatch[1]} л`
+  if (hydraulicTankMatch) result.Гидравлика["Гидравлический бак"] = `${hydraulicTankMatch[1]} л`
 
   // Габариты
   const lengthMatch = fullText.match(patterns.length)
-  if (lengthMatch) result.dimensions["Длина"] = `${lengthMatch[1]} мм`
+  if (lengthMatch) result.Габариты["Длина"] = `${lengthMatch[1]} мм`
 
   const widthMatch = fullText.match(patterns.width)
-  if (widthMatch) result.dimensions["Ширина"] = `${widthMatch[1]} мм`
+  if (widthMatch) result.Габариты["Ширина"] = `${widthMatch[1]} мм`
 
   const heightMatch = fullText.match(patterns.height)
-  if (heightMatch) result.dimensions["Высота"] = `${heightMatch[1]} мм`
+  if (heightMatch) result.Габариты["Высота"] = `${heightMatch[1]} мм`
 
   // Рабочие характеристики
   const depthMatch = fullText.match(patterns.maxDiggingDepth)
-  if (depthMatch) result.performance["Макс. глубина копания"] = `${depthMatch[1]} м`
+  if (depthMatch) result["Рабочие характеристики"]["Макс. глубина копания"] = `${depthMatch[1]} м`
 
   const reachMatch = fullText.match(patterns.maxReach)
-  if (reachMatch) result.performance["Макс. радиус работ"] = `${reachMatch[1]} м`
+  if (reachMatch) result["Рабочие характеристики"]["Макс. радиус работ"] = `${reachMatch[1]} м`
 
   const verticalMatch = fullText.match(patterns.verticalReach)
-  if (verticalMatch) result.performance["Вертикальная подача"] = `${verticalMatch[1]} м`
+  if (verticalMatch) result["Рабочие характеристики"]["Вертикальная подача"] = `${verticalMatch[1]} м`
 
   const horizontalMatch = fullText.match(patterns.horizontalReach)
-  if (horizontalMatch) result.performance["Горизонтальная подача"] = `${horizontalMatch[1]} м`
+  if (horizontalMatch) result["Рабочие характеристики"]["Горизонтальная подача"] = `${horizontalMatch[1]} м`
 
   // Прочее
   const fuelMatch = fullText.match(patterns.fuelTank)
-  if (fuelMatch) result.other["Топливный бак"] = `${fuelMatch[1]} л`
+  if (fuelMatch) result.Прочее["Топливный бак"] = `${fuelMatch[1]} л`
 
   const chassisMatch = fullText.match(patterns.chassis)
-  if (chassisMatch) result.other["Шасси"] = chassisMatch[1].trim()
+  if (chassisMatch) result.Прочее["Шасси"] = chassisMatch[1].trim()
 
   return result
 }
