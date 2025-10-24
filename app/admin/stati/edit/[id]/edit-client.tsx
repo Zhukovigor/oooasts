@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import {
   FileText,
@@ -91,6 +90,28 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
     }
   }
 
+  // Функция для санитизации HTML контента
+  const sanitizeHtml = (html: string): string => {
+    return html
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+      .replace(/&lt;(strong|em|h1|h2|h3|ul|ol|li|a|img|p|br)(.*?)&gt;/g, '<$1$2>')
+      .replace(/&lt;\/(strong|em|h1|h2|h3|ul|ol|li|a|img|p)&gt;/g, '</$1>')
+  }
+
+  // Функция для форматирования контента в предпросмотре
+  const formatPreviewContent = (html: string): string => {
+    const sanitized = sanitizeHtml(html)
+    
+    // Добавляем базовые стили для улучшения отображения
+    return `
+      <div style="font-family: system-ui, -apple-system, sans-serif; line-height: 1.6;">
+        ${sanitized}
+      </div>
+    `
+  }
+
   const insertFormatting = (format: string) => {
     const textarea = document.getElementById("content") as HTMLTextAreaElement
     if (!textarea) return
@@ -108,23 +129,44 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
         newText = `<em>${selectedText || "курсив"}</em>`
         break
       case "h1":
-        newText = `<h1>${selectedText || "Заголовок 1"}</h1>`
+        newText = `\n<h1>${selectedText || "Заголовок 1"}</h1>\n`
         break
       case "h2":
-        newText = `<h2>${selectedText || "Заголовок 2"}</h2>`
+        newText = `\n<h2>${selectedText || "Заголовок 2"}</h2>\n`
         break
       case "h3":
-        newText = `<h3>${selectedText || "Заголовок 3"}</h3>`
+        newText = `\n<h3>${selectedText || "Заголовок 3"}</h3>\n`
         break
       case "ul":
-        newText = `<ul>\n  <li>${selectedText || "Пункт списка"}</li>\n</ul>`
+        if (selectedText) {
+          const items = selectedText.split('\n').filter(item => item.trim())
+          newText = `\n<ul>\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ul>\n`
+        } else {
+          newText = `\n<ul>\n  <li>Пункт списка</li>\n</ul>\n`
+        }
+        break
+      case "ol":
+        if (selectedText) {
+          const items = selectedText.split('\n').filter(item => item.trim())
+          newText = `\n<ol>\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ol>\n`
+        } else {
+          newText = `\n<ol>\n  <li>Пункт списка</li>\n</ol>\n`
+        }
         break
       case "link":
-        newText = `<a href="https://example.com">${selectedText || "текст ссылки"}</a>`
+        newText = `<a href="https://example.com" target="_blank" rel="noopener noreferrer">${selectedText || "текст ссылки"}</a>`
         break
       case "image":
-        newText = `<img src="/images/example.jpg" alt="${selectedText || "описание изображения"}" class="w-full rounded-lg my-4" />`
+        newText = `\n<img src="/images/example.jpg" alt="${selectedText || "описание изображения"}" style="width: 100%; border-radius: 0.5rem; margin: 1rem 0;" />\n`
         break
+      case "br":
+        newText = `<br>`
+        break
+      case "paragraph":
+        newText = `\n<p>${selectedText || "Новый параграф"}</p>\n`
+        break
+      default:
+        return
     }
 
     const newContent = content.substring(0, start) + newText + content.substring(end)
@@ -132,8 +174,18 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
 
     setTimeout(() => {
       textarea.focus()
-      textarea.setSelectionRange(start + newText.length, start + newText.length)
+      const newPosition = start + newText.length
+      textarea.setSelectionRange(newPosition, newPosition)
     }, 0)
+  }
+
+  // Функция для автоматического форматирования контента при сохранении
+  const formatContentForSave = (html: string): string => {
+    return html
+      .replace(/\n/g, '')
+      .replace(/<br>/g, '\n')
+      .replace(/>\s+</g, '><')
+      .trim()
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -152,13 +204,15 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
         .map((tag) => tag.trim())
         .filter((tag) => tag.length > 0)
 
+      const formattedContent = formatContentForSave(content)
+
       const { error } = await supabase
         .from("articles")
         .update({
           title,
           slug,
           excerpt,
-          content,
+          content: formattedContent,
           main_image: mainImage,
           author,
           category,
@@ -260,7 +314,9 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                 {/* Content Editor */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label htmlFor="content">Содержание статьи *</Label>
+                    <Label htmlFor="content" className="text-lg font-semibold">
+                      Содержание статьи *
+                    </Label>
                     <Button type="button" variant="outline" size="sm" onClick={() => setPreviewMode(!previewMode)}>
                       {previewMode ? "Редактировать" : "Предпросмотр"}
                     </Button>
@@ -268,7 +324,7 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
 
                   {/* Formatting Toolbar */}
                   {!previewMode && (
-                    <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border mb-2">
+                    <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border mb-4">
                       <Button
                         type="button"
                         variant="outline"
@@ -319,9 +375,18 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                         variant="outline"
                         size="sm"
                         onClick={() => insertFormatting("ul")}
-                        title="Список"
+                        title="Маркированный список"
                       >
                         <List className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertFormatting("ol")}
+                        title="Нумерованный список"
+                      >
+                        1.
                       </Button>
                       <Button
                         type="button"
@@ -341,26 +406,59 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                       >
                         <ImageIcon className="w-4 h-4" />
                       </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertFormatting("br")}
+                        title="Перенос строки"
+                      >
+                        ↵
+                      </Button>
                     </div>
                   )}
 
                   {previewMode ? (
                     <div
-                      className="prose max-w-none p-6 bg-white rounded-lg border min-h-[400px]"
-                      dangerouslySetInnerHTML={{ __html: content }}
+                      className="p-6 bg-white rounded-lg border min-h-[400px] prose max-w-none"
+                      style={{ 
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        lineHeight: '1.6',
+                        whiteSpace: 'pre-wrap'
+                      }}
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatPreviewContent(content) || "<p style='color: #666;'>Контент отсутствует</p>" 
+                      }}
                     />
                   ) : (
-                    <Textarea
-                      id="content"
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="Содержание статьи (поддерживается HTML)"
-                      rows={20}
-                      className="font-mono text-sm"
-                      required
-                    />
+                    <div className="relative">
+                      <Textarea
+                        id="content"
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        placeholder="Содержание статьи (поддерживается HTML). Используйте кнопки выше для форматирования."
+                        rows={20}
+                        className="font-mono text-sm whitespace-pre-wrap resize-vertical"
+                        required
+                      />
+                      <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+                        {content.length} символов
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                {/* Инструкция по форматированию */}
+                {!previewMode && (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-blue-900 mb-2">Инструкция по форматированию:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                      <li>Выделите текст и нажмите кнопку для форматирования</li>
+                      <li>Для списков: выделите несколько строк текста или оставьте пустым для шаблона</li>
+                      <li>Переносы строк сохраняются автоматически</li>
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -425,7 +523,7 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                     <img
                       src={mainImage || "/placeholder.svg"}
                       alt="Preview"
-                      className="w-full rounded-lg border"
+                      className="w-full rounded-lg border max-h-48 object-cover"
                       onError={(e) => {
                         e.currentTarget.src = "/placeholder.svg?height=200&width=400"
                       }}
@@ -529,7 +627,7 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
         {/* Message */}
         {message && (
           <div
-            className={`p-4 rounded-lg ${message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}
+            className={`p-4 rounded-lg ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}
           >
             {message.text}
           </div>
@@ -537,12 +635,20 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
 
         {/* Submit Button */}
         <div className="flex gap-4">
-          <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700 text-lg py-6">
+          <Button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-lg py-6 transition-colors"
+          >
             <Save className="w-5 h-5 mr-2" />
             {isSubmitting ? "Сохранение..." : "Сохранить изменения"}
           </Button>
           <Link href="/admin/stati">
-            <Button type="button" variant="outline" className="px-6 py-6 bg-transparent">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="px-6 py-6 bg-transparent border-gray-300 hover:bg-gray-50"
+            >
               <X className="w-5 h-5" />
             </Button>
           </Link>
