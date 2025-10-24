@@ -11,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // Статьи
       supabase
         .from("articles")
-        .select("slug, updated_at, created_at")
+        .select("slug, updated_at, created_at, main_image")
         .eq("status", "published")
         .order("updated_at", { ascending: false }),
       
@@ -111,34 +111,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "monthly" as const,
         priority: 0.7,
       },
-
       {
         url: `${baseUrl}/api/rss`,
         lastModified: new Date(),
         changeFrequency: "hourly" as const,
         priority: 0.5,
       }
-
-
     ]
 
-    // Динамические маршруты статей
-    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
-      url: `${baseUrl}/stati/${article.slug}`,
-      lastModified: new Date(article.updated_at || article.created_at),
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    }))
+    // Динамические маршруты статей с поддержкой изображений
+    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => {
+      const articleUrl = `${baseUrl}/stati/${article.slug}`
+      const articleData: any = {
+        url: articleUrl,
+        lastModified: new Date(article.updated_at || article.created_at),
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      }
 
-    // Добавить изображения для статей (для Google Images)
-    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
-      url: `${baseUrl}/stati/${article.slug}`,
-      lastModified: new Date(article.updated_at || article.created_at),
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-      // images: article.images?.map(img => ({ url: img })) // если есть изображения
-    }))
+      // Добавляем изображения если есть main_image
+      if (article.main_image) {
+        const imageUrl = article.main_image.startsWith('http') 
+          ? article.main_image 
+          : `${baseUrl}${article.main_image.startsWith('/') ? '' : '/'}${article.main_image}`
+        
+        articleData.images = [{ url: imageUrl }]
+      }
 
+      return articleData
+    })
 
     // Маршруты категорий
     const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
@@ -176,6 +177,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       console.log(`- Categories: ${categoryRoutes.length}`)
       console.log(`- Models: ${modelRoutes.length}`)
       console.log(`- Articles: ${articleRoutes.length}`)
+      
+      // Логируем статьи с изображениями
+      const articlesWithImages = articleRoutes.filter(article => article.images)
+      console.log(`- Articles with images: ${articlesWithImages.length}`)
     }
 
     return allRoutes
