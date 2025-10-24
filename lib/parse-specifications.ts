@@ -1,18 +1,3 @@
-export interface ParsedSpecifications {
-  "Основные параметры": Record<string, string>;
-  Двигатель: Record<string, string>;
-  Гидравлика: Record<string, string>;
-  Габариты: Record<string, string>;
-  "Рабочие характеристики": Record<string, string>;
-  Шасси: Record<string, string>;
-  "Ходовая часть": Record<string, string>;
-  Подвеска: Record<string, string>;
-  "Весовые показатели": Record<string, string>;
-  "Крановое оборудование": Record<string, string>;
-  Трансмиссия: Record<string, string>;
-  Прочее: Record<string, string>;
-}
-
 export function parseSpecificationsFromText(text: string): ParsedSpecifications {
   const result: ParsedSpecifications = {
     "Основные параметры": {},
@@ -75,6 +60,9 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
     .replace(/Применить к форме$/i, "")
     .trim();
 
+  // Сначала исправляем общий порядок единиц измерения во всем тексте
+  processedText = fixUnitOrderInText(processedText);
+
   // Разбиваем на предложения, сохраняя структуру
   const sentences = processedText.split(/(?<=[\.\d])\s+(?=[А-ЯA-Z])/);
 
@@ -95,7 +83,7 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
     }
 
     // Автоматически определяем категорию по содержимому
-    if (lowerSentence.includes("двигатель") || lowerSentence.includes("мощность") || lowerSentence.includes("объем") && lowerSentence.includes("л")) {
+    if (lowerSentence.includes("двигатель") || lowerSentence.includes("мощность") || (lowerSentence.includes("объем") && lowerSentence.includes("л"))) {
       currentCategory = "Двигатель";
     } else if (lowerSentence.includes("шасси") || lowerSentence.includes("модель:") || lowerSentence.includes("максимальная скорость")) {
       currentCategory = "Шасси";
@@ -122,13 +110,19 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
   return result;
 }
 
+function fixUnitOrderInText(text: string): string {
+  // Исправляем порядок "единица Ключ: значение" на "Ключ: значение единица"
+  return text.replace(
+    /(\b(?:мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|°C|МПа)\b)\s+([А-Яа-яA-Za-z\s]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g,
+    '$2: $3 $1'
+  );
+}
+
 function parseComplexSentence(sentence: string, category: keyof ParsedSpecifications, result: ParsedSpecifications): void {
   // Разные паттерны для извлечения данных
   const patterns = [
     // Паттерн для "Ключ: значение"
     /([^:]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g,
-    // Паттерн для "Ключ значение" (когда значения содержат единицы измерения)
-    /(\b[А-Яа-яA-Za-z]+\s*[А-Яа-яA-Za-z]*)\s+([\d.,]+\s*[×x*]\s*[\d.,]+\s*[×x*]\s*[\d.,]+\s*мм?|[^:]+?(?=\s+[А-ЯA-Z][а-яa-z]+:|$))/g
   ];
 
   for (const pattern of patterns) {
@@ -161,31 +155,4 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
       result["Габариты"]["Размеры кузова"] = `${sizeMatch[1]} × ${sizeMatch[2]} × ${sizeMatch[3]} мм`;
     }
   }
-
-  // Обработка отдельных числовых значений с единицами измерения
-  const standaloneValues = sentence.match(/(\d+(?:[.,]\d+)?)\s*(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)/g);
-  if (standaloneValues) {
-    for (const value of standaloneValues) {
-      // Пытаемся найти соответствующий ключ перед значением
-      const keyMatch = sentence.match(new RegExp(`([А-Яа-яA-Za-z\\s]+)\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
-      if (keyMatch && keyMatch[1]) {
-        const potentialKey = keyMatch[1].trim();
-        if (potentialKey.length > 2) {
-          result[category][potentialKey] = value;
-        }
-      }
-    }
-  }
-}
-
-export function convertParsedToJSON(parsed: ParsedSpecifications): Record<string, any> {
-  const json: Record<string, any> = {};
-
-  Object.entries(parsed).forEach(([category, specs]) => {
-    if (Object.keys(specs).length > 0) {
-      json[category] = specs;
-    }
-  });
-
-  return json;
 }
