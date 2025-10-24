@@ -111,6 +111,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "monthly" as const,
         priority: 0.7,
       },
+
+      {
+        url: `${baseUrl}/api/rss`,
+        lastModified: new Date(),
+        changeFrequency: "hourly" as const,
+        priority: 0.5,
+      },
+
+
     ]
 
     // Динамические маршруты статей
@@ -120,6 +129,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.7,
     }))
+
+    // Добавить изображения для статей (для Google Images)
+    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
+      url: `${baseUrl}/stati/${article.slug}`,
+      lastModified: new Date(article.updated_at || article.created_at),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+      // images: article.images?.map(img => ({ url: img })) // если есть изображения
+    }))
+
 
     // Маршруты категорий
     const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
