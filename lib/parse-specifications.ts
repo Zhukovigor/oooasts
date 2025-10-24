@@ -29,26 +29,42 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
     Прочее: {},
   }
 
-  // Маппинг заголовков секций на категории
   const sectionMapping: Record<string, keyof ParsedSpecifications> = {
     "габаритные параметры": "Габариты",
+    "габаритные размеры": "Габариты",
     габариты: "Габариты",
+    размеры: "Габариты",
     двигатель: "Двигатель",
+    мотор: "Двигатель",
     шасси: "Шасси",
     "ходовая часть": "Ходовая часть",
+    ходовая: "Ходовая часть",
     подвеска: "Подвеска",
     "весовые показатели": "Весовые показатели",
+    "весовые параметры": "Весовые показатели",
+    вес: "Весовые показатели",
     "рабочие параметры": "Рабочие характеристики",
     "рабочие характеристики": "Рабочие характеристики",
+    "технические характеристики": "Рабочие характеристики",
     "крановое оборудование": "Крановое оборудование",
+    "кран-манипулятор": "Крановое оборудование",
+    кран: "Крановое оборудование",
     "гидравлическая система": "Гидравлика",
     гидравлика: "Гидравлика",
+    гидросистема: "Гидравлика",
     трансмиссия: "Трансмиссия",
+    коробка: "Трансмиссия",
     "дополнительные характеристики": "Прочее",
+    дополнительно: "Прочее",
+    прочее: "Прочее",
   }
 
-  // Разбиваем текст на строки
-  const lines = text.split("\n").map((line) => line.trim())
+  const normalizedText = text.replace(/\r\n/g, "\n").replace(/\t/g, " ").replace(/\s+/g, " ")
+
+  const lines = normalizedText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
 
   let currentCategory: keyof ParsedSpecifications = "Прочее"
 
@@ -56,12 +72,17 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
     const line = lines[i]
     if (!line) continue
 
-    // Проверяем, является ли строка заголовком секции
-    const lowerLine = line.toLowerCase()
+    const lowerLine = line.toLowerCase().trim()
     let foundSection = false
 
     for (const [sectionName, category] of Object.entries(sectionMapping)) {
-      if (lowerLine === sectionName || lowerLine.startsWith(sectionName)) {
+      if (
+        lowerLine === sectionName ||
+        lowerLine.startsWith(sectionName + ":") ||
+        lowerLine.startsWith(sectionName + " ") ||
+        lowerLine === sectionName + ":" ||
+        lowerLine.endsWith(sectionName)
+      ) {
         currentCategory = category
         foundSection = true
         break
@@ -70,31 +91,47 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
 
     if (foundSection) continue
 
-    // Пропускаем строку "Описание" и "О товаре"
-    if (lowerLine === "описание" || lowerLine === "о товаре") continue
+    if (lowerLine === "описание" || lowerLine === "о товаре" || lowerLine === "характеристики" || lowerLine.length < 3)
+      continue
 
-    // Извлекаем пары ключ-значение
-    // Поддерживаем форматы: "Ключ: значение", "Ключ - значение", "Ключ：значение"
-    const colonMatch = line.match(/^([^:：-]+?)[\s]*[:：-][\s]*(.+)$/)
+    // Supports: "Key: value", "Key - value", "Key：value", "Key  value" (multiple spaces)
+    const patterns = [
+      /^([^:：\-—]+?)[\s]*[:：][\s]*(.+)$/, // Colon separator
+      /^([^:：\-—]+?)[\s]*[-—][\s]*(.+)$/, // Dash separator
+      /^([^:：\-—]+?)[\s]{2,}(.+)$/, // Multiple spaces separator
+    ]
 
-    if (colonMatch) {
-      const key = colonMatch[1].trim()
-      const value = colonMatch[2].trim()
+    let matched = false
+    for (const pattern of patterns) {
+      const match = line.match(pattern)
+      if (match) {
+        let key = match[1].trim()
+        let value = match[2].trim()
 
-      // Пропускаем пустые значения
-      if (key && value) {
-        result[currentCategory][key] = value
+        key = key.replace(/[•·\-—]/g, "").trim()
+        value = value.replace(/^[•·\-—\s]+/, "").trim()
+
+        if (key.length > 1 && value.length > 0) {
+          result[currentCategory][key] = value
+          matched = true
+          break
+        }
       }
     }
-  }
 
-  // Дополнительно извлекаем основные параметры из первой строки описания
-  const firstLine = lines[0]
-  if (firstLine && !firstLine.toLowerCase().includes("описание")) {
-    // Извлекаем модель из первой строки
-    const modelMatch = firstLine.match(/^([^,]+)/i)
-    if (modelMatch && !result["Основные параметры"]["Модель"]) {
-      result["Основные параметры"]["Модель"] = modelMatch[1].trim()
+    if (!matched && line.includes(" ") && !line.endsWith(":")) {
+      // Try to split on first occurrence of multiple spaces or common separators
+      const parts = line.split(/\s{2,}|(?<=\D)\s+(?=\d)/)
+      if (parts.length >= 2) {
+        const key = parts[0]
+          .trim()
+          .replace(/[•·\-—]/g, "")
+          .trim()
+        const value = parts.slice(1).join(" ").trim()
+        if (key.length > 1 && value.length > 0) {
+          result[currentCategory][key] = value
+        }
+      }
     }
   }
 
