@@ -35,7 +35,7 @@ function htmlToDzenFormat(html: string): string {
     .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '<h2>$1</h2>')
     .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '<h3>$1</h3>')
     .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '<h4>$1</h4>')
-    .replace(/<h[5-6][^>]*>(.*?)<\/h[5-6]>/gi, '<h4>$1</h4>') // h5-h6 -> h4
+    .replace(/<h[5-6][^>]*>(.*?)<\/h[5-6]>/gi, '<h4>$1</h4>')
     
     // Жирный текст
     .replace(/<strong>(.*?)<\/strong>/gi, '<b>$1</b>')
@@ -43,12 +43,12 @@ function htmlToDzenFormat(html: string): string {
     // Курсив
     .replace(/<em>(.*?)<\/em>/gi, '<i>$1</i>')
     
-    // Подчеркивание и зачеркивание (если есть в исходном HTML)
+    // Подчеркивание и зачеркивание
     .replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>')
     .replace(/<s>(.*?)<\/s>/gi, '<s>$1</s>')
     .replace(/<strike>(.*?)<\/strike>/gi, '<s>$1</s>')
     
-    // Списки - Дзен требует строгую структуру
+    // Списки
     .replace(/<ul[^>]*>(.*?)<\/ul>/gis, (match, content) => {
       const listItems = content.match(/<li[^>]*>(.*?)<\/li>/gi) || []
       const formattedItems = listItems.map(item => 
@@ -71,12 +71,12 @@ function htmlToDzenFormat(html: string): string {
     // Ссылки
     .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '<a href="$1">$2</a>')
     
-    // Абзацы - Дзен требует <p> теги
+    // Абзацы
     .replace(/<p[^>]*>(.*?)<\/p>/gi, '<p>$1</p>')
     .replace(/<div[^>]*>(.*?)<\/div>/gi, '<p>$1</p>')
     .replace(/<br\s*\/?>/gi, '<br/>')
     
-    // Удаляем неподдерживаемые теги, но сохраняем их содержимое
+    // Удаляем неподдерживаемые теги
     .replace(/<script[^>]*>.*?<\/script>/gi, '')
     .replace(/<style[^>]*>.*?<\/style>/gi, '')
     .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
@@ -86,18 +86,6 @@ function htmlToDzenFormat(html: string): string {
     .replace(/\s+/g, ' ')
     .trim()
 
-  return text
-}
-
-// Функция для создания текстового описания (для Яндекс)
-function htmlToReadableText(html: string): string {
-  if (!html) return ""
-  
-  let text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  
   return text
 }
 
@@ -122,10 +110,8 @@ function createBeautifulExcerpt(html: string, maxLength: number = 150): string {
   return text
 }
 
-// Функция для получения размера изображения по URL (заглушка)
+// Функция для получения размера изображения
 async function getImageSize(url: string): Promise<number> {
-  // Заглушка - возвращаем примерный размер
-  // В реальном приложении можно использовать fetch HEAD запрос
   return 102400; // 100KB в байтах
 }
 
@@ -133,44 +119,39 @@ export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
 
-    // Получаем опубликованные статьи за последние 3 дня для Дзена
-    const threeDaysAgo = new Date()
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-
+    // Для первоначальной настройки Дзена берем больше статей
+    // После настройки можно вернуть фильтр по дате
     const { data: articles, error } = await supabase
       .from("articles")
       .select("*")
       .eq("status", "published")
       .not("published_at", "is", null)
-      .gte("published_at", threeDaysAgo.toISOString())
       .order("published_at", { ascending: false })
-      .limit(50)
+      .limit(30) // Берем больше статей для первоначальной настройки
 
     if (error) {
       console.error("Ошибка при получении статей:", error)
       return new NextResponse("Ошибка при получении статей", { status: 500 })
     }
 
+    // Проверяем, достаточно ли статей для Дзена
+    if (!articles || articles.length < 10) {
+      console.warn(`ВНИМАНИЕ: Для Дзена нужно минимум 10 статей. Сейчас: ${articles?.length || 0}`)
+      // Можно вернуть ошибку или продолжить с предупреждением
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts-nsk.ru"
-    
-    // Получаем текущий URL RSS-ленты из запроса
     const currentUrl = new URL(request.url)
     const rssUrl = `${currentUrl.origin}${currentUrl.pathname}`
 
     // Генерируем элементы RSS
     const rssItems = await Promise.all(articles?.map(async (article) => {
       const articleUrl = `${baseUrl}/stati/${article.slug}`
-      
-      // Форматируем дату для Дзена (RFC 822)
       const pubDate = new Date(article.published_at).toUTCString()
 
-      // Создаем контент для разных платформ
       const beautifulExcerpt = createBeautifulExcerpt(article.excerpt || article.content || "")
-      const beautifulFullText = htmlToReadableText(article.content || article.excerpt || "")
       const dzenFormattedContent = htmlToDzenFormat(article.content || article.excerpt || "")
 
-      // Формируем медиа-контент
-      let mediaContent = ""
       let enclosureContent = ""
       
       if (article.main_image) {
@@ -179,21 +160,14 @@ export async function GET(request: Request) {
           : `${baseUrl}${article.main_image.startsWith("/") ? "" : "/"}${article.main_image}`
         
         const imageSize = await getImageSize(imageUrl)
-
-        // Медиа-контент для Яндекса
-        mediaContent = `
-        <media:content url="${escapeXml(imageUrl)}" type="image/jpeg" medium="image"/>
-        <media:thumbnail url="${escapeXml(imageUrl)}"/>`
-
-        // Enclosure для Дзена (обложка)
         enclosureContent = `
         <enclosure url="${escapeXml(imageUrl)}" type="image/jpeg" length="${imageSize}"/>`
       }
 
-      // Определяем категории для Дзена
+      // Категории для Дзена
       const dzenCategories = [
         'format-article',
-        'index',
+        'index', 
         'comment-all'
       ].map(cat => `        <category>${cat}</category>`).join('\n')
 
@@ -204,22 +178,16 @@ export async function GET(request: Request) {
         <author>info@asts-nsk.ru (ООО АСТС)</author>
         <category>${escapeXml(article.category || "Статьи")}</category>
         <pubDate>${pubDate}</pubDate>
-        <guid isPermaLink="true">${escapeXml(articleUrl)}</guid>
-        <!-- Яндекс специфичные теги -->
-        <yandex:full-text>${escapeXml(beautifulFullText)}</yandex:full-text>${mediaContent}
-        <!-- Дзен специфичные теги -->${enclosureContent}
+        <guid isPermaLink="true">${escapeXml(articleUrl)}</guid>${enclosureContent}
 ${dzenCategories}
         <content:encoded><![CDATA[<h1>${escapeXml(article.title || "")}</h1>${dzenFormattedContent}]]></content:encoded>
       </item>`
     }) || [])
 
-    // Собираем полный RSS-фид с поддержкой обеих платформ
     const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" 
-     xmlns:media="http://search.yahoo.com/mrss/"
      xmlns:content="http://purl.org/rss/1.0/modules/content/"
-     xmlns:atom="http://www.w3.org/2005/Atom"
-     xmlns:yandex="http://news.yandex.ru">
+     xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>ООО АСТС - Статьи и новости</title>
     <link>${escapeXml(baseUrl)}</link>
