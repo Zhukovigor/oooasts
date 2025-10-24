@@ -7,9 +7,10 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase/client"
+import { parseSpecificationsFromText, convertParsedToJSON, type ParsedSpecifications } from "@/lib/parse-specifications"
 
 interface Category {
   id: string
@@ -21,6 +22,9 @@ export default function EquipmentFormClient() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
+  const [rawText, setRawText] = useState("")
+  const [parsedSpecs, setParsedSpecs] = useState<ParsedSpecifications | null>(null)
+  const [showParser, setShowParser] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -50,6 +54,38 @@ export default function EquipmentFormClient() {
       .toLowerCase()
       .replace(/[^а-яa-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
+  }
+
+  function handleParseText() {
+    if (!rawText.trim()) {
+      alert("Пожалуйста, вставьте текст с характеристиками")
+      return
+    }
+
+    const parsed = parseSpecificationsFromText(rawText)
+    setParsedSpecs(parsed)
+
+    // Автоматически заполняем поля формы
+    const specsJSON = convertParsedToJSON(parsed)
+    setFormData((prev) => ({
+      ...prev,
+      specifications: specsJSON,
+    }))
+
+    alert("Характеристики успешно извлечены! Проверьте результат ниже.")
+  }
+
+  function applyParsedSpecs() {
+    if (!parsedSpecs) return
+
+    const specsJSON = convertParsedToJSON(parsedSpecs)
+    setFormData((prev) => ({
+      ...prev,
+      specifications: specsJSON,
+    }))
+
+    setShowParser(false)
+    alert("Характеристики применены к форме!")
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -213,6 +249,103 @@ export default function EquipmentFormClient() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  AI Парсер характеристик
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Вставьте полный текст описания товара, и система автоматически извлечет все характеристики
+                </p>
+              </div>
+              <Button type="button" variant="outline" onClick={() => setShowParser(!showParser)}>
+                {showParser ? "Скрыть" : "Показать"}
+              </Button>
+            </div>
+
+            {showParser && (
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Вставьте текст с характеристиками
+                  </label>
+                  <textarea
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg min-h-[200px] font-mono text-sm"
+                    placeholder="Например:
+Гидравлический экскаватор KOMATSU PC300-8M0
+Рабочий вес: 31100 кг
+Объем ковша: 1.14 м³
+Макс. глубина копания: 6400 м
+Мощность двигателя: 194 кВт
+Производитель двигателя: Komatsu
+..."
+                  />
+                </div>
+
+                <Button type="button" onClick={handleParseText} className="bg-purple-600 hover:bg-purple-700">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Извлечь характеристики
+                </Button>
+
+                {parsedSpecs && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h3 className="font-semibold text-green-900 mb-3">Извлеченные характеристики:</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries(parsedSpecs).map(([category, specs]) => {
+                        if (Object.keys(specs).length === 0) return null
+                        return (
+                          <div key={category} className="bg-white p-3 rounded border">
+                            <h4 className="font-medium text-gray-900 mb-2 capitalize">{category}</h4>
+                            <div className="space-y-1 text-sm">
+                              {Object.entries(specs).map(([key, value]) => (
+                                <div key={key} className="flex justify-between">
+                                  <span className="text-gray-600">{key}:</span>
+                                  <span className="font-medium">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <Button type="button" onClick={applyParsedSpecs} className="mt-4 bg-green-600 hover:bg-green-700">
+                      Применить к форме
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {Object.keys(formData.specifications).length > 0 && (
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <h2 className="text-xl font-bold text-gray-900">Предпросмотр характеристик</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(formData.specifications).map(([category, specs]) => (
+                  <div key={category} className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-gray-900 mb-2 capitalize">{category}</h3>
+                    <div className="space-y-1 text-sm">
+                      {Object.entries(specs as Record<string, any>).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="text-gray-600">{key}:</span>
+                          <span className="font-medium">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex gap-4">
           <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700">
