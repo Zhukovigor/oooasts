@@ -1,18 +1,3 @@
-export interface ParsedSpecifications {
-  "Основные параметры": Record<string, string>;
-  Двигатель: Record<string, string>;
-  Гидравлика: Record<string, string>;
-  Габариты: Record<string, string>;
-  "Рабочие характеристики": Record<string, string>;
-  Шасси: Record<string, string>;
-  "Ходовая часть": Record<string, string>;
-  Подвеска: Record<string, string>;
-  "Весовые показатели": Record<string, string>;
-  "Крановое оборудование": Record<string, string>;
-  Трансмиссия: Record<string, string>;
-  Прочее: Record<string, string>;
-}
-
 export function parseSpecificationsFromText(text: string): ParsedSpecifications {
   const result: ParsedSpecifications = {
     "Основные параметры": {},
@@ -125,33 +110,6 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
   return result;
 }
 
-// Функция для исправления порядка единиц измерения в тексте
-function fixUnitOrderInText(text: string): string {
-  let fixedText = text;
-  
-  // Исправляем порядок "единица Ключ: значение" на "Ключ: значение единица"
-  const unitPatterns = [
-    { pattern: /(\bмм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bсм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bкм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bкг\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bл\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bкВт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bл\.с\.\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bоб\/мин\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\b°\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-    { pattern: /(\bМПа\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
-  ];
-
-  for (const unitPattern of unitPatterns) {
-    fixedText = fixedText.replace(unitPattern.pattern, unitPattern.replacement);
-  }
-
-  return fixedText;
-}
-
 function parseComplexSentence(sentence: string, category: keyof ParsedSpecifications, result: ParsedSpecifications): void {
   // Разные паттерны для извлечения данных
   const patterns = [
@@ -178,6 +136,9 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
 
         // Дополнительная проверка и исправление порядка единиц измерения в значении
         value = fixValueUnitOrder(value);
+
+        // Автоматически добавляем единицы измерения, если их нет
+        value = addMissingUnits(key, value);
 
         if (value && !value.endsWith(":")) {
           result[category][key] = value;
@@ -208,6 +169,70 @@ function parseComplexSentence(sentence: string, category: keyof ParsedSpecificat
       }
     }
   }
+}
+
+// Функция для автоматического добавления единиц измерения
+function addMissingUnits(key: string, value: string): string {
+  // Если значение уже содержит единицы измерения, возвращаем как есть
+  if (/(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)/i.test(value)) {
+    return value;
+  }
+
+  // Если значение - просто число, добавляем соответствующую единицу измерения
+  const numericMatch = value.match(/^(\d+(?:[.,]\d+)?)$/);
+  if (numericMatch) {
+    const numericValue = numericMatch[1];
+    const lowerKey = key.toLowerCase();
+
+    // Определяем единицу измерения по контексту ключа
+    if (lowerKey.includes('длина') || lowerKey.includes('ширина') || lowerKey.includes('высота') || 
+        lowerKey.includes('база') || lowerKey.includes('колея') || lowerKey.includes('габарит')) {
+      return `${numericValue} мм`;
+    } else if (lowerKey.includes('масса') || lowerKey.includes('вес') || lowerKey.includes('нагрузка')) {
+      return `${numericValue} кг`;
+    } else if (lowerKey.includes('объем') || lowerKey.includes('вместимость')) {
+      return `${numericValue} л`;
+    } else if (lowerKey.includes('мощность') && !lowerKey.includes('л.с.')) {
+      return `${numericValue} кВт`;
+    } else if (lowerKey.includes('скорость')) {
+      return `${numericValue} км/ч`;
+    } else if (lowerKey.includes('давление')) {
+      return `${numericValue} МПа`;
+    } else if (lowerKey.includes('диапазон') || lowerKey.includes('радиус') || lowerKey.includes('вылет')) {
+      return `${numericValue} мм`;
+    } else if (lowerKey.includes('подъем') && lowerKey.includes('высота')) {
+      return `${numericValue} мм`;
+    }
+  }
+
+  return value;
+}
+
+// Функция для исправления порядка единиц измерения в тексте
+function fixUnitOrderInText(text: string): string {
+  let fixedText = text;
+  
+  // Исправляем порядок "единица Ключ: значение" на "Ключ: значение единица"
+  const unitPatterns = [
+    { pattern: /(\bмм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bсм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкм\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкг\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bл\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bкВт\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bл\.с\.\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bоб\/мин\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\b°\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+    { pattern: /(\bМПа\b)\s+([А-Яа-яA-Za-z]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g, replacement: '$2: $3 $1' },
+  ];
+
+  for (const unitPattern of unitPatterns) {
+    fixedText = fixedText.replace(unitPattern.pattern, unitPattern.replacement);
+  }
+
+  return fixedText;
 }
 
 // Дополнительная функция для исправления порядка единиц в значениях
