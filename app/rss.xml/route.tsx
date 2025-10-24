@@ -123,14 +123,13 @@ function createBeautifulExcerpt(html: string, maxLength: number = 150): string {
 }
 
 // Функция для получения размера изображения по URL (заглушка)
-// В реальном приложении нужно реализовать получение размера изображения
 async function getImageSize(url: string): Promise<number> {
   // Заглушка - возвращаем примерный размер
   // В реальном приложении можно использовать fetch HEAD запрос
   return 102400; // 100KB в байтах
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
 
@@ -153,7 +152,10 @@ export async function GET() {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts-nsk.ru"
-    const rssUrl = `${baseUrl}/api/rss`
+    
+    // Получаем текущий URL RSS-ленты из запроса
+    const currentUrl = new URL(request.url)
+    const rssUrl = `${currentUrl.origin}${currentUrl.pathname}`
 
     // Генерируем элементы RSS
     const rssItems = await Promise.all(articles?.map(async (article) => {
@@ -178,26 +180,21 @@ export async function GET() {
         
         const imageSize = await getImageSize(imageUrl)
 
-        // Медиа-контент для Яндекса - исправленная версия
+        // Медиа-контент для Яндекса
         mediaContent = `
         <media:content url="${escapeXml(imageUrl)}" type="image/jpeg" medium="image"/>
         <media:thumbnail url="${escapeXml(imageUrl)}"/>`
 
-        // Enclosure для Дзена (обложка) - добавляем атрибут length
+        // Enclosure для Дзена (обложка)
         enclosureContent = `
         <enclosure url="${escapeXml(imageUrl)}" type="image/jpeg" length="${imageSize}"/>`
-
-        // Добавляем изображение в контент для Дзена, если его там нет
-        if (!dzenFormattedContent.includes('<img')) {
-          // Изображение будет добавлено в content:encoded
-        }
       }
 
       // Определяем категории для Дзена
       const dzenCategories = [
-        'format-article', // или 'format-post' для постов
-        'index', // или 'noindex'
-        'comment-all' // или 'comment-subscribers', 'comment-none'
+        'format-article',
+        'index',
+        'comment-all'
       ].map(cat => `        <category>${cat}</category>`).join('\n')
 
       return `    <item>
@@ -219,10 +216,10 @@ ${dzenCategories}
     // Собираем полный RSS-фид с поддержкой обеих платформ
     const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" 
-     xmlns:yandex="http://news.yandex.ru" 
      xmlns:media="http://search.yahoo.com/mrss/"
      xmlns:content="http://purl.org/rss/1.0/modules/content/"
-     xmlns:atom="http://www.w3.org/2005/Atom">
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:yandex="http://news.yandex.ru">
   <channel>
     <title>ООО АСТС - Статьи и новости</title>
     <link>${escapeXml(baseUrl)}</link>
