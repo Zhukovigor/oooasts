@@ -140,7 +140,7 @@ export async function GET(request: Request) {
       // Можно вернуть ошибку или продолжить с предупреждением
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts-nsk.ru"
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
     const currentUrl = new URL(request.url)
     const rssUrl = `${currentUrl.origin}${currentUrl.pathname}`
 
@@ -195,8 +195,8 @@ ${dzenCategories}
     <language>ru</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <atom:link href="${escapeXml(rssUrl)}" rel="self" type="application/rss+xml"/>
-    <webMaster>info@asts-nsk.ru (ООО АСТС)</webMaster>
-    <managingEditor>info@asts-nsk.ru (ООО АСТС)</managingEditor>
+    <webMaster>zhukovigor@yandex.ru (ООО АСТС)</webMaster>
+    <managingEditor>zhukovigor@yandex.ru (ООО АСТС)</managingEditor>
 ${rssItems.join("\n")}
   </channel>
 </rss>`
