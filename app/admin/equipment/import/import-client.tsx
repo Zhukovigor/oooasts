@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createBrowserClient } from "@supabase/ssr"
-import { Upload, FileJson, FileCode, AlertCircle, CheckCircle2, Code2 } from "lucide-react"
+import { Upload, FileJson, FileCode, AlertCircle, CheckCircle2, Code2, Info } from "lucide-react"
 
 export default function ImportEquipmentClient() {
   const [importing, setImporting] = useState(false)
@@ -12,6 +12,28 @@ export default function ImportEquipmentClient() {
   const [importType, setImportType] = useState<"json" | "sql">("json")
   const [inputMethod, setInputMethod] = useState<"file" | "manual">("file")
   const [manualCode, setManualCode] = useState("")
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; slug: string }>>([])
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+
+      const { data } = await supabase
+        .from("catalog_categories")
+        .select("id, name, slug")
+        .eq("is_active", true)
+        .order("name")
+
+      if (data) {
+        setCategories(data)
+      }
+    }
+
+    fetchCategories()
+  }, [])
 
   const handleManualImport = async () => {
     if (!manualCode.trim()) {
@@ -36,6 +58,15 @@ export default function ImportEquipmentClient() {
         const equipment = JSON.parse(manualCode)
         if (!Array.isArray(equipment)) {
           throw new Error("JSON должен содержать массив техники")
+        }
+
+        const categoryIds = new Set(categories.map((c) => c.id))
+        const invalidItems = equipment.filter((item: any) => !categoryIds.has(item.category_id))
+
+        if (invalidItems.length > 0) {
+          throw new Error(
+            `Найдены недействительные category_id. Используйте ID из списка доступных категорий ниже. Проблемные записи: ${invalidItems.length}`,
+          )
         }
 
         // Insert equipment
@@ -108,6 +139,15 @@ export default function ImportEquipmentClient() {
           throw new Error("JSON должен содержать массив техники")
         }
 
+        const categoryIds = new Set(categories.map((c) => c.id))
+        const invalidItems = equipment.filter((item: any) => !categoryIds.has(item.category_id))
+
+        if (invalidItems.length > 0) {
+          throw new Error(
+            `Найдены недействительные category_id. Используйте ID из списка доступных категорий ниже. Проблемные записи: ${invalidItems.length}`,
+          )
+        }
+
         // Insert equipment
         const { data, error } = await supabase.from("catalog_models").insert(
           equipment.map((item: any) => ({
@@ -165,6 +205,30 @@ export default function ImportEquipmentClient() {
           Загрузите файл или вставьте код JSON/SQL для массового импорта техники в каталог
         </p>
       </div>
+
+      {categories.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 mb-2">Доступные категории для импорта:</h3>
+              <div className="space-y-2">
+                {categories.map((cat) => (
+                  <div key={cat.id} className="bg-white rounded p-2 text-sm">
+                    <div className="font-mono text-xs text-gray-600 mb-1">{cat.id}</div>
+                    <div className="font-medium text-gray-900">
+                      {cat.name} <span className="text-gray-500">({cat.slug})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-blue-700 mt-3">
+                ⚠️ Используйте эти ID в поле <code className="bg-blue-100 px-1 rounded">category_id</code> при импорте
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Import Type Selection */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -259,7 +323,7 @@ export default function ImportEquipmentClient() {
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder={
                     importType === "json"
-                      ? '[\n  {\n    "category_id": "uuid",\n    "name": "Название",\n    ...\n  }\n]'
+                      ? `[\n  {\n    "category_id": "${categories[0]?.id || "uuid-категории"}",\n    "name": "Название",\n    ...\n  }\n]`
                       : "INSERT INTO catalog_models ..."
                   }
                   className="w-full h-96 px-4 py-3 font-mono text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
@@ -314,7 +378,7 @@ export default function ImportEquipmentClient() {
         <pre className="bg-white p-4 rounded border border-gray-200 overflow-x-auto text-sm">
           {`[
   {
-    "category_id": "uuid-категории",
+    "category_id": "${categories[0]?.id || "uuid-категории-из-списка-выше"}",
     "name": "Название техники",
     "slug": "nazvanie-tehniki",
     "model_code": "Код модели",
