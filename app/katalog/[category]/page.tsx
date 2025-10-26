@@ -4,17 +4,29 @@ import Image from "next/image"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import Footer from "@/components/footer"
+import CatalogFilters from "@/components/catalog-filters"
 
 type Props = {
   params: { category: string }
+  searchParams: {
+    brand?: string
+    condition?: string
+    minPrice?: string
+    maxPrice?: string
+    sort?: string
+    page?: string
+  }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const supabase = await createClient()
+
+  const decodedCategory = decodeURIComponent(params.category)
+
   const { data: category } = await supabase
     .from("catalog_categories")
     .select("name, description, image_url")
-    .eq("slug", params.category)
+    .eq("slug", decodedCategory)
     .single()
 
   if (!category) {
@@ -26,13 +38,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const categoryUrl = `https://oooasts.ru/katalog/${params.category}`
   const ogImage = category.image_url || "https://oooasts.ru/og-image.jpg"
 
+  const canonicalParams = new URLSearchParams()
+  if (searchParams.brand) canonicalParams.set("brand", searchParams.brand)
+  if (searchParams.condition) canonicalParams.set("condition", searchParams.condition)
+  if (searchParams.minPrice) canonicalParams.set("minPrice", searchParams.minPrice)
+  if (searchParams.maxPrice) canonicalParams.set("maxPrice", searchParams.maxPrice)
+  if (searchParams.sort) canonicalParams.set("sort", searchParams.sort)
+
+  const canonicalUrl = `${categoryUrl}${canonicalParams.toString() ? `?${canonicalParams.toString()}` : ""}`
+
+  const robotsMeta = searchParams.page && Number(searchParams.page) > 1 ? "noindex, follow" : "index, follow"
+
   return {
     title: `${category.name} | Каталог | ООО АСТС`,
     description: category.description || `Каталог ${category.name.toLowerCase()}`,
+    robots: robotsMeta,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title: `${category.name} | Каталог | ООО АСТС`,
       description: category.description || `Каталог ${category.name.toLowerCase()}`,
-      url: categoryUrl,
+      url: canonicalUrl,
       siteName: "ООО АСТС",
       locale: "ru_RU",
       type: "website",
@@ -54,13 +81,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function CategoryPage({ params }: Props) {
-  const supabase = await createClient() // Added await
+export default async function CategoryPage({ params, searchParams }: Props) {
+  const supabase = await createClient()
+
+  const decodedCategory = decodeURIComponent(params.category)
 
   const { data: category } = await supabase
     .from("catalog_categories")
     .select("*")
-    .eq("slug", params.category)
+    .eq("slug", decodedCategory)
     .eq("is_active", true)
     .single()
 
@@ -68,12 +97,40 @@ export default async function CategoryPage({ params }: Props) {
     notFound()
   }
 
-  const { data: models } = await supabase
-    .from("catalog_models")
-    .select("*")
-    .eq("category_id", category.id)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
+  let query = supabase.from("catalog_models").select("*").eq("category_id", category.id).eq("is_active", true)
+
+  // Apply filters
+  if (searchParams.brand) {
+    query = query.eq("engine_manufacturer", searchParams.brand)
+  }
+
+  if (searchParams.minPrice) {
+    query = query.gte("price", Number(searchParams.minPrice))
+  }
+
+  if (searchParams.maxPrice) {
+    query = query.lte("price", Number(searchParams.maxPrice))
+  }
+
+  // Apply sorting
+  switch (searchParams.sort) {
+    case "price_desc":
+      query = query.order("price", { ascending: false, nullsFirst: false })
+      break
+    case "name_asc":
+      query = query.order("name", { ascending: true })
+      break
+    case "name_desc":
+      query = query.order("name", { ascending: false })
+      break
+    case "newest":
+      query = query.order("created_at", { ascending: false })
+      break
+    default:
+      query = query.order("price", { ascending: true, nullsFirst: false })
+  }
+
+  const { data: models } = await query
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -121,39 +178,19 @@ export default async function CategoryPage({ params }: Props) {
       {/* Filters */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 flex items-center gap-2">
-                По возрастанию цены
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600">Со скидкой</button>
-              <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600">В наличии</button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="p-2 text-blue-600 bg-blue-50 rounded">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M5 3a2 2 0 011-1h12a2 2 0 110 2H4a2 2 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
-                </svg>
-              </button>
-              <button className="p-2 text-gray-600 hover:bg-gray-100 rounded">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
+          <CatalogFilters categorySlug={params.category} />
         </div>
       </div>
 
       {/* Models Grid */}
       <div className="container mx-auto px-6 py-8">
+        {/* Results count */}
+        <div className="mb-6">
+          <p className="text-gray-600">
+            Найдено <span className="font-semibold text-gray-900">{models?.length || 0}</span> моделей
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {models?.map((model) => (
             <Link

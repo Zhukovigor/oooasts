@@ -175,7 +175,7 @@ function getCategory(key: string): string {
     pressure_high: "Рабочие характеристики",
     pump_cycles_low: "Рабочие характеристики",
     pump_cycles_high: "Рабочие характеристики",
-    cylinder_diameter: "Рабочие характеристики",
+    cylinder_diameter: "��абочие характеристики",
 
     // Двигатель
     engine_model: "Двигатель",
