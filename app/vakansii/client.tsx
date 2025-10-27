@@ -1,17 +1,10 @@
 "use client"
 
-import { AccordionContent } from "@/components/ui/accordion"
-
-import { AccordionTrigger } from "@/components/ui/accordion"
-
-import { AccordionItem } from "@/components/ui/accordion"
-
-import { Accordion } from "@/components/ui/accordion"
-
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Briefcase, MapPin, Clock, CheckCircle, Phone, Mail, Send, ChevronDown, ChevronUp } from "lucide-react"
+import { Briefcase, MapPin, Clock, CheckCircle, Phone, Mail, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -211,9 +204,25 @@ export default function VacanciesClient({ vacancies }: VacanciesClientProps) {
                       </div>
                     </div>
                     {isExpanded ? (
-                      <ChevronUp className="w-6 h-6 text-gray-400 flex-shrink-0" />
+                      <svg
+                        className="w-6 h-6 text-gray-400 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path>
+                      </svg>
                     ) : (
-                      <ChevronDown className="w-6 h-6 text-gray-400 flex-shrink-0" />
+                      <svg
+                        className="w-6 h-6 text-gray-400 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
                     )}
                   </button>
 
@@ -303,17 +312,71 @@ export default function VacanciesClient({ vacancies }: VacanciesClientProps) {
         >
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Преимущества работы с нами</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {vacancies.map((vacancy) => (
-              <Card key={vacancy.id} className="border-2 hover:border-blue-200 transition-colors">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4 text-blue-600">
-                    <MapPin className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{vacancy.title}</h3>
-                  <p className="text-gray-600">{vacancy.location}</p>
-                </CardContent>
-              </Card>
-            ))}
+            <Card className="border-2 hover:border-blue-200 transition-colors">
+              <CardContent className="p-6 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Удаленная работа</h3>
+                <p className="text-gray-600">Работайте из любой точки России</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-blue-200 transition-colors">
+              <CardContent className="p-6 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8c-1.172 0-2 .828-2 2s.828 2 2 2h8c1.172 0 2-.828 2-2s-.828-2-2-2H12zm0 4h8m0 0H12m0 0v8m0-8V12m0 0l-3 3m3-3l3 3"
+                    ></path>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Высокий доход</h3>
+                <p className="text-gray-600">Оплата % от продаж без ограничений</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-blue-200 transition-colors">
+              <CardContent className="p-6 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Гибкий график</h3>
+                <p className="text-gray-600">Планируйте свое рабочее время</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:border-blue-200 transition-colors">
+              <CardContent className="p-6 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 4.354a4 4 0 110 7.292M12 4.354V12m0 4.354a4 4 0 110-7.292M12 12V4.354"
+                    ></path>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Обучение</h3>
+                <p className="text-gray-600">Полное обучение продукту и продажам</p>
+              </CardContent>
+            </Card>
           </div>
         </motion.div>
 

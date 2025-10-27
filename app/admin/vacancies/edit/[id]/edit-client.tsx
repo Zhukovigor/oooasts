@@ -8,11 +8,30 @@ import { Card, CardContent } from "@/components/ui/card"
 import { createBrowserClient } from "@supabase/ssr"
 import { Plus, X } from "lucide-react"
 
-export default function VacancyFormClient() {
+interface Vacancy {
+  id: string
+  title: string
+  location: string
+  employment_type: string
+  salary_type: string
+  description: string
+  requirements: string[]
+  responsibilities: string[]
+  conditions: {
+    salary?: string
+    format?: string
+    schedule?: string
+    training?: string
+  }
+  is_active: boolean
+  sort_order: number
+}
+
+export default function VacancyEditClient({ vacancy }: { vacancy: Vacancy }) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [requirements, setRequirements] = useState<string[]>([""])
-  const [responsibilities, setResponsibilities] = useState<string[]>([""])
+  const [requirements, setRequirements] = useState<string[]>(vacancy.requirements || [""])
+  const [responsibilities, setResponsibilities] = useState<string[]>(vacancy.responsibilities || [""])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,23 +67,26 @@ export default function VacancyFormClient() {
       training: formData.get("condition_training") as string,
     }
 
-    const { error } = await supabase.from("vacancies").insert({
-      title: formData.get("title") as string,
-      location: formData.get("location") as string,
-      employment_type: formData.get("employment_type") as string,
-      salary_type: formData.get("salary_type") as string,
-      description: formData.get("description") as string,
-      requirements: requirements.filter((r) => r.trim() !== ""),
-      responsibilities: responsibilities.filter((r) => r.trim() !== ""),
-      conditions,
-      is_active: formData.get("is_active") === "on",
-      sort_order: Number.parseInt(formData.get("sort_order") as string) || 0,
-    })
+    const { error } = await supabase
+      .from("vacancies")
+      .update({
+        title: formData.get("title") as string,
+        location: formData.get("location") as string,
+        employment_type: formData.get("employment_type") as string,
+        salary_type: formData.get("salary_type") as string,
+        description: formData.get("description") as string,
+        requirements: requirements.filter((r) => r.trim() !== ""),
+        responsibilities: responsibilities.filter((r) => r.trim() !== ""),
+        conditions,
+        is_active: formData.get("is_active") === "on",
+        sort_order: Number.parseInt(formData.get("sort_order") as string) || 0,
+      })
+      .eq("id", vacancy.id)
 
     setIsSubmitting(false)
 
     if (error) {
-      alert("Ошибка при создании вакансии: " + error.message)
+      alert("Ошибка при обновлении вакансии: " + error.message)
       return
     }
 
@@ -82,6 +104,7 @@ export default function VacancyFormClient() {
                 type="text"
                 name="title"
                 required
+                defaultValue={vacancy.title}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Менеджер по продажам спецтехники"
               />
@@ -94,6 +117,7 @@ export default function VacancyFormClient() {
                   type="text"
                   name="location"
                   required
+                  defaultValue={vacancy.location}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="Россия (удаленно)"
                 />
@@ -101,7 +125,12 @@ export default function VacancyFormClient() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Тип занятости *</label>
-                <select name="employment_type" required className="w-full px-3 py-2 border rounded-lg">
+                <select
+                  name="employment_type"
+                  required
+                  defaultValue={vacancy.employment_type}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
                   <option value="Полная занятость">Полная занятость</option>
                   <option value="Частичная занятость">Частичная занятость</option>
                   <option value="Проектная работа">Проектная работа</option>
@@ -116,6 +145,7 @@ export default function VacancyFormClient() {
                 type="text"
                 name="salary_type"
                 required
+                defaultValue={vacancy.salary_type}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="% от продаж"
               />
@@ -127,6 +157,7 @@ export default function VacancyFormClient() {
                 name="description"
                 required
                 rows={4}
+                defaultValue={vacancy.description}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Краткое описание вакансии..."
               />
@@ -196,6 +227,7 @@ export default function VacancyFormClient() {
                   <input
                     type="text"
                     name="condition_salary"
+                    defaultValue={vacancy.conditions?.salary || ""}
                     className="w-full px-3 py-2 border rounded-lg"
                     placeholder="Высокий доход"
                   />
@@ -205,6 +237,7 @@ export default function VacancyFormClient() {
                   <input
                     type="text"
                     name="condition_format"
+                    defaultValue={vacancy.conditions?.format || ""}
                     className="w-full px-3 py-2 border rounded-lg"
                     placeholder="Удаленная работа"
                   />
@@ -214,6 +247,7 @@ export default function VacancyFormClient() {
                   <input
                     type="text"
                     name="condition_schedule"
+                    defaultValue={vacancy.conditions?.schedule || ""}
                     className="w-full px-3 py-2 border rounded-lg"
                     placeholder="Гибкий график"
                   />
@@ -223,6 +257,7 @@ export default function VacancyFormClient() {
                   <input
                     type="text"
                     name="condition_training"
+                    defaultValue={vacancy.conditions?.training || ""}
                     className="w-full px-3 py-2 border rounded-lg"
                     placeholder="Полное обучение"
                   />
@@ -232,20 +267,24 @@ export default function VacancyFormClient() {
 
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2">
-                <input type="checkbox" name="is_active" defaultChecked className="rounded" />
+                <input type="checkbox" name="is_active" defaultChecked={vacancy.is_active} className="rounded" />
                 <span className="text-sm">Активная вакансия</span>
               </label>
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">Порядок сортировки:</label>
-                <input type="number" name="sort_order" defaultValue={0} className="w-20 px-3 py-2 border rounded-lg" />
+                <input
+                  type="number"
+                  name="sort_order"
+                  defaultValue={vacancy.sort_order}
+                  className="w-20 px-3 py-2 border rounded-lg"
+                />
               </div>
             </div>
           </div>
-          {/* </CHANGE> */}
 
           <div className="flex gap-4">
             <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700">
-              {isSubmitting ? "Создание..." : "Создать вакансию"}
+              {isSubmitting ? "Сохранение..." : "Сохранить изменения"}
             </Button>
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Отмена
