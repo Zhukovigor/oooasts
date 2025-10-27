@@ -126,15 +126,11 @@ export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
 
-    const threeDaysAgo = new Date()
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-
     const { data: articles, error } = await supabase
       .from("articles")
       .select("*")
       .eq("status", "published")
       .not("published_at", "is", null)
-      .gte("published_at", threeDaysAgo.toISOString())
       .order("published_at", { ascending: false })
       .limit(500) // Zen limit
 
@@ -144,33 +140,49 @@ export async function GET(request: Request) {
     }
 
     if (!articles || articles.length < 10) {
-      console.warn(`ВНИМАНИЕ: Для Дзена нужно минимум 10 статей. Сейчас: ${articles?.length || 0}`)
+      console.error(
+        `КРИТИЧЕСКАЯ ОШИБКА: Для Дзена нужно минимум 10 опубликованных статей. Сейчас: ${articles?.length || 0}`,
+      )
+      console.error("Добавьте больше статей через админ панель перед отправкой RSS в Дзен")
     }
+
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const recentArticles =
+      articles?.filter((article) => {
+        const publishedDate = new Date(article.published_at)
+        return publishedDate >= thirtyDaysAgo
+      }) || []
+
+    const articlesToUse = recentArticles.length >= 10 ? recentArticles : articles
+
+    console.log(
+      `RSS: Всего статей: ${articles?.length || 0}, Последние 30 дней: ${recentArticles.length}, Используем: ${articlesToUse?.length || 0}`,
+    )
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
     const currentUrl = new URL(request.url)
     const rssUrl = `${currentUrl.origin}${currentUrl.pathname}`
 
     const rssItems = await Promise.all(
-      articles?.map(async (article) => {
+      articlesToUse?.map(async (article) => {
         const articleUrl = `${baseUrl}/stati/${article.slug}`
         const mobileUrl = articleUrl // Same URL, responsive design
 
         const pubDate = new Date(article.published_at).toUTCString()
 
-        const beautifulExcerpt = createBeautifulExcerpt(article.excerpt || article.content || "")
+        const fullContent = article.content || article.excerpt || ""
+        const beautifulExcerpt = createBeautifulExcerpt(fullContent)
 
-        const dzenFormattedContent = htmlToDzenFormat(
-          article.content || article.excerpt || "",
-          article.main_image,
-          baseUrl,
-        )
+        const dzenFormattedContent = htmlToDzenFormat(fullContent, article.main_image, baseUrl)
 
-        const contentLength = dzenFormattedContent.replace(/<[^>]*>/g, "").length
+        const contentLength = dzenFormattedContent.replace(/<[^>]*>/g, "").trim().length
         if (contentLength < 300) {
           console.warn(
-            `Статья "${article.title}" содержит менее 300 символов (${contentLength}). Дзен может отклонить.`,
+            `⚠️ ВНИМАНИЕ: Статья "${article.title}" (${article.slug}) содержит ${contentLength} символов (минимум 300 для Дзена).`,
           )
+          console.warn(`   Добавьте больше текста в статью через админ панель: /admin/stati/edit/${article.id}`)
         }
 
         let enclosureContent = ""
