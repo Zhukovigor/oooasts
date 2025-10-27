@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { FileText, Package } from "lucide-react"
+import { FileText, Package, Briefcase } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { createBrowserClient } from "@supabase/ssr"
 
@@ -11,6 +11,8 @@ interface Stats {
   publishedArticles: number
   totalEquipment: number
   activeEquipment: number
+  totalVacancies: number
+  activeVacancies: number
 }
 
 export default function AdminDashboard() {
@@ -19,6 +21,8 @@ export default function AdminDashboard() {
     publishedArticles: 0,
     totalEquipment: 0,
     activeEquipment: 0,
+    totalVacancies: 0,
+    activeVacancies: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -48,11 +52,20 @@ export default function AdminDashboard() {
           .select("*", { count: "exact", head: true })
           .eq("is_active", true)
 
+        const { count: totalVacancies } = await supabase.from("vacancies").select("*", { count: "exact", head: true })
+
+        const { count: activeVacancies } = await supabase
+          .from("vacancies")
+          .select("*", { count: "exact", head: true })
+          .eq("is_active", true)
+
         setStats({
           totalArticles: totalArticles || 0,
           publishedArticles: publishedArticles || 0,
           totalEquipment: totalEquipment || 0,
           activeEquipment: activeEquipment || 0,
+          totalVacancies: totalVacancies || 0,
+          activeVacancies: activeVacancies || 0,
         })
       } catch (error) {
         console.error("Error fetching stats:", error)
@@ -78,6 +91,13 @@ export default function AdminDashboard() {
       subtitle: `${stats.activeEquipment} активных`,
       icon: Package,
       color: "green",
+    },
+    {
+      title: "Вакансии",
+      value: stats.totalVacancies,
+      subtitle: `${stats.activeVacancies} активных`,
+      icon: Briefcase,
+      color: "purple",
     },
   ]
 
@@ -117,7 +137,7 @@ export default function AdminDashboard() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 mb-4">Быстрые действия</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="border-2 hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6">
               <a href="/admin/stati/new" className="block">
@@ -144,6 +164,22 @@ export default function AdminDashboard() {
                   <div>
                     <h3 className="font-bold text-gray-900">Добавить технику</h3>
                     <p className="text-sm text-gray-600">Добавить новую спецтехнику в каталог</p>
+                  </div>
+                </div>
+              </a>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 hover:shadow-lg transition-shadow cursor-pointer">
+            <CardContent className="p-6">
+              <a href="/admin/vacancies/new" className="block">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <Briefcase className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Создать вакансию</h3>
+                    <p className="text-sm text-gray-600">Добавить новую вакансию на сайт</p>
                   </div>
                 </div>
               </a>
