@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import VacanciesClient from "./client"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export const metadata: Metadata = {
   title: "Вакансии - Менеджер по продажам спецтехники | ООО АСТС",
@@ -24,6 +25,13 @@ export const metadata: Metadata = {
   },
 }
 
-export default function VacanciesPage() {
-  return <VacanciesClient />
+export default async function VacanciesPage() {
+  const supabase = createAdminClient()
+  const { data: vacancies } = await supabase
+    .from("vacancies")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+
+  return <VacanciesClient vacancies={vacancies || []} />
 }

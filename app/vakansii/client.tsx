@@ -1,24 +1,65 @@
 "use client"
 
-import type React from "react"
+import { AccordionContent } from "@/components/ui/accordion"
 
+import { AccordionTrigger } from "@/components/ui/accordion"
+
+import { AccordionItem } from "@/components/ui/accordion"
+
+import { Accordion } from "@/components/ui/accordion"
+
+import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Briefcase, MapPin, Users, RussianRubleIcon, Clock, CheckCircle, Phone, Mail, Send } from "lucide-react"
+import { Briefcase, MapPin, Clock, CheckCircle, Phone, Mail, Send, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import HeroSection from "@/hero-section"
 import Footer from "@/components/footer"
 import { submitJobApplication } from "@/app/actions/submit-job-application"
 
-export default function VacanciesClient() {
+interface Vacancy {
+  id: string
+  title: string
+  location: string
+  employment_type: string
+  salary_type: string
+  description: string
+  requirements: string[]
+  responsibilities: string[]
+  conditions: {
+    salary?: string
+    format?: string
+    schedule?: string
+    training?: string
+  }
+  is_active: boolean
+}
+
+interface VacanciesClientProps {
+  vacancies: Vacancy[]
+}
+
+export default function VacanciesClient({ vacancies }: VacanciesClientProps) {
+  const [expandedVacancies, setExpandedVacancies] = useState<Set<string>>(new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [phone, setPhone] = useState("")
   const [consent, setConsent] = useState(false)
+
+  const toggleVacancy = (id: string) => {
+    setExpandedVacancies((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
 
   const formatPhoneNumber = (value: string) => {
     // Удаляем все нецифровые символы
@@ -111,52 +152,10 @@ export default function VacanciesClient() {
     }
   }
 
-  const benefits = [
-    {
-      icon: <MapPin className="w-6 h-6" />,
-      title: "Удаленная работа",
-      description: "Работайте из любой точки России",
-    },
-    {
-      icon: <RussianRubleIcon className="w-6 h-6" />,
-      title: "Высокий доход",
-      description: "Оплата % от продаж без ограничений",
-    },
-    {
-      icon: <Clock className="w-6 h-6" />,
-      title: "Гибкий график",
-      description: "Планируйте свое рабочее время",
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      title: "Обучение",
-      description: "Полное обучение продукту и продажам",
-    },
-  ]
-
-  const requirements = [
-    "Возраст: 18-35 лет",
-    "Пол: Женский",
-    "Опыт работы в продажах приветствуется",
-    "Коммуникабельность и нацеленность на результат",
-    "Умение работать с CRM-системами",
-    "Знание основ делового общения",
-  ]
-
-  const responsibilities = [
-    "Поиск и привлечение новых клиентов",
-    "Общение с руководителями компаний",
-    "Презентация спецтехники и оборудования",
-    "Консультирование клиентов по характеристикам техники",
-    "Ведение переговоров и заключение сделок",
-    "Сопровождение клиентов на всех этапах сделки",
-  ]
-
   return (
     <div className="min-h-screen bg-white">
       <HeroSection />
 
-      {/* Main Content */}
       <div className="container mx-auto px-6 py-16">
         {/* Header */}
         <motion.div
@@ -180,100 +179,119 @@ export default function VacanciesClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="max-w-4xl mx-auto mb-16"
+          className="max-w-4xl mx-auto mb-16 space-y-4"
         >
-          <Card className="border-2 border-blue-100">
-            <CardContent className="p-8">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Briefcase className="w-8 h-8 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Менеджер по продажам спецтехники</h2>
-                  <div className="flex flex-wrap gap-4 text-gray-600">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      Россия (удаленно)
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      Полная занятость
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <RussianRubleIcon className="w-4 h-4" />% от продаж
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {vacancies.map((vacancy) => {
+            const isExpanded = expandedVacancies.has(vacancy.id)
+            return (
+              <Card key={vacancy.id} className="border-2 border-blue-100">
+                <CardContent className="p-0">
+                  {/* Vacancy Header - Always Visible */}
+                  <button
+                    onClick={() => toggleVacancy(vacancy.id)}
+                    className="w-full p-8 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start gap-4 text-left">
+                      <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Briefcase className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">{vacancy.title}</h2>
+                        <div className="flex flex-wrap gap-4 text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4" />
+                            {vacancy.location}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {vacancy.employment_type}
+                          </span>
+                          <span className="flex items-center gap-1 font-semibold">{vacancy.salary_type}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="w-6 h-6 text-gray-400 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-6 h-6 text-gray-400 flex-shrink-0" />
+                    )}
+                  </button>
 
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">О вакансии</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    ООО АСТС - ведущий поставщик строительной спецтехники из Китая. Мы ищем амбициозных менеджеров по
-                    продажам для работы с корпоративными клиентами. Вы будете предлагать качественную спецтехнику
-                    (экскаваторы Komatsu, бульдозеры, погрузчики) руководителям строительных и горнодобывающих компаний.
-                  </p>
-                </div>
+                  {/* Vacancy Details - Collapsible */}
+                  {isExpanded && (
+                    <div className="px-8 pb-8 space-y-6 border-t border-gray-100">
+                      <div className="pt-6">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">О вакансии</h3>
+                        <p className="text-gray-600 leading-relaxed">{vacancy.description}</p>
+                      </div>
 
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Требования</h3>
-                  <ul className="space-y-2">
-                    {requirements.map((req, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                        <span className="text-gray-600">{req}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      {vacancy.requirements.length > 0 && (
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-3">Требования</h3>
+                          <ul className="space-y-2">
+                            {vacancy.requirements.map((req, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-gray-600">{req}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Обязанности</h3>
-                  <ul className="space-y-2">
-                    {responsibilities.map((resp, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <span className="text-gray-600">{resp}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      {vacancy.responsibilities.length > 0 && (
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-3">Обязанности</h3>
+                          <ul className="space-y-2">
+                            {vacancy.responsibilities.map((resp, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-gray-600">{resp}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Условия работы</h3>
-                  <div className="bg-blue-50 rounded-lg p-6">
-                    <ul className="space-y-3 text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <RussianRubleIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Оплата:</strong> Процент от продаж (от 3% до 7% в зависимости от объема)
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Формат:</strong> Полностью удаленная работа из любого города России
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Clock className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <strong>График:</strong> Гибкий график работы, планируйте время самостоятельно
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Users className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Обучение:</strong> Полное обучение продукту, техникам продаж и работе с CRM
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                      {vacancy.conditions && Object.keys(vacancy.conditions).length > 0 && (
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-3">Условия работы</h3>
+                          <div className="bg-blue-50 rounded-lg p-6">
+                            <ul className="space-y-3 text-gray-700">
+                              {vacancy.conditions.salary && (
+                                <li className="flex items-start gap-2">
+                                  <span className="font-semibold">Оплата:</span>
+                                  <span>{vacancy.conditions.salary}</span>
+                                </li>
+                              )}
+                              {vacancy.conditions.format && (
+                                <li className="flex items-start gap-2">
+                                  <span className="font-semibold">Формат:</span>
+                                  <span>{vacancy.conditions.format}</span>
+                                </li>
+                              )}
+                              {vacancy.conditions.schedule && (
+                                <li className="flex items-start gap-2">
+                                  <span className="font-semibold">График:</span>
+                                  <span>{vacancy.conditions.schedule}</span>
+                                </li>
+                              )}
+                              {vacancy.conditions.training && (
+                                <li className="flex items-start gap-2">
+                                  <span className="font-semibold">Обучение:</span>
+                                  <span>{vacancy.conditions.training}</span>
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </motion.div>
 
         {/* Benefits */}
@@ -285,14 +303,14 @@ export default function VacanciesClient() {
         >
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Преимущества работы с нами</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {benefits.map((benefit, index) => (
-              <Card key={index} className="border-2 hover:border-blue-200 transition-colors">
+            {vacancies.map((vacancy) => (
+              <Card key={vacancy.id} className="border-2 hover:border-blue-200 transition-colors">
                 <CardContent className="p-6 text-center">
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4 text-blue-600">
-                    {benefit.icon}
+                    <MapPin className="w-6 h-6" />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{benefit.title}</h3>
-                  <p className="text-gray-600">{benefit.description}</p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{vacancy.title}</h3>
+                  <p className="text-gray-600">{vacancy.location}</p>
                 </CardContent>
               </Card>
             ))}

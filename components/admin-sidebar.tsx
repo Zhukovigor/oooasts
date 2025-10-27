@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, FileText, Package, Menu, X, ChevronDown, ChevronRight } from "lucide-react"
+import { LayoutDashboard, FileText, Package, Menu, X, ChevronDown, ChevronRight, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function AdminSidebar() {
@@ -100,6 +100,20 @@ export default function AdminSidebar() {
                   </Link>
                 </div>
               )}
+            </div>
+
+            {/* Vacancies Section */}
+            <div>
+              <Link
+                href="/admin/vacancies"
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  isActive("/admin/vacancies") ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                <Users className="w-5 h-5" />
+                <span className="font-medium">Вакансии</span>
+              </Link>
             </div>
 
             {/* Equipment Section */}
