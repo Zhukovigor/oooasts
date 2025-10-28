@@ -3,6 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
 import Footer from "@/components/footer"
+import SiteNavigation from "@/components/site-navigation"
 
 export const metadata: Metadata = {
   title: "Каталог спецтехники | ООО АСТС",
@@ -20,6 +21,8 @@ export default async function KatalogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SiteNavigation />
+
       {/* Breadcrumb */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-6 py-4">
