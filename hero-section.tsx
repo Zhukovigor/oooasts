@@ -17,56 +17,79 @@ import {
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { createBrowserClient } from "@supabase/ssr"
+
+interface HeroSlide {
+  id: string
+  title: string
+  subtitle: string | null
+  image_url: string
+  image_alt: string | null
+  button_text: string
+  button_link: string
+  button_visible: boolean
+  button_color: string
+  button_text_color: string
+  title_font_size: string
+  title_font_weight: string
+  title_color: string
+  title_alignment: string
+  subtitle_font_size: string
+  subtitle_font_weight: string
+  subtitle_color: string
+  content_position: string
+  content_alignment: string
+  overlay_opacity: number
+  overlay_color: string
+  sort_order: number
+  is_active: boolean
+  auto_rotate_seconds: number
+}
 
 export default function HeroSection() {
-  const AUTO_ROTATION_INTERVAL = 15
-  const slides = [
-    {
-      image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/maps.jpg",
-      alt: "Экскаватор Komatsu PC400",
-      title: "КУПИТЬ АВТО БЕТОНОНАСОС",
-      subtitle: "Автобетононасосы от 33 до 71 метра",
-    },
-    {
-      image:
-        "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/IMG-20250924-WA0013-KWy9wO28j8PP3TRK8Tsx5l9VTS6pcb.jpg",
-      alt: "Экскаватор Komatsu PC300",
-      title: "ТЕХНИКА В ЛИЗИНГ",
-      subtitle: "Надежная спецтехника в лизинг от 10%",
-    },
-    {
-      image:
-        "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/IMG-20250928-WA0007-SP2bEOhxUA4q43KyjUxSnmH5q42Ot6.jpg",
-      alt: "Экскаватор Komatsu PC200",
-      title: "КУПИТЬ ЭКСКАВАТОР KOMATSU",
-      subtitle: "Поставка новой и б/у спецтехники из Китая",
-    },
-    {
-      image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/maps.jpg.jpg",
-      alt: "ДОСТАВКА ТЕХНИКИ ИЗ КИТАЯ",
-      title: "ДОСТАВКА ТЕХНИКИ ИЗ КИТАЯ",
-      subtitle: "Всё для успешного бизнеса с Китаем",
-    },
-  ]
-
+  const [slides, setSlides] = useState<HeroSlide[]>([])
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
   useEffect(() => {
+    const fetchSlides = async () => {
+      const { data, error } = await supabase
+        .from("hero_slides")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+
+      if (error) {
+        console.error("Error fetching hero slides:", error)
+      } else if (data && data.length > 0) {
+        setSlides(data)
+      }
+    }
+
+    fetchSlides()
     setMounted(true)
   }, [])
 
   useEffect(() => {
-    if (AUTO_ROTATION_INTERVAL === 0) return
+    if (slides.length === 0) return
+
+    const autoRotateSeconds = slides[currentSlide]?.auto_rotate_seconds || 15
+
+    if (autoRotateSeconds === 0) return
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length)
-    }, AUTO_ROTATION_INTERVAL * 1000)
+    }, autoRotateSeconds * 1000)
 
     return () => clearInterval(interval)
-  }, [AUTO_ROTATION_INTERVAL, slides.length])
+  }, [currentSlide, slides])
 
   const navItems = [
     { name: "Главная", href: "/" },
@@ -171,16 +194,52 @@ export default function HeroSection() {
     }
   }
 
+  const currentSlideData =
+    slides.length > 0
+      ? slides[currentSlide]
+      : {
+          id: "default",
+          title: "КУПИТЬ СПЕЦТЕХНИКУ",
+          subtitle: "Широкий выбор техники от ведущих производителей",
+          image_url: "/images/design-mode/maps.jpg",
+          image_alt: "Спецтехника",
+          button_text: "ОСТАВИТЬ ЗАЯВКУ",
+          button_link: "#application",
+          button_visible: true,
+          button_color: "#2563eb",
+          button_text_color: "#ffffff",
+          title_font_size: "5xl",
+          title_font_weight: "bold",
+          title_color: "#ffffff",
+          title_alignment: "left",
+          subtitle_font_size: "xl",
+          subtitle_font_weight: "medium",
+          subtitle_color: "#ffffff",
+          content_position: "center",
+          content_alignment: "left",
+          overlay_opacity: 0.4,
+          overlay_color: "#000000",
+          sort_order: 0,
+          is_active: true,
+          auto_rotate_seconds: 15,
+        }
+
   return (
     <div id="hero" className="relative h-screen w-full overflow-hidden bg-black">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 ease-in-out"
         style={{
-          backgroundImage: `url('${slides[currentSlide].image}')`,
+          backgroundImage: `url('${currentSlideData.image_url}')`,
         }}
       >
-        <div className="absolute inset-0 bg-black/50" />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: currentSlideData.overlay_color,
+            opacity: currentSlideData.overlay_opacity,
+          }}
+        />
       </div>
 
       {/* Top Info Bar */}
@@ -476,81 +535,118 @@ export default function HeroSection() {
       )}
 
       {/* Hero Content */}
-      <div className="relative z-10 flex h-full items-center justify-center px-6 my-4 py-96">
-        <div className="text-center text-white max-w-4xl">
-          {/* Main Title */}
-          <h1 className="text-5xl md:text-7xl font-black tracking-wider mb-4 leading-none text-left lg:text-8xl transition-opacity duration-500">
-            {slides[currentSlide].title}
+      <div
+        className={`relative z-10 flex h-full ${
+          currentSlideData.content_position === "top"
+            ? "items-start"
+            : currentSlideData.content_position === "bottom"
+              ? "items-end"
+              : "items-center"
+        } px-6 my-4 py-96 ${
+          currentSlideData.content_alignment === "center"
+            ? "justify-center"
+            : currentSlideData.content_alignment === "right"
+              ? "justify-end"
+              : "justify-start"
+        }`}
+      >
+        <div
+          className={`max-w-4xl ${
+            currentSlideData.content_alignment === "center"
+              ? "text-center"
+              : currentSlideData.content_alignment === "right"
+                ? "text-right"
+                : "text-left"
+          }`}
+        >
+          <h1
+            className={`text-${currentSlideData.title_font_size} font-${currentSlideData.title_font_weight} tracking-wider mb-4 leading-none transition-opacity duration-500 md:text-7xl lg:text-8xl`}
+            style={{ color: currentSlideData.title_color }}
+          >
+            {currentSlideData.title}
           </h1>
 
-          {/* Subtitle */}
-          <p className="text-xl md:text-2xl tracking-wide mb-8 text-gray-200 font-extrabold text-left transition-opacity duration-500">
-            {slides[currentSlide].subtitle}
-          </p>
+          {currentSlideData.subtitle && (
+            <p
+              className={`text-${currentSlideData.subtitle_font_size} md:text-2xl font-${currentSlideData.subtitle_font_weight} tracking-wide mb-8 transition-opacity duration-500`}
+              style={{ color: currentSlideData.subtitle_color }}
+            >
+              {currentSlideData.subtitle}
+            </p>
+          )}
 
-          {/* CTA Button - Now using LiquidButton */}
-          <LiquidButton
-            size="xxl"
-            className="font-semibold text-lg tracking-wide"
-            onClick={() => scrollToSection("#join")}
-          >
-            Связаться с нами
-          </LiquidButton>
+          {currentSlideData.button_visible && (
+            <LiquidButton
+              size="xxl"
+              className="font-semibold text-lg tracking-wide"
+              style={{
+                backgroundColor: currentSlideData.button_color,
+                color: currentSlideData.button_text_color,
+              }}
+              onClick={() => scrollToSection(currentSlideData.button_link)}
+            >
+              {currentSlideData.button_text}
+            </LiquidButton>
+          )}
         </div>
       </div>
 
-      {/* Slider Navigation */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20">
-        <div className="flex items-center space-x-4">
-          {/* Previous Arrow */}
-          <button
-            onClick={prevSlide}
-            className="text-white hover:text-gray-300 transition-colors p-2"
-            aria-label="Предыдущий слайд"
-          >
-            <ChevronLeft size={24} />
-          </button>
+      {/* Slider Navigation - only show if we have multiple slides */}
+      {slides.length > 1 && (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20">
+          <div className="flex items-center space-x-4">
+            {/* Previous Arrow */}
+            <button
+              onClick={prevSlide}
+              className="text-white hover:text-gray-300 transition-colors p-2"
+              aria-label="Предыдущий слайд"
+            >
+              <ChevronLeft size={24} />
+            </button>
 
-          {/* Slide Indicators */}
-          <div className="flex space-x-2">
+            {/* Slide Indicators */}
+            <div className="flex space-x-2">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    currentSlide === index ? "bg-white" : "bg-white/40 hover:bg-white/60"
+                  }`}
+                  aria-label={`Перейти к слайду ${index + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Next Arrow */}
+            <button
+              onClick={nextSlide}
+              className="text-white hover:text-gray-300 transition-colors p-2"
+              aria-label="Следующий слайд"
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Side Navigation Indicators - only show if we have multiple slides */}
+      {slides.length > 1 && (
+        <div className="absolute right-8 top-1/2 transform -translate-y-1/2 z-20 hidden md:block">
+          <div className="flex flex-col space-y-3">
             {slides.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                className={`w-1 h-8 transition-all duration-300 ${
                   currentSlide === index ? "bg-white" : "bg-white/40 hover:bg-white/60"
                 }`}
-                aria-label={`Перейти к слайду ${index + 1}`}
+                aria-label={`Слайд ${index + 1}`}
               />
             ))}
           </div>
-
-          {/* Next Arrow */}
-          <button
-            onClick={nextSlide}
-            className="text-white hover:text-gray-300 transition-colors p-2"
-            aria-label="Следующий слайд"
-          >
-            <ChevronRight size={24} />
-          </button>
         </div>
-      </div>
-
-      {/* Side Navigation Indicators */}
-      <div className="absolute right-8 top-1/2 transform -translate-y-1/2 z-20 hidden md:block">
-        <div className="flex flex-col space-y-3">
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-1 h-8 transition-all duration-300 ${
-                currentSlide === index ? "bg-white" : "bg-white/40 hover:bg-white/60"
-              }`}
-              aria-label={`Слайд ${index + 1}`}
-            />
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
