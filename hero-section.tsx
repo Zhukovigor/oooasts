@@ -81,9 +81,9 @@ export default function HeroSection() {
   const categoryItems = [
     {
       name: "КАТАЛОГ",
-      href: "/katalog", // Updated to link to catalog page
+      href: "/katalog",
       submenu: [
-        { name: "Автобетононасосы", href: "/katalog/avtobetonanosy" }, // Added concrete pumps
+        { name: "Автобетононасосы", href: "/katalog/avtobetonanosy" },
         { name: "Экскаваторы", href: "/katalog/ekskavatory" },
         { name: "Бульдозеры", href: "/katalog/buldozery" },
         { name: "Автогрейдеры", href: "/katalog/avtogreydery" },
@@ -117,13 +117,8 @@ export default function HeroSection() {
         { name: "Каталог Komatsu", href: "/komatsu" },
         { name: "Komatsu PC200", href: "/komatsu-pc200" },
         { name: "Купить экскаватор", href: "/buy-excavators" },
-        { name: "Автобетононасосы", href: "/katalog/avtobetonanosy" }, // Updated link
-      ],
-    },
-    {
-      name: "ТЕХНИКА С ПРОБЕГОМ",
-      href: "#",
-      submenu: [
+        { name: "Автобетононасосы", href: "/katalog/avtobetonanosy" },
+        { name: "Техника с пробегом", href: "#", isSubmenuTitle: true },
         { name: "Б/У экскаваторы", href: "/buy-excavators" },
         { name: "Б/У спецтехника", href: "/komatsu" },
       ],
