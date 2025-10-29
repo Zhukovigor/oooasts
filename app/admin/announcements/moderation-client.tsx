@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -77,8 +77,8 @@ export default function AnnouncementsModerationClient({
   const itemsPerPage = 10
   const supabase = createBrowserClient()
 
-  // Функция обновления данных
-  const refreshAnnouncements = async () => {
+  // Функция обновления данных с useCallback
+  const refreshAnnouncements = useCallback(async () => {
     setIsRefreshing(true)
     try {
       console.log("🔄 Обновление объявлений...")
@@ -103,7 +103,7 @@ export default function AnnouncementsModerationClient({
     } finally {
       setIsRefreshing(false)
     }
-  }
+  }, [supabase])
 
   // Реальное время обновление - ИСПРАВЛЕННАЯ ВЕРСИЯ
   useEffect(() => {
@@ -118,20 +118,23 @@ export default function AnnouncementsModerationClient({
           table: 'announcements' 
         },
         (payload) => {
-          console.log('📢 Реальное время:', payload)
+          console.log('📢 Реальное время:', payload.eventType)
           // ОБНОВЛЯЕМ ДАННЫЕ при любых изменениях
           refreshAnnouncements()
         }
       )
       .subscribe((status) => {
         console.log('📡 Статус подписки:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Успешно подписались на обновления')
+        }
       })
 
     return () => {
       console.log("🧹 Очистка подписки...")
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, refreshAnnouncements])
 
   const pendingAnnouncements = announcements.filter((a) => !a.is_moderated)
   const approvedAnnouncements = announcements.filter((a) => a.is_moderated && a.is_active)
@@ -413,19 +416,24 @@ export default function AnnouncementsModerationClient({
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Модерация объявлений</h1>
           <p className="text-gray-600">Управление текстовыми объявлениями пользователей</p>
         </div>
-        <Button 
-          onClick={refreshAnnouncements} 
-          variant="outline" 
-          disabled={isRefreshing}
-          className="flex items-center gap-2"
-        >
-          {isRefreshing ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4" />
-          )}
-          Обновить
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={refreshAnnouncements} 
+            variant="outline" 
+            disabled={isRefreshing}
+            className="flex items-center gap-2"
+          >
+            {isRefreshing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Обновить
+          </Button>
+          <div className="text-sm text-gray-500">
+            Всего: {announcements.length}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -661,8 +669,95 @@ export default function AnnouncementsModerationClient({
           )}
         </TabsContent>
 
-        {/* Остальные вкладки остаются без изменений */}
-        {/* ... */}
+        <TabsContent value="approved" className="mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-600">
+              Показано {approvedPaginated.data.length} из {approvedPaginated.total}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {approvedPaginated.data.map((announcement) => (
+              <AnnouncementCard 
+                key={announcement.id} 
+                announcement={announcement} 
+                onDelete={handleDelete}
+                showStats
+                isLoading={isLoading}
+              />
+            ))}
+            {approvedPaginated.data.length === 0 && (
+              <p className="text-center text-gray-500 py-8">Нет одобренных объявлений</p>
+            )}
+          </div>
+
+          {approvedPaginated.totalPages > 1 && (
+            <div className="flex justify-center mt-6 gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Назад
+              </Button>
+              <span className="flex items-center px-4 text-sm text-gray-600">
+                Страница {currentPage} из {approvedPaginated.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.min(approvedPaginated.totalPages, prev + 1))}
+                disabled={currentPage === approvedPaginated.totalPages}
+              >
+                Вперед
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="rejected" className="mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-600">
+              Показано {rejectedPaginated.data.length} из {rejectedPaginated.total}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {rejectedPaginated.data.map((announcement) => (
+              <AnnouncementCard
+                key={announcement.id}
+                announcement={announcement}
+                onDelete={handleDelete}
+                showRejectionReason
+                isLoading={isLoading}
+              />
+            ))}
+            {rejectedPaginated.data.length === 0 && (
+              <p className="text-center text-gray-500 py-8">Нет отклоненных объявлений</p>
+            )}
+          </div>
+
+          {rejectedPaginated.totalPages > 1 && (
+            <div className="flex justify-center mt-6 gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Назад
+              </Button>
+              <span className="flex items-center px-4 text-sm text-gray-600">
+                Страница {currentPage} из {rejectedPaginated.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(prev => Math.min(rejectedPaginated.totalPages, prev + 1))}
+                disabled={currentPage === rejectedPaginated.totalPages}
+              >
+                Вперед
+              </Button>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Диалог отклонения */}
