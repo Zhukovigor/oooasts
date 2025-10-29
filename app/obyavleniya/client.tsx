@@ -35,6 +35,7 @@ type Announcement = {
   contact_phone: string
   contact_email: string
   contact_telegram: string | null
+  contact_whatsapp: string | null
   location: string | null
   views_count: number
   created_at: string
@@ -51,6 +52,13 @@ const categories = [
   "Тралы",
   "Самосвалы",
   "Другое",
+]
+
+const currencies = [
+  { value: "RUB", label: "₽ Рубли", symbol: "₽" },
+  { value: "USD", label: "$ Доллары", symbol: "$" },
+  { value: "EUR", label: "€ Евро", symbol: "€" },
+  { value: "CNY", label: "¥ Юани", symbol: "¥" },
 ]
 
 export default function AnnouncementsClient({ initialAnnouncements }: { initialAnnouncements: Announcement[] }) {
@@ -82,20 +90,25 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
     setMessage(null)
 
     const formData = new FormData(e.currentTarget)
+
+    const whatsappRaw = formData.get("contact_whatsapp") as string
+    const whatsappFormatted = whatsappRaw ? whatsappRaw.replace(/\D/g, "") : null
+
     const data = {
       type: formData.get("type") as "demand" | "supply",
       title: formData.get("title") as string,
       description: formData.get("description") as string,
       category: formData.get("category") as string,
       price: formData.get("price") ? Number(formData.get("price")) : null,
-      currency: "RUB",
+      currency: (formData.get("currency") as string) || "RUB",
       contact_name: formData.get("contact_name") as string,
       contact_phone: formData.get("contact_phone") as string,
       contact_email: formData.get("contact_email") as string,
       contact_telegram: formData.get("contact_telegram") as string,
+      contact_whatsapp: whatsappFormatted,
       location: formData.get("location") as string,
       is_active: true,
-      is_moderated: false, // Requires moderation
+      is_moderated: false,
     }
 
     const { error } = await supabase.from("announcements").insert([data])
@@ -246,14 +259,31 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
                   </div>
 
                   <div>
-                    <Label htmlFor="price">Цена (₽)</Label>
-                    <Input id="price" name="price" type="number" placeholder="Необязательно" />
+                    <Label htmlFor="location">Местоположение</Label>
+                    <Input id="location" name="location" placeholder="Город, регион" />
                   </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="location">Местоположение</Label>
-                  <Input id="location" name="location" placeholder="Город, регион" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price">Цена</Label>
+                    <Input id="price" name="price" type="number" placeholder="Необязательно" />
+                  </div>
+                  <div>
+                    <Label htmlFor="currency">Валюта</Label>
+                    <Select name="currency" defaultValue="RUB">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {currencies.map((curr) => (
+                          <SelectItem key={curr.value} value={curr.value}>
+                            {curr.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="border-t pt-4">
@@ -285,6 +315,17 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
                         required
                         placeholder="your@email.com"
                       />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="contact_whatsapp">WhatsApp (необязательно)</Label>
+                      <Input
+                        id="contact_whatsapp"
+                        name="contact_whatsapp"
+                        type="tel"
+                        placeholder="79190422492 (без +)"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Введите номер без знака +</p>
                     </div>
 
                     <div>
@@ -388,12 +429,19 @@ function AnnouncementCard({
     incrementContactClicks(announcement.id)
   }
 
+  const getCurrencySymbol = (currency: string) => {
+    const curr = currencies.find((c) => c.value === currency)
+    return curr?.symbol || currency
+  }
+
   return (
     <Card className="p-6 hover:shadow-lg transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-xl font-bold text-gray-900 flex-1">{announcement.title}</h3>
         {announcement.price && (
-          <div className="text-lg font-bold text-blue-600 ml-2">{announcement.price.toLocaleString("ru-RU")} ₽</div>
+          <div className="text-lg font-bold text-blue-600 ml-2">
+            {announcement.price.toLocaleString("ru-RU")} {getCurrencySymbol(announcement.currency)}
+          </div>
         )}
       </div>
 
@@ -443,6 +491,17 @@ function AnnouncementCard({
             <Mail size={16} />
             {announcement.contact_email}
           </a>
+          {announcement.contact_whatsapp && (
+            <a
+              href={`https://wa.me/${announcement.contact_whatsapp}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-green-600 hover:underline"
+            >
+              <Phone size={16} />
+              WhatsApp: {announcement.contact_whatsapp}
+            </a>
+          )}
           {announcement.contact_telegram && (
             <a
               href={`https://t.me/${announcement.contact_telegram.replace("@", "")}`}

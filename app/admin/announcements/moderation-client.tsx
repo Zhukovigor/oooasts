@@ -31,6 +31,7 @@ type Announcement = {
   contact_phone: string
   contact_email: string
   contact_telegram: string | null
+  contact_whatsapp: string | null
   location: string | null
   is_active: boolean
   is_moderated: boolean
@@ -319,6 +320,16 @@ function AnnouncementCard({
     (new Date(announcement.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
   )
 
+  const getCurrencySymbol = (currency: string) => {
+    const symbols: Record<string, string> = {
+      RUB: "₽",
+      USD: "$",
+      EUR: "€",
+      CNY: "¥",
+    }
+    return symbols[currency] || currency
+  }
+
   return (
     <Card className="p-6">
       <div className="flex items-start justify-between mb-4">
@@ -336,7 +347,9 @@ function AnnouncementCard({
           <p className="text-gray-600 mb-4">{announcement.description}</p>
         </div>
         {announcement.price && (
-          <div className="text-xl font-bold text-blue-600 ml-4">{announcement.price.toLocaleString("ru-RU")} ₽</div>
+          <div className="text-xl font-bold text-blue-600 ml-4">
+            {announcement.price.toLocaleString("ru-RU")} {getCurrencySymbol(announcement.currency)}
+          </div>
         )}
       </div>
 
@@ -375,6 +388,19 @@ function AnnouncementCard({
           <div>
             <span className="text-gray-600">Email:</span> {announcement.contact_email}
           </div>
+          {announcement.contact_whatsapp && (
+            <div>
+              <span className="text-gray-600">WhatsApp:</span>{" "}
+              <a
+                href={`https://wa.me/${announcement.contact_whatsapp}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 hover:underline"
+              >
+                {announcement.contact_whatsapp}
+              </a>
+            </div>
+          )}
           {announcement.contact_telegram && (
             <div>
               <span className="text-gray-600">Telegram:</span> {announcement.contact_telegram}
