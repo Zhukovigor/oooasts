@@ -189,6 +189,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  href="/obyavleniya"
+                  className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
+                >
+                  Объявления
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/stati"
                   className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
                 >
@@ -301,7 +309,9 @@ export default function Footer() {
           viewport={{ once: true }}
           className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0"
         >
-          <p className="text-gray-600 font-medium">{"Copyright© 2025 г. Все права защищены. «ООО АСТС» ИНН: 6700037092"}</p>
+          <p className="text-gray-600 font-medium">
+            {"Copyright© 2025 г. Все права защищены. «ООО АСТС» ИНН: 6700037092"}
+          </p>
 
           <div className="flex space-x-6">
             <Link

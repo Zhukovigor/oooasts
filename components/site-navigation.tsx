@@ -20,6 +20,7 @@ export default function SiteNavigation() {
     { name: "Отзывы", href: "/#testimonials" },
     { name: "В лизинг", href: "/v-lizing" },
     { name: "Вакансии", href: "/vakansii" },
+    { name: "Объявления", href: "/obyavleniya" }, // Added announcements link
     { name: "Статьи", href: "/stati" },
     { name: "Контакты", href: "/#join" },
   ]
