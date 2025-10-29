@@ -95,7 +95,12 @@ export default function AnnouncementsModerationClient({
       }
 
       console.log(`✅ Загружено ${data?.length || 0} объявлений`)
-      console.log(`📋 На модерации: ${data?.filter(a => !a.is_moderated).length || 0}`)
+      console.log("📊 Детали загруженных объявлений:", data?.map(a => ({
+        id: a.id,
+        title: a.title,
+        is_moderated: a.is_moderated,
+        is_active: a.is_active
+      })))
       setAnnouncements(data || [])
       setError(null)
     } catch (err) {
@@ -106,7 +111,7 @@ export default function AnnouncementsModerationClient({
     }
   }, [supabase])
 
-  // Реальное время обновление - УПРОЩЕННАЯ РАБОЧАЯ ВЕРСИЯ
+  // Реальное время обновление
   useEffect(() => {
     console.log("🔔 Настройка реального времени...")
 
@@ -115,52 +120,20 @@ export default function AnnouncementsModerationClient({
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'announcements'
         },
         (payload) => {
-          console.log('📢 НОВОЕ объявление:', payload.new)
-          // Добавляем новое объявление в начало списка
-          setAnnouncements(prev => [payload.new as Announcement, ...prev])
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'announcements'
-        },
-        (payload) => {
-          console.log('📢 ОБНОВЛЕНО объявление:', payload.new)
-          // Обновляем существующее объявление
-          setAnnouncements(prev =>
-            prev.map(item =>
-              item.id === payload.new.id ? { ...item, ...payload.new } : item
-            )
-          )
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'announcements'
-        },
-        (payload) => {
-          console.log('📢 УДАЛЕНО объявление:', payload.old)
-          // Удаляем объявление из списка
-          setAnnouncements(prev =>
-            prev.filter(item => item.id !== payload.old.id)
-          )
+          console.log('📢 ОБНОВЛЕНИЕ В РЕАЛЬНОМ ВРЕМЕНИ:', payload.event, payload.new)
+          // При любом изменении перезагружаем данные полностью
+          refreshAnnouncements()
         }
       )
       .subscribe((status) => {
         console.log('📡 Статус подписки:', status)
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Успешно подписались на обновления объявлений')
+          console.log('✅ Успешно подписались на обновления')
         }
       })
 
@@ -168,14 +141,37 @@ export default function AnnouncementsModerationClient({
       console.log("🧹 Очистка подписки...")
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, refreshAnnouncements])
 
   // Автоматическое обновление при загрузке компонента
   useEffect(() => {
     refreshAnnouncements()
   }, [refreshAnnouncements])
 
-  const pendingAnnouncements = announcements.filter((a) => !a.is_moderated && !a.is_active)
+  // ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+  useEffect(() => {
+    console.log("=== ДЕБАГ ИНФОРМАЦИЯ ===")
+    console.log("Всего объявлений:", announcements.length)
+    
+    const pending = announcements.filter((a) => !a.is_moderated)
+    const approved = announcements.filter((a) => a.is_moderated && a.is_active)
+    const rejected = announcements.filter((a) => a.is_moderated && !a.is_active)
+    
+    console.log("На модерации (!is_moderated):", pending.length)
+    console.log("Одобренные (is_moderated && is_active):", approved.length)
+    console.log("Отклоненные (is_moderated && !is_active):", rejected.length)
+    
+    console.log("Детали объявлений на модерации:", pending.map(a => ({
+      id: a.id,
+      title: a.title,
+      is_moderated: a.is_moderated,
+      is_active: a.is_active,
+      created_at: a.created_at
+    })))
+  }, [announcements])
+
+  // ИСПРАВЛЕННЫЙ ФИЛЬТР - только по is_moderated
+  const pendingAnnouncements = announcements.filter((a) => !a.is_moderated)
   const approvedAnnouncements = announcements.filter((a) => a.is_moderated && a.is_active)
   const rejectedAnnouncements = announcements.filter((a) => a.is_moderated && !a.is_active)
 
@@ -468,6 +464,17 @@ export default function AnnouncementsModerationClient({
               <RefreshCw className="w-4 h-4" />
             )}
             Обновить
+          </Button>
+          <Button 
+            onClick={() => {
+              console.log("🔄 Принудительное обновление с логированием...")
+              refreshAnnouncements()
+            }} 
+            variant="outline" 
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Принудительно обновить
           </Button>
           <div className="text-sm text-gray-500">
             Всего: {announcements.length} | На модерации: {pendingAnnouncements.length}
@@ -833,9 +840,6 @@ export default function AnnouncementsModerationClient({
     </div>
   )
 }
-
-// Компонент AnnouncementCard остается без изменений
-// ...
 
 function AnnouncementCard({
   announcement,
