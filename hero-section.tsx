@@ -162,6 +162,10 @@ export default function HeroSection() {
       name: "СТАТЬИ",
       href: "/stati",
     },
+    {
+      name: "ОБЪЯВЛЕНИЯ",
+      href: "/obyavleniya",
+    },
   ]
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length)

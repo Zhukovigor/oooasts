@@ -132,6 +132,10 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
     await supabase.rpc("increment_announcement_views", { announcement_id: id })
   }
 
+  const incrementContactClicks = async (id: string) => {
+    await supabase.rpc("increment_announcement_contact_clicks", { announcement_id: id })
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <SiteNavigation />
@@ -327,7 +331,12 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
           <TabsContent value="demand">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAnnouncements("demand").map((announcement) => (
-                <AnnouncementCard key={announcement.id} announcement={announcement} onView={incrementViews} />
+                <AnnouncementCard
+                  key={announcement.id}
+                  announcement={announcement}
+                  onView={incrementViews}
+                  incrementContactClicks={incrementContactClicks}
+                />
               ))}
             </div>
             {filteredAnnouncements("demand").length === 0 && (
@@ -340,7 +349,12 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
           <TabsContent value="supply">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAnnouncements("supply").map((announcement) => (
-                <AnnouncementCard key={announcement.id} announcement={announcement} onView={incrementViews} />
+                <AnnouncementCard
+                  key={announcement.id}
+                  announcement={announcement}
+                  onView={incrementViews}
+                  incrementContactClicks={incrementContactClicks}
+                />
               ))}
             </div>
             {filteredAnnouncements("supply").length === 0 && (
@@ -360,15 +374,18 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
 function AnnouncementCard({
   announcement,
   onView,
+  incrementContactClicks,
 }: {
   announcement: Announcement
   onView: (id: string) => void
+  incrementContactClicks: (id: string) => void
 }) {
   const [showContacts, setShowContacts] = useState(false)
 
   const handleShowContacts = () => {
     setShowContacts(true)
     onView(announcement.id)
+    incrementContactClicks(announcement.id)
   }
 
   return (
