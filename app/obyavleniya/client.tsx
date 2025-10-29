@@ -147,7 +147,7 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
       <div className="container mx-auto px-6 py-12">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Текстовые объявления</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Бесплатные объявления</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Бесплатная доска объявлений по спецтехнике. Разместите объявление о покупке или продаже строительной
             техники, оборудования и запчастей.

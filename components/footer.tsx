@@ -121,7 +121,7 @@ export default function Footer() {
                 </svg>
               </a>
               <a
-                href="https://www.linkedin.com/in/igor-zhukov-3694931a6/"
+                href="https://www.linkedin.com/in/zhukovigor"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-12 h-12 bg-[#0A66C2] hover:bg-[#004182] text-white rounded-full flex items-center justify-center transition-colors duration-300"
