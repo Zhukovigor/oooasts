@@ -107,7 +107,7 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
       contact_telegram: formData.get("contact_telegram") as string,
       contact_whatsapp: whatsappFormatted,
       location: formData.get("location") as string,
-      is_active: true,
+      is_active: false,
       is_moderated: false, // Важно: новое объявление не модерировано
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // +30 дней
     }
