@@ -71,6 +71,8 @@ export default function AnnouncementsModerationClient({
   }
 
   const handleApprove = async (id: string) => {
+    console.log("[v0] Approving announcement:", id)
+
     const { error } = await supabase
       .from("announcements")
       .update({
@@ -80,13 +82,19 @@ export default function AnnouncementsModerationClient({
       })
       .eq("id", id)
 
-    if (!error) {
-      setAnnouncements((prev) =>
-        prev.map((a) =>
-          a.id === id ? { ...a, is_moderated: true, is_active: true, moderated_at: new Date().toISOString() } : a,
-        ),
-      )
+    if (error) {
+      console.error("[v0] Error approving announcement:", error)
+      alert(`Ошибка при одобрении: ${error.message}`)
+      return
     }
+
+    console.log("[v0] Announcement approved successfully")
+
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, is_moderated: true, is_active: true, moderated_at: new Date().toISOString() } : a,
+      ),
+    )
   }
 
   const handleReject = async () => {

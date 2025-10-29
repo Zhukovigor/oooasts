@@ -107,18 +107,21 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
       contact_telegram: formData.get("contact_telegram") as string,
       contact_whatsapp: whatsappFormatted,
       location: formData.get("location") as string,
-      is_active: true,
-      is_moderated: false,
+      is_active: false, // New announcements are inactive until approved
+      is_moderated: false, // New announcements need moderation
     }
+
+    console.log("[v0] Creating announcement with data:", data)
 
     const { error } = await supabase.from("announcements").insert([data])
 
     setIsSubmitting(false)
 
     if (error) {
+      console.error("[v0] Error creating announcement:", error)
       setMessage({ type: "error", text: "Ошибка при создании объявления. Попробуйте еще раз." })
-      console.error("Error creating announcement:", error)
     } else {
+      console.log("[v0] Announcement created successfully")
       setMessage({
         type: "success",
         text: "Объявление отправлено на модерацию. После проверки оно появится на сайте.",
@@ -126,7 +129,7 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
       ;(e.target as HTMLFormElement).reset()
       setIsDialogOpen(false)
 
-      // Refresh announcements
+      // Refresh announcements (only approved ones for public page)
       const { data: newAnnouncements } = await supabase
         .from("announcements")
         .select("*")
@@ -319,12 +322,7 @@ export default function AnnouncementsClient({ initialAnnouncements }: { initialA
 
                     <div>
                       <Label htmlFor="contact_whatsapp">WhatsApp (необязательно)</Label>
-                      <Input
-                        id="contact_whatsapp"
-                        name="contact_whatsapp"
-                        type="tel"
-                        placeholder="79190422492 (без +)"
-                      />
+                      <Input id="contact_whatsapp" name="contact_whatsapp" type="tel" placeholder="79991234567" />
                       <p className="text-xs text-gray-500 mt-1">Введите номер без знака +</p>
                     </div>
 
