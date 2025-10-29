@@ -77,10 +77,8 @@ export default function AnnouncementsModerationClient() {
       console.log("✅ Данные загружены:", data)
       console.log("📊 Статистика:")
       console.log("- Всего объявлений:", data?.length || 0)
-      console.log("- На модерации:", data?.filter(a => !a.is_moderated).length || 0)
-      console.log("- Одобренные:", data?.filter(a => a.is_moderated && a.is_active).length || 0)
-      console.log("- Отклоненные:", data?.filter(a => a.is_moderated && !a.is_active).length || 0)
       
+      // ВАЖНО: Логируем ВСЕ объявления и их статусы
       if (data && data.length > 0) {
         data.forEach(ann => {
           console.log(`  - ${ann.title}: is_moderated=${ann.is_moderated}, is_active=${ann.is_active}`)
@@ -102,10 +100,15 @@ export default function AnnouncementsModerationClient() {
     loadAnnouncements()
   }, [])
 
-  // Простая фильтрация
+  // ИСПРАВЛЕННАЯ ФИЛЬТРАЦИЯ - только по is_moderated
   const pendingAnnouncements = announcements.filter(a => !a.is_moderated)
   const approvedAnnouncements = announcements.filter(a => a.is_moderated && a.is_active)
   const rejectedAnnouncements = announcements.filter(a => a.is_moderated && !a.is_active)
+
+  console.log("🔍 ФИЛЬТРАЦИЯ:")
+  console.log("- На модерации (!is_moderated):", pendingAnnouncements.length)
+  console.log("- Одобренные (is_moderated && is_active):", approvedAnnouncements.length)
+  console.log("- Отклоненные (is_moderated && !is_active):", rejectedAnnouncements.length)
 
   const filteredPending = pendingAnnouncements.filter(a =>
     a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -434,6 +437,7 @@ export default function AnnouncementsModerationClient() {
   )
 }
 
+// Компонент AnnouncementCard остается без изменений
 function AnnouncementCard({
   announcement,
   onApprove,
