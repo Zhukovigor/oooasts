@@ -124,11 +124,18 @@ export default function AnnouncementsModerationClient({
   const handleDelete = async (id: string) => {
     if (!confirm("Вы уверены, что хотите удалить это объявление?")) return
 
+    console.log("[v0] Attempting to delete announcement:", id)
+
     const { error } = await supabase.from("announcements").delete().eq("id", id)
 
-    if (!error) {
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+    if (error) {
+      console.error("[v0] Error deleting announcement:", error)
+      alert(`Ошибка при удалении: ${error.message}`)
+      return
     }
+
+    console.log("[v0] Successfully deleted announcement:", id)
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
   }
 
   const openRejectDialog = (announcement: Announcement) => {
