@@ -175,7 +175,7 @@ export default function AnnouncementsModerationClient({
     refreshAnnouncements()
   }, [refreshAnnouncements])
 
-  const pendingAnnouncements = announcements.filter((a) => !a.is_moderated)
+  const pendingAnnouncements = announcements.filter((a) => !a.is_moderated && !a.is_active)
   const approvedAnnouncements = announcements.filter((a) => a.is_moderated && a.is_active)
   const rejectedAnnouncements = announcements.filter((a) => a.is_moderated && !a.is_active)
 
