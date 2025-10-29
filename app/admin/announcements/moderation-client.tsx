@@ -95,6 +95,7 @@ export default function AnnouncementsModerationClient({
       }
 
       console.log(`✅ Загружено ${data?.length || 0} объявлений`)
+      console.log(`📋 На модерации: ${data?.filter(a => !a.is_moderated).length || 0}`)
       setAnnouncements(data || [])
       setError(null)
     } catch (err) {
@@ -105,28 +106,61 @@ export default function AnnouncementsModerationClient({
     }
   }, [supabase])
 
-  // Реальное время обновление - ИСПРАВЛЕННАЯ ВЕРСИЯ
+  // Реальное время обновление - УПРОЩЕННАЯ РАБОЧАЯ ВЕРСИЯ
   useEffect(() => {
     console.log("🔔 Настройка реального времени...")
 
     const channel = supabase
-      .channel('announcements-changes')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'announcements' 
+      .channel('announcements-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'announcements'
         },
         (payload) => {
-          console.log('📢 Реальное время:', payload.eventType)
-          // ОБНОВЛЯЕМ ДАННЫЕ при любых изменениях
-          refreshAnnouncements()
+          console.log('📢 НОВОЕ объявление:', payload.new)
+          // Добавляем новое объявление в начало списка
+          setAnnouncements(prev => [payload.new as Announcement, ...prev])
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'announcements'
+        },
+        (payload) => {
+          console.log('📢 ОБНОВЛЕНО объявление:', payload.new)
+          // Обновляем существующее объявление
+          setAnnouncements(prev =>
+            prev.map(item =>
+              item.id === payload.new.id ? { ...item, ...payload.new } : item
+            )
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'announcements'
+        },
+        (payload) => {
+          console.log('📢 УДАЛЕНО объявление:', payload.old)
+          // Удаляем объявление из списка
+          setAnnouncements(prev =>
+            prev.filter(item => item.id !== payload.old.id)
+          )
         }
       )
       .subscribe((status) => {
         console.log('📡 Статус подписки:', status)
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Успешно подписались на обновления')
+          console.log('✅ Успешно подписались на обновления объявлений')
         }
       })
 
@@ -134,7 +168,12 @@ export default function AnnouncementsModerationClient({
       console.log("🧹 Очистка подписки...")
       supabase.removeChannel(channel)
     }
-  }, [supabase, refreshAnnouncements])
+  }, [supabase])
+
+  // Автоматическое обновление при загрузке компонента
+  useEffect(() => {
+    refreshAnnouncements()
+  }, [refreshAnnouncements])
 
   const pendingAnnouncements = announcements.filter((a) => !a.is_moderated)
   const approvedAnnouncements = announcements.filter((a) => a.is_moderated && a.is_active)
@@ -431,7 +470,7 @@ export default function AnnouncementsModerationClient({
             Обновить
           </Button>
           <div className="text-sm text-gray-500">
-            Всего: {announcements.length}
+            Всего: {announcements.length} | На модерации: {pendingAnnouncements.length}
           </div>
         </div>
       </div>
