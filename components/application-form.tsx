@@ -60,8 +60,8 @@ export default function ApplicationForm() {
           className="max-w-3xl mx-auto"
         >
           <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-black tracking-wider text-gray-900 mb-4">ОСТАВИТЬ ЗАЯВКУ</h2>
-            <p className="text-lg text-gray-600">Заполните форму и мы свяжемся с вами для обсуждения деталей</p>
+            <h2 className="text-4xl font-black tracking-wider text-gray-900 mb-4 md:text-6xl">ЗАЯВКУ НА ТЕХНИКУ </h2>
+            <p className="text-lg text-gray-600">Заполните ЗАЯВКУ и мы свяжемся с вами для обсуждения всех деталей</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-2xl shadow-xl">
