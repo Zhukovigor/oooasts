@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, FileText, Package, Menu, X, ChevronDown, ChevronRight, Users } from "lucide-react"
+import { LayoutDashboard, FileText, Package, Menu, X, ChevronDown, ChevronRight, Users, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function AdminSidebar() {
@@ -206,6 +206,18 @@ export default function AdminSidebar() {
                 />
               </svg>
               <span className="font-medium">Объявления</span>
+            </Link>
+
+            {/* Newsletter link */}
+            <Link
+              href="/admin/newsletter"
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive("/admin/newsletter") ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <Mail className="w-5 h-5" />
+              <span className="font-medium">Рассылка</span>
             </Link>
           </nav>
 
