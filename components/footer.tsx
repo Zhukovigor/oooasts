@@ -271,90 +271,86 @@ export default function Footer() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            viewport={{ once: true }}
-          >
-            <h4 className="text-xl font-bold text-gray-900 mb-6 tracking-wide">КОНТАКТЫ</h4>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <MapPin size={18} className="text-gray-600" />
-                <span className="text-gray-600 font-medium">Россия</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Mail size={18} className="text-gray-600" />
-                <a
-                  href="mailto:zhukovigor@yandex.ru"
-                  className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
-                >
-                  zhukovigor@yandex.ru
-                </a>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Phone size={18} className="text-gray-600" />
-                <a
-                  href="tel:+79190422492"
-                  className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
-                >
-                  +7 (919) 042-24-92
-                </a>
-              </div>
-              <div className="flex flex-col gap-2 mt-4">
-                <a
-                  href="https://wa.me/79190422492"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-gray-600 hover:text-[#25D366] transition-colors duration-300 font-medium"
-                >
-                  <MessageCircle size={18} />
-                  WhatsApp
-                </a>
-                <a
-                  href="https://t.me/zhukovigor"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-gray-600 hover:text-[#0088cc] transition-colors duration-300 font-medium"
-                >
-                  <Send size={18} />
-                  Telegram
-                </a>
-              </div>
-            </div>
-          </motion.div>
+  initial={{ opacity: 0, y: 20 }}
+  whileInView={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6, delay: 0.2 }}
+  viewport={{ once: true }}
+>
+  <h4 className="text-xl font-bold text-gray-900 mb-6 tracking-wide">КОНТАКТЫ</h4>
+  <div className="space-y-4">
+    <div className="flex items-center space-x-3">
+      <MapPin size={18} className="text-gray-600" />
+      <span className="text-gray-600 font-medium">Россия</span>
+    </div>
+    <div className="flex items-center space-x-3">
+      <Mail size={18} className="text-gray-600" />
+      <a
+        href="mailto:zhukovigor@yandex.ru"
+        className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
+      >
+        zhukovigor@yandex.ru
+      </a>
+    </div>
+    <div className="flex items-center space-x-3">
+      <Phone size={18} className="text-gray-600" />
+      <a
+        href="tel:+79190422492"
+        className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
+      >
+        +7 (919) 042-24-92
+      </a>
+    </div>
+    <div className="flex flex-col gap-2 mt-4">
+      <a
+        href="https://wa.me/79190422492"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 text-gray-600 hover:text-[#25D366] transition-colors duration-300 font-medium"
+      >
+        <MessageCircle size={18} />
+        WhatsApp
+      </a>
+      <a
+        href="https://t.me/zhukovigor"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 text-gray-600 hover:text-[#0088cc] transition-colors duration-300 font-medium"
+      >
+        <Send size={18} />
+        Telegram
+      </a>
+    </div>
+  </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            viewport={{ once: true }}
-          >
-            <h4 className="text-xl font-bold text-gray-900 mb-6 tracking-wide">ПОДПИСКА НА РАССЫЛКУ</h4>
-            <p className="text-gray-600 mb-4">Получайте актуальные предложения на спецтехнику</p>
-            <form onSubmit={handleNewsletterSubmit} className="space-y-3">
-              <input
-                type="email"
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-                placeholder="Ваш email"
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                type="submit"
-                disabled={newsletterSubmitting}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {newsletterSubmitting ? "Подписка..." : "Подписаться"}
-              </button>
-              {newsletterMessage && (
-                <p className={`text-sm ${newsletterMessage.type === "success" ? "text-green-600" : "text-red-600"}`}>
-                  {newsletterMessage.text}
-                </p>
-              )}
-            </form>
-          </motion.div>
-        </div>         
+  {/* Подписка на рассылку */}
+  <div className="mt-8 pt-8 border-t border-gray-200">
+    <h4 className="text-xl font-bold text-gray-900 mb-4 tracking-wide">ПОДПИСКА НА РАССЫЛКУ</h4>
+    <p className="text-gray-600 mb-4">Получайте актуальные предложения на спецтехнику</p>
+    <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+      <input
+        type="email"
+        value={newsletterEmail}
+        onChange={(e) => setNewsletterEmail(e.target.value)}
+        placeholder="Ваш email"
+        required
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+      <button
+        type="submit"
+        disabled={newsletterSubmitting}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {newsletterSubmitting ? "Подписка..." : "Подписаться"}
+      </button>
+      {newsletterMessage && (
+        <p className={`text-sm ${newsletterMessage.type === "success" ? "text-green-600" : "text-red-600"}`}>
+          {newsletterMessage.text}
+        </p>
+      )}
+    </form>
+  </div>
+</motion.div>
+</div>               
 
         <motion.div
           initial={{ opacity: 0 }}
