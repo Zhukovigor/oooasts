@@ -12,6 +12,8 @@ import Footer from "@/components/footer"
 import FAQSection from "@/components/faq-section"
 import ExcavatorModels from "@/components/excavator-models"
 import ApplicationForm from "@/components/application-form"
+import HowWeWork from "@/components/how-we-work"
+import ServiceMap from "@/components/service-map"
 
 export default function Page() {
   const missionStatement =
@@ -143,6 +145,10 @@ export default function Page() {
       <FAQSection />
 
       <ApplicationForm />
+
+      <HowWeWork />
+
+      <ServiceMap />
 
       {/* CTA Section */}
       <CTASection />
