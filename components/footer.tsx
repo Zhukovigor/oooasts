@@ -324,47 +324,37 @@ export default function Footer() {
           </motion.div>
 
           <motion.div
-  initial={{ opacity: 0, y: 20 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.6 }}
-  viewport={{ once: true }}
-  className="lg:col-span-2"
->
-  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 bg-gradient-to-r from-gray-900 to-blue-900 text-white p-6 rounded-xl border border-gray-700 shadow-2xl hover:shadow-3xl transition-shadow duration-300">
-    {/* Текстовая часть */}
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-2xl">🚜</span>
-        <h4 className="text-xl font-bold whitespace-nowrap bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-          Получайте спецпредложения на технику
-        </h4>
-      </div>
-    
-    {/* Форма */}
-    <form className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-      <div className="relative flex-1 sm:min-w-[280px]">
-        <input 
-          type="email" 
-          placeholder="Ваш email" 
-          className="w-full px-4 py-3 pr-10 rounded-lg bg-white text-gray-900 placeholder-gray-500 border border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-200 focus:outline-none transition-all shadow-lg hover:shadow-xl"
-          required
-        />
-        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-          <span className="text-gray-500 text-lg">📧</span>
-        </div>
-      </div>
-      <button 
-        type="submit"
-        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-3 rounded-lg font-bold whitespace-nowrap transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-      >
-        <span>Подписаться</span>
-        <span className="text-sm">→</span>
-      </button>
-    </form>
-  </div>
-</motion.div>
-</div>
-         
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            viewport={{ once: true }}
+          >
+            <h4 className="text-xl font-bold text-gray-900 mb-6 tracking-wide">ПОДПИСКА НА РАССЫЛКУ</h4>
+            <p className="text-gray-600 mb-4">Получайте актуальные предложения на спецтехнику</p>
+            <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+              <input
+                type="email"
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                placeholder="Ваш email"
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                type="submit"
+                disabled={newsletterSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {newsletterSubmitting ? "Подписка..." : "Подписаться"}
+              </button>
+              {newsletterMessage && (
+                <p className={`text-sm ${newsletterMessage.type === "success" ? "text-green-600" : "text-red-600"}`}>
+                  {newsletterMessage.text}
+                </p>
+              )}
+            </form>
+          </motion.div>
+        </div>         
 
         <motion.div
           initial={{ opacity: 0 }}
