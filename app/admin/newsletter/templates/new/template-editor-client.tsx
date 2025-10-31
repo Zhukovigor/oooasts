@@ -159,8 +159,9 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
   const savedSelection = useRef<Range | null>(null)
 
-  // Проверка аутентификации при загрузке
+  // 🔴 ИСПРАВЛЕННАЯ ПРОВЕРКА АУТЕНТИФИКАЦИИ
   useEffect(() => {
+    // Ждем завершения проверки аутентификации
     if (!authLoading && !user) {
       console.log("❌ User not authenticated, redirecting...")
       router.push("/auth/login")
@@ -170,10 +171,10 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
   // Загрузка шаблона при редактировании
   useEffect(() => {
-    if (templateId && user) {
+    if (templateId && user && !authLoading) {
       loadTemplate()
     }
-  }, [templateId, user])
+  }, [templateId, user, authLoading])
 
   const loadTemplate = async () => {
     if (!templateId || !user) return
@@ -482,7 +483,12 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
   }
 
   const handleSave = async () => {
-    // Проверка аутентификации перед началом
+    // 🔴 ИСПРАВЛЕННАЯ ПРОВЕРКА АУТЕНТИФИКАЦИИ
+    if (authLoading) {
+      alert("Пожалуйста, подождите, идет проверка авторизации...")
+      return
+    }
+
     if (!user) {
       alert("Пожалуйста, войдите в систему для сохранения шаблонов")
       router.push("/auth/login")
@@ -644,7 +650,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
   const allAttachmentsCount = (template.attachments?.length || 0) + newAttachments.length
 
-  // Индикатор загрузки аутентификации
+  // 🔴 ИСПРАВЛЕННЫЙ ИНДИКАТОР ЗАГРУЗКИ
   if (authLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -656,8 +662,8 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     )
   }
 
-  // Проверка на неаутентифицированного пользователя
-  if (!user) {
+  // 🔴 ПРОВЕРКА ТОЛЬКО ПОСЛЕ ЗАВЕРШЕНИЯ ЗАГРУЗКИ
+  if (!authLoading && !user) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="text-center">
@@ -673,6 +679,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     )
   }
 
+  // 🔴 ОСНОВНОЙ ИНТЕРФЕЙС ПОКАЗЫВАЕТСЯ ТОЛЬКО ДЛЯ АУТЕНТИФИЦИРОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ
   return (
     <div className="p-8">
       <div className="mb-8 flex justify-between items-center">
@@ -687,7 +694,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
             <Eye className="w-4 h-4 mr-2" />
             {showPreview ? "Редактор" : "Предпросмотр"}
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading || authLoading}>
             {isEditing ? <Edit className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             {loading ? "Сохранение..." : (isEditing ? "Обновить" : "Сохранить")}
           </Button>
@@ -863,6 +870,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
             </Card>
           </TabsContent>
 
+          {/* ... остальные вкладки (settings, style, attachments) без изменений ... */}
           <TabsContent value="settings" className="space-y-4">
             <Card className="p-6">
               <div className="space-y-4">
@@ -1089,7 +1097,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                     </label>
                   </div>
                   
-                  {/* Информация о выбранных файлах */}
                   {newAttachments.length > 0 && (
                     <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                       <p className="text-sm text-blue-700">
@@ -1102,7 +1109,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                   )}
                 </div>
 
-                {/* Существующие вложения */}
                 {template.attachments && template.attachments.length > 0 && (
                   <div>
                     <Label>Существующие вложения:</Label>
@@ -1144,7 +1150,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                   </div>
                 )}
 
-                {/* Новые вложения */}
                 {newAttachments.length > 0 && (
                   <div>
                     <Label>Новые вложения:</Label>
@@ -1186,7 +1191,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                   </div>
                 )}
 
-                {/* Общая статистика */}
                 {allAttachmentsCount > 0 && (
                   <div className="mt-4 p-3 bg-gray-100 rounded-lg">
                     <p className="text-xs text-gray-600">
@@ -1203,7 +1207,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
         </Tabs>
       )}
 
-      {/* Диалоги */}
+      {/* Диалоги (без изменений) */}
       <Dialog open={showButtonDialog} onOpenChange={setShowButtonDialog}>
         <DialogContent>
           <DialogHeader>
