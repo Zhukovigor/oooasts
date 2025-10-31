@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -80,8 +79,48 @@ interface Props {
   templateId?: string
 }
 
+// Хук для проверки аутентификации
+function useAuth() {
+  const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const supabase = createBrowserClient()
+
+  useEffect(() => {
+    const getSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Error getting session:', error)
+          return
+        }
+        
+        setUser(session?.user ?? null)
+      } catch (error) {
+        console.error('Auth error:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    getSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null)
+        setIsLoading(false)
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  return { user, isLoading }
+}
+
 export default function TemplateEditorClient({ smtpAccounts, templateId }: Props) {
   const router = useRouter()
+  const { user, isLoading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -120,15 +159,24 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
   const savedSelection = useRef<Range | null>(null)
 
+  // Проверка аутентификации при загрузке
+  useEffect(() => {
+    if (!authLoading && !user) {
+      console.log("❌ User not authenticated, redirecting...")
+      router.push("/auth/login")
+      return
+    }
+  }, [user, authLoading, router])
+
   // Загрузка шаблона при редактировании
   useEffect(() => {
-    if (templateId) {
+    if (templateId && user) {
       loadTemplate()
     }
-  }, [templateId])
+  }, [templateId, user])
 
   const loadTemplate = async () => {
-    if (!templateId) return
+    if (!templateId || !user) return
 
     setLoading(true)
     const supabase = createBrowserClient()
@@ -297,44 +345,33 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     }
   }
 
-  const uploadFilesToStorage = async (files: File[]): Promise<Attachment[]> => {
+  const uploadFilesToStorage = async (files: File[], userId: string): Promise<Attachment[]> => {
     const supabase = createBrowserClient()
     const uploaded: Attachment[] = []
 
-    console.log("🔄 Starting file upload process...", { fileCount: files.length })
-
-    // 🔴 ПРОВЕРКА АУТЕНТИФИКАЦИИ
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      console.error("❌ User not authenticated for file upload:", authError)
-      throw new Error("Пользователь не авторизован для загрузки файлов")
-    }
-
-    console.log("✅ User authenticated for upload:", user.id)
+    console.log("🔄 Starting file upload process...", { 
+      fileCount: files.length,
+      userId 
+    })
 
     for (const file of files) {
       try {
-        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${file.name.split('.').pop()}`
+        const fileName = `${userId}/${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${file.name.split('.').pop()}`
         
         console.log("📤 Uploading file:", {
           name: file.name,
           size: file.size,
           type: file.type,
           storageName: fileName,
-          user: user.id
+          userId
         })
 
-        // 🔴 УПРОЩЕННАЯ ЗАГРУЗКА
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("email-attachments")
-          .upload(fileName, file) // Только обязательные параметры
+          .upload(fileName, file)
 
         if (uploadError) {
-          console.error("❌ STORAGE UPLOAD ERROR:", {
-            message: uploadError.message,
-            details: uploadError.details,
-            statusCode: uploadError.statusCode
-          })
+          console.error("❌ STORAGE UPLOAD ERROR:", uploadError)
           throw new Error(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
         }
 
@@ -445,6 +482,13 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
   }
 
   const handleSave = async () => {
+    // Проверка аутентификации перед началом
+    if (!user) {
+      alert("Пожалуйста, войдите в систему для сохранения шаблонов")
+      router.push("/auth/login")
+      return
+    }
+
     if (!template.name || !template.subject) {
       alert("Заполните все обязательные поля")
       return
@@ -462,14 +506,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
     try {
       console.log("💾 Starting template save process...")
-
-      // 🔴 ПРОВЕРКА АУТЕНТИФИКАЦИИ
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
-        console.error("❌ User not authenticated:", authError)
-        throw new Error("Пользователь не авторизован. Пожалуйста, войдите в систему.")
-      }
-
       console.log("✅ User authenticated:", { id: user.id, email: user.email })
 
       // Проверяем доступность бакета
@@ -480,10 +516,10 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
       let newUploadedAttachments: Attachment[] = []
 
-      // 🔴 ЗАГРУЗКА ФАЙЛОВ
+      // Загрузка файлов
       if (newAttachments.length > 0) {
         console.log("📎 Processing new attachments:", newAttachments.length)
-        newUploadedAttachments = await uploadFilesToStorage(newAttachments)
+        newUploadedAttachments = await uploadFilesToStorage(newAttachments, user.id)
         console.log("✅ New attachments uploaded:", newUploadedAttachments)
       } else {
         console.log("ℹ️ No new attachments to upload")
@@ -512,8 +548,9 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
         reply_to: template.reply_to,
         html_content: finalContent,
         styles: template.styles,
-        attachments: allAttachments, // 🔴 ВАЖНО: attachments ДОЛЖНЫ БЫТЬ ЗДЕСЬ
+        attachments: allAttachments,
         is_active: true,
+        user_id: user.id, // Добавляем user_id для RLS политик
       }
 
       console.log("💿 Saving template to database:", templateData)
@@ -543,6 +580,16 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
       
     } catch (error: any) {
       console.error("💥 SAVE PROCESS FAILED:", error)
+      
+      // Обработка ошибок аутентификации
+      if (error.message?.includes("аутентификац") || 
+          error.message?.includes("authenticat") ||
+          error.status === 401) {
+        alert("Сессия истекла. Пожалуйста, войдите снова.")
+        router.push("/auth/login")
+        return
+      }
+      
       alert(`Ошибка при сохранении: ${error.message}`)
     } finally {
       setLoading(false)
@@ -596,6 +643,35 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
   }
 
   const allAttachmentsCount = (template.attachments?.length || 0) + newAttachments.length
+
+  // Индикатор загрузки аутентификации
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Проверка авторизации...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Проверка на неаутентифицированного пользователя
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">Необходима авторизация</p>
+          <Button 
+            onClick={() => router.push("/auth/login")}
+            className="mt-4"
+          >
+            Войти в систему
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8">
