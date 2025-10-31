@@ -80,21 +80,18 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
   }
 
   const detectSeparator = (line: string): string => {
-    // Проверяем наличие разных разделителей
     const separators = {
       'tab': '\t',
       'comma': ',',
       'semicolon': ';'
     }
 
-    // Считаем количество каждого разделителя в строке
     const counts = {
       tab: (line.match(/\t/g) || []).length,
       comma: (line.match(/,/g) || []).length,
       semicolon: (line.match(/;/g) || []).length
     }
 
-    // Возвращаем разделитель с наибольшим количеством вхождений
     const maxSeparator = Object.entries(counts).reduce((max, [key, count]) => 
       count > max.count ? { key, count } : max, 
       { key: 'comma', count: 0 }
@@ -103,7 +100,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     return separators[maxSeparator.key as keyof typeof separators]
   }
 
-  const parseCSVLine = (line: string, separator: string) => {
+  const parseCSVLine = (line: string, separator: string): string[] => {
     const parts: string[] = []
     let currentPart = ''
     let inQuotes = false
@@ -113,7 +110,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       const char = line[i]
       const nextChar = line[i + 1]
 
-      if ((char === '"' || char === "'") && !inQuotes) {
+      if ((char === '"' || char === "'" || char === '«' || char === '»') && !inQuotes) {
         inQuotes = true
         quoteChar = char
         continue
@@ -121,11 +118,9 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
       if (char === quoteChar && inQuotes) {
         if (nextChar === quoteChar) {
-          // Экранированная кавычка
           currentPart += char
-          i++ // Пропускаем следующую кавычку
+          i++
         } else {
-          // Закрывающая кавычка
           inQuotes = false
           quoteChar = ''
         }
@@ -141,13 +136,8 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       currentPart += char
     }
 
-    // Добавляем последнюю часть
     parts.push(currentPart.trim())
-
-    return {
-      email: parts[0] || '',
-      name: parts[1] || ''
-    }
+    return parts
   }
 
   const handleImport = async () => {
@@ -170,14 +160,12 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
       const errors: string[] = []
       let successCount = 0
-      const importedSubscribers: Partial<Subscriber>[] = []
 
       const supabase = createBrowserClient()
 
-      // Определяем разделитель
       let separator = ','
       if (selectedSeparator === "auto") {
-        separator = detectSeparator(lines[1]) // Используем вторую строку для определения
+        separator = detectSeparator(lines[1])
       } else {
         separator = {
           tab: '\t',
@@ -186,33 +174,63 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
         }[selectedSeparator]
       }
 
-      console.log(`Используемый разделитель: "${separator}"`)
+      const headerLine = lines[0].toLowerCase()
+      let emailIndex = 0
+      let nameIndex = 1
+      let statusIndex = -1
+      let dateIndex = -1
+
+      const headers = parseCSVLine(headerLine, separator)
+      
+      headers.forEach((header, index) => {
+        const cleanHeader = header.toLowerCase().trim()
+        if (cleanHeader.includes('email') || cleanHeader.includes('емейл') || cleanHeader.includes('почта')) {
+          emailIndex = index
+        } else if (cleanHeader.includes('name') || cleanHeader.includes('имя') || cleanHeader.includes('название')) {
+          nameIndex = index
+        } else if (cleanHeader.includes('status') || cleanHeader.includes('статус')) {
+          statusIndex = index
+        } else if (cleanHeader.includes('date') || cleanHeader.includes('дата')) {
+          dateIndex = index
+        }
+      })
+
+      console.log('Detected columns:', { emailIndex, nameIndex, statusIndex, dateIndex })
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim()
         if (!line) continue
 
         try {
-          const { email: rawEmail, name: rawName } = parseCSVLine(line, separator)
-          
-          // Очищаем email
+          const parts = parseCSVLine(line, separator)
+          const rawEmail = parts[emailIndex] || ''
+          const rawName = parts[nameIndex] || ''
+          const rawStatus = statusIndex >= 0 ? parts[statusIndex] : ''
+
           let email = rawEmail
             .replace(/[^a-zA-Z0-9@._+-]/g, '')
             .toLowerCase()
             .trim()
 
-          // Проверяем валидность email
           if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             errors.push(`Строка ${i + 1}: Неверный email "${rawEmail}"`)
             continue
           }
 
-          // Очищаем имя, сохраняя кириллицу и основные символы
           const name = rawName
-            .replace(/[^a-zA-Zа-яА-ЯёЁ0-9\s"«»'.,-]/g, '')
+            .replace(/[^\wа-яА-ЯёЁ0-9\s"«»'.,()\-–—]/g, '')
             .trim()
 
-          // Проверяем существование email
+          let status = "active"
+          if (rawStatus) {
+            const cleanStatus = rawStatus.toLowerCase().trim()
+            if (cleanStatus.includes('active') || cleanStatus.includes('активен') || cleanStatus.includes('активный')) {
+              status = "active"
+            } else if (cleanStatus.includes('unsubscribed') || cleanStatus.includes('отписан') || cleanStatus.includes('неактивен')) {
+              status = "unsubscribed"
+            }
+          }
+
           const { data: existing } = await supabase
             .from("newsletter_subscribers")
             .select("id")
@@ -220,22 +238,31 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             .single()
 
           if (existing) {
-            errors.push(`Строка ${i + 1}: Email "${email}" уже существует`)
-            continue
-          }
+            const { error: updateError } = await supabase
+              .from("newsletter_subscribers")
+              .update({ 
+                name: name || null,
+                status: status
+              })
+              .eq("id", existing.id)
 
-          // Добавляем подписчика
-          const { error } = await supabase.from("newsletter_subscribers").insert({
-            email,
-            name: name || null,
-            status: "active",
-          })
-
-          if (error) {
-            errors.push(`Строка ${i + 1}: Ошибка при добавлении "${email}": ${error.message}`)
+            if (updateError) {
+              errors.push(`Строка ${i + 1}: Ошибка при обновлении "${email}": ${updateError.message}`)
+            } else {
+              successCount++
+            }
           } else {
-            successCount++
-            importedSubscribers.push({ email, name: name || null, status: "active" })
+            const { error } = await supabase.from("newsletter_subscribers").insert({
+              email,
+              name: name || null,
+              status: status,
+            })
+
+            if (error) {
+              errors.push(`Строка ${i + 1}: Ошибка при добавлении "${email}": ${error.message}`)
+            } else {
+              successCount++
+            }
           }
 
         } catch (error) {
@@ -246,7 +273,6 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
       setImportResult({ success: successCount, errors })
 
-      // Обновляем список подписчиков, если были успешные добавления
       if (successCount > 0) {
         const { data: newSubscribers, error } = await supabase
           .from("newsletter_subscribers")
@@ -574,14 +600,20 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Загрузите CSV файл с двумя колонками: Email и Имя (опционально)</p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Загрузите CSV файл. Поддерживаются файлы с колонками на русском или английском.
+                  </p>
                   <p className="text-xs text-gray-500 mb-4">
-                    Формат файла (пример):<br />
+                    Автоматически определяются колонки: Email, Имя/Name, Статус/Status<br />
+                    Форматы файлов (поддерживаются оба):<br />
                     <code className="bg-gray-100 p-1 rounded text-xs block mt-1">
-                      Email\tИмя<br />
-                      yugbetonkrym@mail.ru\tООО "ЮБК"<br />
-                      mss-ural@mail.ru\tООО "ТЕХПРОМСЕРВИС"<br />
-                      test@example.com\tИван Иванов
+                      // Английские заголовки<br />
+                      Email,Name,Status,Date<br />
+                      test@example.com,Company Name,active,2024-01-01<br />
+                      <br />
+                      // Русские заголовки<br />
+                      Email,Имя,Статус,Дата<br />
+                      test@example.com,Название компании,Активен,2024-01-01
                     </code>
                   </p>
 
