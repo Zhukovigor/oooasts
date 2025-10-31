@@ -281,7 +281,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     
     try {
       const { data, error } = await supabase.storage
-        .from("email-attachments")
+        .from("advertisements")
         .list()
       
       if (error) {
@@ -336,7 +336,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
         // Загружаем файл в storage
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("email-attachments")
+          .from("advertisements")
           .upload(fileName, file, {
             cacheControl: '3600',
             upsert: false,
@@ -355,7 +355,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
           if (uploadError.message.includes('MIME') || uploadError.statusCode === '415') {
             console.log("[DEBUG] Retrying with basic MIME type...")
             const { data: retryData, error: retryError } = await supabase.storage
-              .from("email-attachments")
+              .from("advertisements")
               .upload(fileName, file, {
                 cacheControl: '3600',
                 upsert: false,
@@ -372,7 +372,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
         // Получаем публичный URL
         const { data: { publicUrl } } = supabase.storage
-          .from("email-attachments")
+          .from("advertisements")
           .getPublicUrl(fileName)
 
         console.log("[DEBUG] File uploaded successfully:", {
@@ -408,7 +408,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     if (filesToDelete.length > 0) {
       console.log("[DEBUG] Deleting files:", filesToDelete)
       const { error } = await supabase.storage
-        .from("email-attachments")
+        .from("advertisements")
         .remove(filesToDelete)
       
       if (error) {
