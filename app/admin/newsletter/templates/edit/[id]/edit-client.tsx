@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,36 +45,68 @@ interface SmtpAccount {
   email: string
 }
 
+interface Template {
+  id: string
+  name: string
+  subject: string
+  from_name: string
+  from_email: string
+  reply_to: string
+  html_content: string
+  styles: {
+    backgroundColor: string
+    textColor: string
+    primaryColor: string
+    fontFamily: string
+    fontSize: string
+    buttonColor: string
+    buttonTextColor: string
+  }
+  attachments?: Array<{
+    name: string
+    url: string
+    size: number
+    type: string
+  }>
+}
+
 interface Props {
+  template: Template
   smtpAccounts: SmtpAccount[]
 }
 
-export default function TemplateEditorClient({ smtpAccounts }: Props) {
+// Вспомогательная функция для создания безопасных имен файлов
+const generateSafeFileName = (originalName: string): string => {
+  // Извлекаем расширение файла
+  const extension = originalName.split('.').pop() || ''
+  // Извлекаем имя без расширения
+  const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName
+  
+  // Очищаем имя файла
+  const cleanName = nameWithoutExt
+    .normalize('NFD') // Нормализуем Unicode
+    .replace(/[\u0300-\u036f]/g, '') // Удаляем диакритические знаки
+    .replace(/[^a-zA-Z0-9\s_-]/g, '_') // Заменяем специальные символы на подчеркивания
+    .replace(/\s+/g, '_') // Заменяем пробелы на подчеркивания
+    .replace(/_+/g, '_') // Убираем множественные подчеркивания
+    .replace(/^_|_$/g, '') // Убираем подчеркивания в начале и конце
+
+  // Если после очистки имя пустое, используем "file"
+  const finalName = cleanName || 'file'
+  
+  // Возвращаем имя с расширением
+  return extension ? `${finalName}.${extension}` : finalName
+}
+
+export default function TemplateEditClient({ template: initialTemplate, smtpAccounts }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
-  const contentInitialized = useRef(false)
 
-  const [template, setTemplate] = useState({
-    name: "",
-    subject: "",
-    from_name: "ООО АСТС",
-    from_email: smtpAccounts[0]?.email || "",
-    reply_to: "",
-    html_content: "",
-    styles: {
-      backgroundColor: "#ffffff",
-      textColor: "#333333",
-      primaryColor: "#2563eb",
-      fontFamily: "Arial, sans-serif",
-      fontSize: "16px",
-      buttonColor: "#2563eb",
-      buttonTextColor: "#ffffff",
-    },
-  })
-
+  const [template, setTemplate] = useState(initialTemplate)
   const [attachments, setAttachments] = useState<File[]>([])
+  const [existingAttachments, setExistingAttachments] = useState(initialTemplate.attachments || [])
 
   const [showButtonDialog, setShowButtonDialog] = useState(false)
   const [showLinkDialog, setShowLinkDialog] = useState(false)
@@ -106,7 +137,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   }
 
   useEffect(() => {
-    if (editorRef.current && template.html_content && editorRef.current.innerHTML !== template.html_content) {
+    if (editorRef.current && template.html_content && !editorRef.current.innerHTML) {
       editorRef.current.innerHTML = template.html_content
     }
   }, [template.html_content])
@@ -118,7 +149,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
   const updateContent = () => {
     if (editorRef.current) {
-      setTemplate({ ...template, html_content: editorRef.current.innerHTML })
+      setTemplate(prev => ({ ...prev, html_content: editorRef.current!.innerHTML }))
     }
   }
 
@@ -226,15 +257,39 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files)
-      setAttachments([...attachments, ...newFiles])
-      console.log(
-        "[v0] Files selected:",
-        newFiles.map((f) => f.name),
-      )
+      
+      // Проверяем размер файлов
+      const validFiles = newFiles.filter(file => {
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+          alert(`Файл ${file.name} слишком большой. Максимальный размер: 10MB`)
+          return false
+        }
+        return true
+      })
+      
+      setAttachments(prev => [...prev, ...validFiles])
+      console.log("[v0] New files selected:", validFiles.map(f => f.name))
+      
+      // Сбрасываем значение input чтобы можно было выбрать тот же файл снова
+      e.target.value = ""
     }
   }
 
-  const handleSave = async () => {
+  const handleRemoveExistingAttachment = async (index: number) => {
+    const attachmentToRemove = existingAttachments[index]
+    console.log("[v0] Removing existing attachment:", attachmentToRemove.name)
+    
+    setExistingAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRemoveNewAttachment = (index: number) => {
+    const attachmentToRemove = attachments[index]
+    console.log("[v0] Removing new attachment:", attachmentToRemove.name)
+    
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleUpdate = async () => {
     if (!template.name || !template.subject) {
       alert("Заполните все обязательные поля")
       return
@@ -243,71 +298,98 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     if (editorRef.current) {
       const finalContent = editorRef.current.innerHTML
       console.log("[v0] Final content length:", finalContent.length)
-      console.log("[v0] Final content preview:", finalContent.substring(0, 500))
 
       if (!finalContent || finalContent.trim() === "") {
         alert("Содержание письма не может быть пустым")
         return
       }
 
-      setTemplate({ ...template, html_content: finalContent })
+      setTemplate(prev => ({ ...prev, html_content: finalContent }))
     }
 
     setLoading(true)
     const supabase = createBrowserClient()
 
     try {
-      const attachmentUrls = []
+      console.log("[v0] Starting template update...")
+      console.log("[v0] Existing attachments:", existingAttachments.length)
+      console.log("[v0] New attachments:", attachments.length)
 
-      for (const file of attachments) {
-        const fileName = `${Date.now()}-${file.name}`
-        console.log("[v0] Uploading file:", fileName)
+      // Начинаем с существующих вложений
+      const allAttachments = [...existingAttachments]
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("email-attachments")
-          .upload(fileName, file)
+      // Загружаем новые файлы
+      if (attachments.length > 0) {
+        for (const file of attachments) {
+          // Генерируем безопасное имя файла
+          const safeFileName = generateSafeFileName(file.name)
+          const fileName = `${Date.now()}-${safeFileName}`
+          
+          console.log("[v0] Original file name:", file.name)
+          console.log("[v0] Safe file name:", safeFileName)
+          console.log("[v0] Uploading new file:", fileName)
 
-        if (uploadError) {
-          console.error("[v0] Upload error:", uploadError)
-          attachmentUrls.push({
-            name: file.name,
-            url: "",
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("email-attachments")
+            .upload(fileName, file)
+
+          if (uploadError) {
+            console.error("[v0] Upload error:", uploadError)
+            // Показываем пользователю информацию об ошибке
+            alert(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
+            continue
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from("email-attachments")
+            .getPublicUrl(fileName)
+
+          console.log("[v0] New file uploaded successfully:", publicUrl)
+          allAttachments.push({
+            name: file.name, // Сохраняем оригинальное имя для отображения
+            url: publicUrl,
             size: file.size,
             type: file.type,
           })
-          continue
         }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("email-attachments").getPublicUrl(fileName)
-
-        console.log("[v0] File uploaded successfully:", publicUrl)
-        attachmentUrls.push({
-          name: file.name,
-          url: publicUrl,
-          size: file.size,
-          type: file.type,
-        })
       }
 
-      console.log("[v0] Saving template with attachments:", attachmentUrls)
+      console.log("[v0] Total attachments after update:", allAttachments.length)
+      console.log("[v0] All attachments:", allAttachments)
 
       const finalContent = editorRef.current?.innerHTML || template.html_content
 
-      const { error } = await supabase.from("email_templates").insert({
-        ...template,
-        html_content: finalContent,
-        attachments: attachmentUrls,
-      })
+      // Обновляем шаблон
+      const { error } = await supabase
+        .from("email_templates")
+        .update({
+          name: template.name,
+          subject: template.subject,
+          from_name: template.from_name,
+          from_email: template.from_email,
+          reply_to: template.reply_to,
+          html_content: finalContent,
+          styles: template.styles,
+          attachments: allAttachments,
+        })
+        .eq("id", template.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Database update error:", error)
+        throw error
+      }
 
-      alert("Шаблон успешно сохранен!")
+      console.log("[v0] Template updated successfully")
+      
+      // Очищаем новые вложения после успешного сохранения
+      setAttachments([])
+      
+      alert("Шаблон успешно обновлен!")
       router.push("/admin/newsletter")
+      
     } catch (error) {
-      console.error("[v0] Error saving template:", error)
-      alert("Ошибка при сохранении шаблона")
+      console.error("[v0] Error updating template:", error)
+      alert("Ошибка при обновлении шаблона: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setLoading(false)
     }
@@ -341,7 +423,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     <div className="p-8">
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Создать шаблон письма</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Редактировать шаблон письма</h1>
           <p className="text-gray-600">Настройте дизайн и содержание email рассылки</p>
         </div>
         <div className="flex gap-2">
@@ -349,7 +431,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             <Eye className="w-4 h-4 mr-2" />
             {showPreview ? "Редактор" : "Предпросмотр"}
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleUpdate} disabled={loading}>
             <Save className="w-4 h-4 mr-2" />
             {loading ? "Сохранение..." : "Сохранить"}
           </Button>
@@ -382,19 +464,21 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             <Card className="p-6">
               <div className="space-y-4">
                 <div>
-                  <Label>Название шаблона *</Label>
+                  <Label htmlFor="template-name">Название шаблона *</Label>
                   <Input
+                    id="template-name"
                     value={template.name}
-                    onChange={(e) => setTemplate({ ...template, name: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Например: Рекламная рассылка"
                   />
                 </div>
 
                 <div>
-                  <Label>Тема письма *</Label>
+                  <Label htmlFor="template-subject">Тема письма *</Label>
                   <Input
+                    id="template-subject"
                     value={template.subject}
-                    onChange={(e) => setTemplate({ ...template, subject: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, subject: e.target.value }))}
                     placeholder="Специальное предложение на спецтехнику"
                   />
                 </div>
@@ -403,7 +487,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                   <Label>Содержание письма *</Label>
                   <div className="border rounded-lg overflow-hidden">
                     <div className="bg-gray-50 border-b p-2 flex flex-wrap gap-1">
-                      {/* Text formatting */}
                       <Button
                         type="button"
                         variant="ghost"
@@ -434,7 +517,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Headings */}
                       <Button
                         type="button"
                         variant="ghost"
@@ -465,7 +547,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Alignment */}
                       <Button
                         type="button"
                         variant="ghost"
@@ -496,7 +577,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Lists */}
                       <Button
                         type="button"
                         variant="ghost"
@@ -518,7 +598,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Quote and HR */}
                       <Button type="button" variant="ghost" size="sm" onClick={insertBlockquote} title="Цитата">
                         <Quote className="w-4 h-4" />
                       </Button>
@@ -534,7 +613,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Text color */}
                       <div className="flex items-center gap-1">
                         <Type className="w-4 h-4 text-gray-600" />
                         <Input
@@ -551,7 +629,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Insert elements */}
                       <Button type="button" variant="ghost" size="sm" onClick={insertLink} title="Вставить ссылку">
                         <LinkIcon className="w-4 h-4" />
                       </Button>
@@ -570,7 +647,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                       <div className="w-px bg-gray-300 mx-1" />
 
-                      {/* Font size */}
                       <select
                         className="px-2 py-1 border rounded text-sm"
                         onChange={(e) => applyFormat("fontSize", e.target.value)}
@@ -587,7 +663,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                       </select>
                     </div>
 
-                    {/* Editor */}
                     <div
                       ref={editorRef}
                       contentEditable
@@ -610,19 +685,21 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             <Card className="p-6">
               <div className="space-y-4">
                 <div>
-                  <Label>Имя отправителя</Label>
+                  <Label htmlFor="from-name">Имя отправителя</Label>
                   <Input
+                    id="from-name"
                     value={template.from_name}
-                    onChange={(e) => setTemplate({ ...template, from_name: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, from_name: e.target.value }))}
                   />
                 </div>
 
                 <div>
-                  <Label>Email отправителя *</Label>
+                  <Label htmlFor="from-email">Email отправителя *</Label>
                   <select
+                    id="from-email"
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.from_email}
-                    onChange={(e) => setTemplate({ ...template, from_email: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, from_email: e.target.value }))}
                   >
                     {smtpAccounts.map((account) => (
                       <option key={account.id} value={account.email}>
@@ -633,11 +710,12 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                 </div>
 
                 <div>
-                  <Label>Email для ответов</Label>
+                  <Label htmlFor="reply-to">Email для ответов</Label>
                   <Input
+                    id="reply-to"
                     type="email"
                     value={template.reply_to}
-                    onChange={(e) => setTemplate({ ...template, reply_to: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, reply_to: e.target.value }))}
                     placeholder="reply@example.com"
                   />
                 </div>
@@ -649,119 +727,124 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             <Card className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Цвет фона</Label>
+                  <Label htmlFor="bg-color">Цвет фона</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="bg-color"
                       type="color"
                       value={template.styles.backgroundColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, backgroundColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, backgroundColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.backgroundColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, backgroundColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, backgroundColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Цвет текста</Label>
+                  <Label htmlFor="text-color">Цвет текста</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="text-color"
                       type="color"
                       value={template.styles.textColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, textColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, textColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.textColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, textColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, textColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Цвет кнопок</Label>
+                  <Label htmlFor="button-color">Цвет кнопок</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="button-color"
                       type="color"
                       value={template.styles.buttonColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.buttonColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Цвет текста кнопок</Label>
+                  <Label htmlFor="button-text-color">Цвет текста кнопок</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="button-text-color"
                       type="color"
                       value={template.styles.buttonTextColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonTextColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonTextColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.buttonTextColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonTextColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonTextColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label>Шрифт</Label>
+                  <Label htmlFor="font-family">Шрифт</Label>
                   <select
+                    id="font-family"
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.styles.fontFamily}
                     onChange={(e) =>
-                      setTemplate({
-                        ...template,
-                        styles: { ...template.styles, fontFamily: e.target.value },
-                      })
+                      setTemplate(prev => ({
+                        ...prev,
+                        styles: { ...prev.styles, fontFamily: e.target.value },
+                      }))
                     }
                   >
                     <option value="Arial, sans-serif">Arial</option>
@@ -773,15 +856,16 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                 </div>
 
                 <div>
-                  <Label>Размер шрифта</Label>
+                  <Label htmlFor="font-size">Размер шрифта</Label>
                   <select
+                    id="font-size"
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.styles.fontSize}
                     onChange={(e) =>
-                      setTemplate({
-                        ...template,
-                        styles: { ...template.styles, fontSize: e.target.value },
-                      })
+                      setTemplate(prev => ({
+                        ...prev,
+                        styles: { ...prev.styles, fontSize: e.target.value },
+                      }))
                     }
                   >
                     <option value="12px">12px</option>
@@ -797,11 +881,45 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
           <TabsContent value="attachments" className="space-y-4">
             <Card className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <Label className="text-lg">Вложения</Label>
+                  <div className="text-sm text-gray-500">
+                    Всего: {existingAttachments.length + attachments.length} файлов
+                  </div>
+                </div>
+
+                {existingAttachments.length > 0 && (
+                  <div>
+                    <Label className="text-green-700 font-medium">Существующие вложения:</Label>
+                    <div className="mt-2 space-y-2">
+                      {existingAttachments.map((file, index) => (
+                        <div key={`existing-${index}`} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-green-600" />
+                            <div>
+                              <span className="text-sm font-medium">{file.name}</span>
+                              <span className="text-xs text-gray-500 ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveExistingAttachment(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Удалить
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <Label>Прикрепить файлы (PDF, DOC, DOCX)</Label>
+                  <Label className="text-blue-700 font-medium">Добавить новые файлы (PDF, DOC, DOCX)</Label>
                   <div className="mt-2">
-                    <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400">
+                    <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-colors">
                       <div className="text-center">
                         <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                         <p className="text-sm text-gray-600">Нажмите для выбора файлов</p>
@@ -820,19 +938,22 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
                 {attachments.length > 0 && (
                   <div>
-                    <Label>Прикрепленные файлы:</Label>
+                    <Label className="text-blue-700 font-medium">Новые файлы для загрузки:</Label>
                     <div className="mt-2 space-y-2">
                       {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Upload className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm">{file.name}</span>
-                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                        <div key={`new-${index}`} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-blue-600" />
+                            <div>
+                              <span className="text-sm font-medium">{file.name}</span>
+                              <span className="text-xs text-gray-500 ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setAttachments(attachments.filter((_, i) => i !== index))}
+                            onClick={() => handleRemoveNewAttachment(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Удалить
                           </Button>
@@ -855,12 +976,22 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Текст кнопки</Label>
-              <Input value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="Нажмите здесь" />
+              <Label htmlFor="button-text">Текст кнопки</Label>
+              <Input 
+                id="button-text"
+                value={buttonText} 
+                onChange={(e) => setButtonText(e.target.value)} 
+                placeholder="Нажмите здесь" 
+              />
             </div>
             <div>
-              <Label>Ссылка (URL)</Label>
-              <Input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="https://" />
+              <Label htmlFor="button-url">Ссылка (URL)</Label>
+              <Input 
+                id="button-url"
+                value={buttonUrl} 
+                onChange={(e) => setButtonUrl(e.target.value)} 
+                placeholder="https://" 
+              />
             </div>
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-2">Предпросмотр:</p>
@@ -898,12 +1029,22 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Текст ссылки</Label>
-              <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="Нажмите здесь" />
+              <Label htmlFor="link-text">Текст ссылки</Label>
+              <Input 
+                id="link-text"
+                value={linkText} 
+                onChange={(e) => setLinkText(e.target.value)} 
+                placeholder="Нажмите здесь" 
+              />
             </div>
             <div>
-              <Label>URL</Label>
-              <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://" />
+              <Label htmlFor="link-url">URL</Label>
+              <Input 
+                id="link-url"
+                value={linkUrl} 
+                onChange={(e) => setLinkUrl(e.target.value)} 
+                placeholder="https://" 
+              />
             </div>
           </div>
           <DialogFooter>
