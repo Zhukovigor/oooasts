@@ -49,6 +49,10 @@ export async function POST(request: Request) {
     let sentCount = 0
     for (const subscriber of subscribers) {
       try {
+        console.log("[v0] Sending email to:", subscriber.email)
+        console.log("[v0] HTML content length:", template.html_content.length)
+        console.log("[v0] HTML content preview:", template.html_content.substring(0, 500))
+
         await transporter.sendMail({
           from: `${template.from_name} <${fromEmail}>`,
           to: subscriber.email,
@@ -56,6 +60,8 @@ export async function POST(request: Request) {
           html: template.html_content,
           replyTo: template.reply_to || fromEmail,
         })
+
+        console.log("[v0] Email sent successfully to:", subscriber.email)
 
         // Log success
         await supabase.from("email_campaign_logs").insert({

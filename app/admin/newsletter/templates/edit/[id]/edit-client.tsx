@@ -139,7 +139,15 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   const handleInsertButton = () => {
     restoreCursorPosition()
 
-    const buttonHtml = `<a href="${buttonUrl}" style="display: inline-block; padding: 12px 24px; background-color: ${template.styles.buttonColor}; color: ${template.styles.buttonTextColor}; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0;">${buttonText}</a>&nbsp;`
+    const buttonHtml = `
+      <table cellpadding="0" cellspacing="0" border="0" style="margin: 16px 0;">
+        <tr>
+          <td style="border-radius: 6px; background-color: ${template.styles.buttonColor};">
+            <a href="${buttonUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; color: ${template.styles.buttonTextColor}; text-decoration: none; font-weight: bold; font-family: Arial, sans-serif;">${buttonText}</a>
+          </td>
+        </tr>
+      </table>
+    `
 
     if (savedSelection.current && editorRef.current) {
       const range = savedSelection.current
@@ -236,9 +244,22 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   }
 
   const handleUpdate = async () => {
-    if (!template.name || !template.subject || !template.html_content) {
+    if (!template.name || !template.subject) {
       alert("Заполните все обязательные поля")
       return
+    }
+
+    if (editorRef.current) {
+      const finalContent = editorRef.current.innerHTML
+      console.log("[v0] Final content length:", finalContent.length)
+      console.log("[v0] Final content preview:", finalContent.substring(0, 500))
+
+      if (!finalContent || finalContent.trim() === "") {
+        alert("Содержание письма не может быть пустым")
+        return
+      }
+
+      setTemplate({ ...template, html_content: finalContent })
     }
 
     setLoading(true)
@@ -275,10 +296,13 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
 
       console.log("[v0] Updating template with attachments:", attachmentUrls)
 
+      const finalContent = editorRef.current?.innerHTML || template.html_content
+
       const { error } = await supabase
         .from("email_templates")
         .update({
           ...template,
+          html_content: finalContent,
           attachments: attachmentUrls,
         })
         .eq("id", template.id)
