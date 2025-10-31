@@ -43,7 +43,7 @@ interface Props {
 
 export default function NewsletterClient({ initialSubscribers, initialTemplates, initialCampaigns }: Props) {
   const [subscribers, setSubscribers] = useState(initialSubscribers)
-  const [templates] = useState(initialTemplates)
+  const [templates, setTemplates] = useState(initialTemplates)
   const [campaigns] = useState(initialCampaigns)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
@@ -132,6 +132,24 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     } finally {
       setImporting(false)
     }
+  }
+
+  const handleDeleteTemplate = async (templateId: string, templateName: string) => {
+    if (!confirm(`Вы уверены, что хотите удалить шаблон "${templateName}"?`)) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase.from("email_templates").delete().eq("id", templateId)
+
+    if (error) {
+      console.error("[v0] Error deleting template:", error)
+      alert("Ошибка при удалении шаблона")
+      return
+    }
+
+    setTemplates(templates.filter((t) => t.id !== templateId))
+    alert("Шаблон успешно удален")
   }
 
   return (
@@ -273,6 +291,13 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                       Редактировать
                     </Button>
                   </Link>
+                  <Button
+                    variant="outline"
+                    className="text-red-600 hover:bg-red-50 bg-transparent"
+                    onClick={() => handleDeleteTemplate(template.id, template.name)}
+                  >
+                    Удалить
+                  </Button>
                 </div>
               </Card>
             ))}

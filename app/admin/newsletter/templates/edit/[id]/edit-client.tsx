@@ -94,10 +94,29 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   const [linkUrl, setLinkUrl] = useState("https://")
   const [textColor, setTextColor] = useState("#333333")
 
+  const savedSelection = useRef<Range | null>(null)
+
+  const saveCursorPosition = () => {
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      savedSelection.current = selection.getRangeAt(0)
+    }
+  }
+
+  const restoreCursorPosition = () => {
+    if (savedSelection.current && editorRef.current) {
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+        selection.addRange(savedSelection.current)
+      }
+      editorRef.current.focus()
+    }
+  }
+
   useEffect(() => {
-    if (editorRef.current && !contentInitialized.current && template.html_content) {
+    if (editorRef.current && template.html_content && editorRef.current.innerHTML !== template.html_content) {
       editorRef.current.innerHTML = template.html_content
-      contentInitialized.current = true
     }
   }, [template.html_content])
 
@@ -113,39 +132,36 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   }
 
   const insertButton = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
+    saveCursorPosition()
     setShowButtonDialog(true)
   }
 
   const handleInsertButton = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-      const buttonHtml = `
-      <a href="${buttonUrl}" style="
-        display: inline-block;
-        padding: 12px 24px;
-        background-color: ${template.styles.buttonColor};
-        color: ${template.styles.buttonTextColor};
-        text-decoration: none;
-        border-radius: 6px;
-        font-weight: bold;
-        margin: 10px 0;
-      ">${buttonText}</a>&nbsp;`
+    restoreCursorPosition()
 
-      document.execCommand("insertHTML", false, buttonHtml)
+    const buttonHtml = `<a href="${buttonUrl}" style="display: inline-block; padding: 12px 24px; background-color: ${template.styles.buttonColor}; color: ${template.styles.buttonTextColor}; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0;">${buttonText}</a>&nbsp;`
+
+    if (savedSelection.current && editorRef.current) {
+      const range = savedSelection.current
+      range.deleteContents()
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = buttonHtml
+      const frag = document.createDocumentFragment()
+      let node
+      while ((node = tempDiv.firstChild)) {
+        frag.appendChild(node)
+      }
+      range.insertNode(frag)
       updateContent()
     }
+
     setShowButtonDialog(false)
     setButtonText("Нажмите здесь")
     setButtonUrl("https://")
   }
 
   const insertLink = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
+    saveCursorPosition()
     const selection = window.getSelection()
     if (selection && selection.toString()) {
       setLinkText(selection.toString())
@@ -154,13 +170,24 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   }
 
   const handleInsertLink = () => {
-    if (linkText) {
-      const linkHtml = `<a href="${linkUrl}" style="color: ${template.styles.primaryColor}; text-decoration: underline;">${linkText}</a>`
-      document.execCommand("insertHTML", false, linkHtml)
-    } else {
-      document.execCommand("createLink", false, linkUrl)
+    restoreCursorPosition()
+
+    const linkHtml = `<a href="${linkUrl}" style="color: ${template.styles.primaryColor}; text-decoration: underline;">${linkText || linkUrl}</a>`
+
+    if (savedSelection.current && editorRef.current) {
+      const range = savedSelection.current
+      range.deleteContents()
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = linkHtml
+      const frag = document.createDocumentFragment()
+      let node
+      while ((node = tempDiv.firstChild)) {
+        frag.appendChild(node)
+      }
+      range.insertNode(frag)
+      updateContent()
     }
-    updateContent()
+
     setShowLinkDialog(false)
     setLinkText("")
     setLinkUrl("https://")
@@ -199,7 +226,12 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setAttachments([...attachments, ...Array.from(e.target.files)])
+      const newFiles = Array.from(e.target.files)
+      setAttachments([...attachments, ...newFiles])
+      console.log(
+        "[v0] Files selected:",
+        newFiles.map((f) => f.name),
+      )
     }
   }
 
@@ -217,28 +249,31 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
 
       for (const file of attachments) {
         const fileName = `${Date.now()}-${file.name}`
+        console.log("[v0] Uploading file:", fileName)
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("email-attachments")
           .upload(fileName, file)
 
-        if (uploadError && !uploadError.message.includes("not found")) {
-          throw uploadError
+        if (uploadError) {
+          console.error("[v0] Upload error:", uploadError)
+          continue
         }
 
-        if (!uploadError) {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("email-attachments").getPublicUrl(fileName)
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("email-attachments").getPublicUrl(fileName)
 
-          attachmentUrls.push({
-            name: file.name,
-            url: publicUrl,
-            size: file.size,
-            type: file.type,
-          })
-        }
+        console.log("[v0] File uploaded successfully:", publicUrl)
+        attachmentUrls.push({
+          name: file.name,
+          url: publicUrl,
+          size: file.size,
+          type: file.type,
+        })
       }
+
+      console.log("[v0] Updating template with attachments:", attachmentUrls)
 
       const { error } = await supabase
         .from("email_templates")
@@ -253,7 +288,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
       alert("Шаблон успешно обновлен!")
       router.push("/admin/newsletter")
     } catch (error) {
-      console.error("Error updating template:", error)
+      console.error("[v0] Error updating template:", error)
       alert("Ошибка при обновлении шаблона")
     } finally {
       setLoading(false)

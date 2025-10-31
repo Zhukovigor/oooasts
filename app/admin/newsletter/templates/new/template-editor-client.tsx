@@ -85,12 +85,31 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   const [linkUrl, setLinkUrl] = useState("https://")
   const [textColor, setTextColor] = useState("#333333")
 
-  useEffect(() => {
-    if (editorRef.current && !contentInitialized.current && template.html_content) {
-      editorRef.current.innerHTML = template.html_content
-      contentInitialized.current = true
+  const savedSelection = useRef<Range | null>(null)
+
+  const saveCursorPosition = () => {
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      savedSelection.current = selection.getRangeAt(0)
     }
-  }, [])
+  }
+
+  const restoreCursorPosition = () => {
+    if (savedSelection.current && editorRef.current) {
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+        selection.addRange(savedSelection.current)
+      }
+      editorRef.current.focus()
+    }
+  }
+
+  useEffect(() => {
+    if (editorRef.current && template.html_content && editorRef.current.innerHTML !== template.html_content) {
+      editorRef.current.innerHTML = template.html_content
+    }
+  }, [template.html_content])
 
   const applyFormat = (command: string, value?: string) => {
     document.execCommand(command, false, value)
@@ -104,39 +123,36 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   }
 
   const insertButton = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
+    saveCursorPosition()
     setShowButtonDialog(true)
   }
 
   const handleInsertButton = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-      const buttonHtml = `
-      <a href="${buttonUrl}" style="
-        display: inline-block;
-        padding: 12px 24px;
-        background-color: ${template.styles.buttonColor};
-        color: ${template.styles.buttonTextColor};
-        text-decoration: none;
-        border-radius: 6px;
-        font-weight: bold;
-        margin: 10px 0;
-      ">${buttonText}</a>&nbsp;`
+    restoreCursorPosition()
 
-      document.execCommand("insertHTML", false, buttonHtml)
+    const buttonHtml = `<a href="${buttonUrl}" style="display: inline-block; padding: 12px 24px; background-color: ${template.styles.buttonColor}; color: ${template.styles.buttonTextColor}; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 10px 0;">${buttonText}</a>&nbsp;`
+
+    if (savedSelection.current && editorRef.current) {
+      const range = savedSelection.current
+      range.deleteContents()
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = buttonHtml
+      const frag = document.createDocumentFragment()
+      let node
+      while ((node = tempDiv.firstChild)) {
+        frag.appendChild(node)
+      }
+      range.insertNode(frag)
       updateContent()
     }
+
     setShowButtonDialog(false)
     setButtonText("Нажмите здесь")
     setButtonUrl("https://")
   }
 
   const insertLink = () => {
-    if (editorRef.current) {
-      editorRef.current.focus()
-    }
+    saveCursorPosition()
     const selection = window.getSelection()
     if (selection && selection.toString()) {
       setLinkText(selection.toString())
@@ -145,13 +161,24 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   }
 
   const handleInsertLink = () => {
-    if (linkText) {
-      const linkHtml = `<a href="${linkUrl}" style="color: ${template.styles.primaryColor}; text-decoration: underline;">${linkText}</a>`
-      document.execCommand("insertHTML", false, linkHtml)
-    } else {
-      document.execCommand("createLink", false, linkUrl)
+    restoreCursorPosition()
+
+    const linkHtml = `<a href="${linkUrl}" style="color: ${template.styles.primaryColor}; text-decoration: underline;">${linkText || linkUrl}</a>`
+
+    if (savedSelection.current && editorRef.current) {
+      const range = savedSelection.current
+      range.deleteContents()
+      const tempDiv = document.createElement("div")
+      tempDiv.innerHTML = linkHtml
+      const frag = document.createDocumentFragment()
+      let node
+      while ((node = tempDiv.firstChild)) {
+        frag.appendChild(node)
+      }
+      range.insertNode(frag)
+      updateContent()
     }
-    updateContent()
+
     setShowLinkDialog(false)
     setLinkText("")
     setLinkUrl("https://")
@@ -190,7 +217,12 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setAttachments([...attachments, ...Array.from(e.target.files)])
+      const newFiles = Array.from(e.target.files)
+      setAttachments([...attachments, ...newFiles])
+      console.log(
+        "[v0] Files selected:",
+        newFiles.map((f) => f.name),
+      )
     }
   }
 
@@ -205,21 +237,18 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
     try {
       const attachmentUrls = []
+
       for (const file of attachments) {
         const fileName = `${Date.now()}-${file.name}`
+        console.log("[v0] Uploading file:", fileName)
 
-        // Try to upload, create bucket if it doesn't exist
-        let uploadData, uploadError
-        const uploadResult = await supabase.storage.from("email-attachments").upload(fileName, file)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("email-attachments")
+          .upload(fileName, file)
 
-        uploadData = uploadResult.data
-        uploadError = uploadResult.error
-
-        // If bucket doesn't exist, try to create it
-        if (uploadError && uploadError.message.includes("not found")) {
-          console.log("[v0] Creating email-attachments bucket...")
-          // Bucket doesn't exist, but we can't create it from client
-          // Store file info without URL for now
+        if (uploadError) {
+          console.error("[v0] Upload error:", uploadError)
+          // Continue with other files even if one fails
           attachmentUrls.push({
             name: file.name,
             url: "",
@@ -229,15 +258,11 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
           continue
         }
 
-        if (uploadError) {
-          console.error("[v0] Upload error:", uploadError)
-          throw uploadError
-        }
-
         const {
           data: { publicUrl },
         } = supabase.storage.from("email-attachments").getPublicUrl(fileName)
 
+        console.log("[v0] File uploaded successfully:", publicUrl)
         attachmentUrls.push({
           name: file.name,
           url: publicUrl,
@@ -245,6 +270,8 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
           type: file.type,
         })
       }
+
+      console.log("[v0] Saving template with attachments:", attachmentUrls)
 
       const { error } = await supabase.from("email_templates").insert({
         ...template,
