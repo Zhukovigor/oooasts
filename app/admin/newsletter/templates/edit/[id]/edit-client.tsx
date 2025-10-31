@@ -80,7 +80,6 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
-  const contentInitialized = useRef(false)
 
   const [template, setTemplate] = useState(initialTemplate)
   const [attachments, setAttachments] = useState<File[]>([])
@@ -115,7 +114,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   }
 
   useEffect(() => {
-    if (editorRef.current && template.html_content && editorRef.current.innerHTML !== template.html_content) {
+    if (editorRef.current && template.html_content && !editorRef.current.innerHTML) {
       editorRef.current.innerHTML = template.html_content
     }
   }, [template.html_content])
@@ -235,12 +234,26 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files)
-      setAttachments([...attachments, ...newFiles])
-      console.log(
-        "[v0] Files selected:",
-        newFiles.map((f) => f.name),
-      )
+      setAttachments(prev => [...prev, ...newFiles])
+      console.log("[v0] New files selected:", newFiles.map(f => f.name))
+      
+      // Сбрасываем значение input чтобы можно было выбрать тот же файл снова
+      e.target.value = ""
     }
+  }
+
+  const handleRemoveExistingAttachment = async (index: number) => {
+    const attachmentToRemove = existingAttachments[index]
+    console.log("[v0] Removing existing attachment:", attachmentToRemove.name)
+    
+    setExistingAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRemoveNewAttachment = (index: number) => {
+    const attachmentToRemove = attachments[index]
+    console.log("[v0] Removing new attachment:", attachmentToRemove.name)
+    
+    setAttachments(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleUpdate = async () => {
@@ -252,68 +265,87 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
     if (editorRef.current) {
       const finalContent = editorRef.current.innerHTML
       console.log("[v0] Final content length:", finalContent.length)
-      console.log("[v0] Final content preview:", finalContent.substring(0, 500))
 
       if (!finalContent || finalContent.trim() === "") {
         alert("Содержание письма не может быть пустым")
         return
       }
 
-      setTemplate({ ...template, html_content: finalContent })
+      setTemplate(prev => ({ ...prev, html_content: finalContent }))
     }
 
     setLoading(true)
     const supabase = createBrowserClient()
 
     try {
-      const attachmentUrls = [...existingAttachments]
+      console.log("[v0] Starting template update...")
+      console.log("[v0] Existing attachments:", existingAttachments.length)
+      console.log("[v0] New attachments:", attachments.length)
 
-      for (const file of attachments) {
-        const fileName = `${Date.now()}-${file.name}`
-        console.log("[v0] Uploading file:", fileName)
+      // Начинаем с существующих вложений
+      const allAttachments = [...existingAttachments]
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("email-attachments")
-          .upload(fileName, file)
+      // Загружаем новые файлы
+      if (attachments.length > 0) {
+        for (const file of attachments) {
+          const fileName = `${Date.now()}-${file.name}`
+          console.log("[v0] Uploading new file:", fileName)
 
-        if (uploadError) {
-          console.error("[v0] Upload error:", uploadError)
-          continue
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("email-attachments")
+            .upload(fileName, file)
+
+          if (uploadError) {
+            console.error("[v0] Upload error:", uploadError)
+            continue
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from("email-attachments")
+            .getPublicUrl(fileName)
+
+          console.log("[v0] New file uploaded successfully:", publicUrl)
+          allAttachments.push({
+            name: file.name,
+            url: publicUrl,
+            size: file.size,
+            type: file.type,
+          })
         }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("email-attachments").getPublicUrl(fileName)
-
-        console.log("[v0] File uploaded successfully:", publicUrl)
-        attachmentUrls.push({
-          name: file.name,
-          url: publicUrl,
-          size: file.size,
-          type: file.type,
-        })
       }
 
-      console.log("[v0] Updating template with attachments:", attachmentUrls)
+      console.log("[v0] Total attachments after update:", allAttachments.length)
+      console.log("[v0] All attachments:", allAttachments)
 
       const finalContent = editorRef.current?.innerHTML || template.html_content
 
+      // Обновляем шаблон
       const { error } = await supabase
         .from("email_templates")
         .update({
-          ...template,
+          name: template.name,
+          subject: template.subject,
+          from_name: template.from_name,
+          from_email: template.from_email,
+          reply_to: template.reply_to,
           html_content: finalContent,
-          attachments: attachmentUrls,
+          styles: template.styles,
+          attachments: allAttachments,
         })
         .eq("id", template.id)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Database update error:", error)
+        throw error
+      }
 
+      console.log("[v0] Template updated successfully")
       alert("Шаблон успешно обновлен!")
       router.push("/admin/newsletter")
+      
     } catch (error) {
       console.error("[v0] Error updating template:", error)
-      alert("Ошибка при обновлении шаблона")
+      alert("Ошибка при обновлении шаблона: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setLoading(false)
     }
@@ -391,7 +423,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                   <Label>Название шаблона *</Label>
                   <Input
                     value={template.name}
-                    onChange={(e) => setTemplate({ ...template, name: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Например: Рекламная рассылка"
                   />
                 </div>
@@ -400,7 +432,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                   <Label>Тема письма *</Label>
                   <Input
                     value={template.subject}
-                    onChange={(e) => setTemplate({ ...template, subject: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, subject: e.target.value }))}
                     placeholder="Специальное предложение на спецтехнику"
                   />
                 </div>
@@ -610,7 +642,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                   <Label>Имя отправителя</Label>
                   <Input
                     value={template.from_name}
-                    onChange={(e) => setTemplate({ ...template, from_name: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, from_name: e.target.value }))}
                   />
                 </div>
 
@@ -619,7 +651,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                   <select
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.from_email}
-                    onChange={(e) => setTemplate({ ...template, from_email: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, from_email: e.target.value }))}
                   >
                     {smtpAccounts.map((account) => (
                       <option key={account.id} value={account.email}>
@@ -634,7 +666,7 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                   <Input
                     type="email"
                     value={template.reply_to}
-                    onChange={(e) => setTemplate({ ...template, reply_to: e.target.value })}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, reply_to: e.target.value }))}
                     placeholder="reply@example.com"
                   />
                 </div>
@@ -652,20 +684,20 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                       type="color"
                       value={template.styles.backgroundColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, backgroundColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, backgroundColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.backgroundColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, backgroundColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, backgroundColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
@@ -678,20 +710,20 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                       type="color"
                       value={template.styles.textColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, textColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, textColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.textColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, textColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, textColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
@@ -704,20 +736,20 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                       type="color"
                       value={template.styles.buttonColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.buttonColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
@@ -730,20 +762,20 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                       type="color"
                       value={template.styles.buttonTextColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonTextColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonTextColor: e.target.value },
+                        }))
                       }
                       className="w-20"
                     />
                     <Input
                       value={template.styles.buttonTextColor}
                       onChange={(e) =>
-                        setTemplate({
-                          ...template,
-                          styles: { ...template.styles, buttonTextColor: e.target.value },
-                        })
+                        setTemplate(prev => ({
+                          ...prev,
+                          styles: { ...prev.styles, buttonTextColor: e.target.value },
+                        }))
                       }
                     />
                   </div>
@@ -755,10 +787,10 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.styles.fontFamily}
                     onChange={(e) =>
-                      setTemplate({
-                        ...template,
-                        styles: { ...template.styles, fontFamily: e.target.value },
-                      })
+                      setTemplate(prev => ({
+                        ...prev,
+                        styles: { ...prev.styles, fontFamily: e.target.value },
+                      }))
                     }
                   >
                     <option value="Arial, sans-serif">Arial</option>
@@ -775,10 +807,10 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                     className="w-full px-3 py-2 border rounded-md"
                     value={template.styles.fontSize}
                     onChange={(e) =>
-                      setTemplate({
-                        ...template,
-                        styles: { ...template.styles, fontSize: e.target.value },
-                      })
+                      setTemplate(prev => ({
+                        ...prev,
+                        styles: { ...prev.styles, fontSize: e.target.value },
+                      }))
                     }
                   >
                     <option value="12px">12px</option>
@@ -794,22 +826,32 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
 
           <TabsContent value="attachments" className="space-y-4">
             <Card className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <Label className="text-lg">Вложения</Label>
+                  <div className="text-sm text-gray-500">
+                    Всего: {existingAttachments.length + attachments.length} файлов
+                  </div>
+                </div>
+
                 {existingAttachments.length > 0 && (
                   <div>
-                    <Label>Существующие вложения:</Label>
+                    <Label className="text-green-700 font-medium">Существующие вложения:</Label>
                     <div className="mt-2 space-y-2">
                       {existingAttachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Upload className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm">{file.name}</span>
-                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                        <div key={`existing-${index}`} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-green-600" />
+                            <div>
+                              <span className="text-sm font-medium">{file.name}</span>
+                              <span className="text-xs text-gray-500 ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setExistingAttachments(existingAttachments.filter((_, i) => i !== index))}
+                            onClick={() => handleRemoveExistingAttachment(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Удалить
                           </Button>
@@ -820,9 +862,9 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
                 )}
 
                 <div>
-                  <Label>Прикрепить новые файлы (PDF, DOC, DOCX)</Label>
+                  <Label className="text-blue-700 font-medium">Добавить новые файлы (PDF, DOC, DOCX)</Label>
                   <div className="mt-2">
-                    <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400">
+                    <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-colors">
                       <div className="text-center">
                         <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                         <p className="text-sm text-gray-600">Нажмите для выбора файлов</p>
@@ -841,19 +883,22 @@ export default function TemplateEditClient({ template: initialTemplate, smtpAcco
 
                 {attachments.length > 0 && (
                   <div>
-                    <Label>Новые файлы для загрузки:</Label>
+                    <Label className="text-blue-700 font-medium">Новые файлы для загрузки:</Label>
                     <div className="mt-2 space-y-2">
                       {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <Upload className="w-4 h-4 text-blue-500" />
-                            <span className="text-sm">{file.name}</span>
-                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                        <div key={`new-${index}`} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-3">
+                            <Upload className="w-4 h-4 text-blue-600" />
+                            <div>
+                              <span className="text-sm font-medium">{file.name}</span>
+                              <span className="text-xs text-gray-500 ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setAttachments(attachments.filter((_, i) => i !== index))}
+                            onClick={() => handleRemoveNewAttachment(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Удалить
                           </Button>
