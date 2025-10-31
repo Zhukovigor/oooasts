@@ -1,14 +1,27 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Progress } from "@/components/ui/progress"
 import { createBrowserClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { Send, Users, Mail, Download } from "lucide-react"
+import { 
+  Send, 
+  Users, 
+  Mail, 
+  Download, 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle,
+  Play,
+  Square,
+  Eye
+} from "lucide-react"
 
 interface Template {
   id: string
@@ -35,6 +48,14 @@ interface SmtpAccount {
   email: string
 }
 
+interface CampaignStats {
+  total: number
+  sent: number
+  failed: number
+  progress: number
+  estimatedTime: string
+}
+
 interface Props {
   templates: Template[]
   subscribers: Subscriber[]
@@ -47,6 +68,16 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
   const [selectedTemplate, setSelectedTemplate] = useState<string>("")
   const [selectedSubscribers, setSelectedSubscribers] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
+  const [campaignStats, setCampaignStats] = useState<CampaignStats>({
+    total: 0,
+    sent: 0,
+    failed: 0,
+    progress: 0,
+    estimatedTime: "0 мин"
+  })
+  const [isSending, setIsSending] = useState(false)
+  const [currentCampaignId, setCurrentCampaignId] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const [campaign, setCampaign] = useState({
     name: "",
@@ -54,6 +85,97 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
     from_name: "ООО АСТС",
     from_email: smtpAccounts[0]?.email || "",
   })
+
+  // Обновляем статистику при изменении выбранных подписчиков
+  useEffect(() => {
+    setCampaignStats(prev => ({
+      ...prev,
+      total: selectedSubscribers.length,
+      progress: selectedSubscribers.length > 0 ? 0 : 0
+    }))
+  }, [selectedSubscribers.length])
+
+  // Функция для расчета оставшегося времени
+  const calculateEstimatedTime = (remaining: number): string => {
+    const emailsPerMinute = 60 // Предполагаемая скорость отправки
+    const minutes = Math.ceil(remaining / emailsPerMinute)
+    
+    if (minutes < 1) return "Меньше минуты"
+    if (minutes === 1) return "1 минута"
+    if (minutes < 60) return `${minutes} минут`
+    
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    
+    if (remainingMinutes === 0) return `${hours} час${hours > 1 ? 'ов' : ''}`
+    return `${hours} час${hours > 1 ? 'ов' : ''} ${remainingMinutes} минут`
+  }
+
+  // Функция для обновления прогресса
+  const updateProgress = (sent: number, failed: number) => {
+    const total = selectedSubscribers.length
+    const processed = sent + failed
+    const progress = total > 0 ? (processed / total) * 100 : 0
+    const remaining = total - processed
+    
+    setCampaignStats({
+      total,
+      sent,
+      failed,
+      progress,
+      estimatedTime: calculateEstimatedTime(remaining)
+    })
+  }
+
+  // Функция для мониторинга прогресса кампании
+  const monitorCampaignProgress = async (campaignId: string) => {
+    const supabase = createBrowserClient()
+    
+    const interval = setInterval(async () => {
+      try {
+        // Получаем актуальную статистику кампании
+        const { data: campaignData, error } = await supabase
+          .from("email_campaigns")
+          .select("sent_count, status")
+          .eq("id", campaignId)
+          .single()
+
+        if (error) throw error
+
+        // Получаем статистику по логам
+        const { data: logsData } = await supabase
+          .from("email_campaign_logs")
+          .select("status")
+          .eq("campaign_id", campaignId)
+
+        const sent = logsData?.filter(log => log.status === "sent").length || 0
+        const failed = logsData?.filter(log => log.status === "failed").length || 0
+
+        updateProgress(sent, failed)
+
+        // Если кампания завершена, останавливаем мониторинг
+        if (campaignData.status === "sent" || campaignData.status === "failed") {
+          clearInterval(interval)
+          setIsSending(false)
+          
+          if (campaignData.status === "sent") {
+            alert(`Рассылка завершена! Успешно отправлено: ${sent} писем`)
+          } else {
+            alert(`Рассылка завершена с ошибками. Отправлено: ${sent}, Ошибок: ${failed}`)
+          }
+          
+          router.push("/admin/newsletter")
+        }
+
+      } catch (error) {
+        console.error("Error monitoring campaign:", error)
+        clearInterval(interval)
+        setIsSending(false)
+      }
+    }, 2000) // Проверяем каждые 2 секунды
+
+    return interval
+  }
 
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked)
@@ -87,11 +209,12 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
       return
     }
 
-    if (!confirm(`Отправить рассылку ${selectedSubscribers.length} получателям?`)) {
+    if (!confirm(`Запустить рассылку для ${selectedSubscribers.length} получателей?`)) {
       return
     }
 
     setLoading(true)
+    setIsSending(true)
     const supabase = createBrowserClient()
 
     try {
@@ -104,9 +227,7 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
 
       if (templateError) throw templateError
 
-      console.log("Template attachments:", templateData.attachments)
-
-      // Create campaign
+      // Создаем кампанию
       const { data: campaignData, error: campaignError } = await supabase
         .from("email_campaigns")
         .insert({
@@ -120,14 +241,16 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
 
       if (campaignError) throw campaignError
 
-      // Send emails via API
+      setCurrentCampaignId(campaignData.id)
+
+      // Запускаем отправку через API
       const response = await fetch("/api/newsletter/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaignId: campaignData.id,
           templateId: selectedTemplate,
-          templateData: { // Добавляем передачу templateData
+          templateData: {
             subject: templateData.subject,
             html_content: templateData.html_content,
             from_name: templateData.from_name,
@@ -144,16 +267,42 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
         throw new Error(errorData.error || "Failed to send emails")
       }
 
-      const result = await response.json()
-      console.log("Campaign sent successfully:", result)
+      // Запускаем мониторинг прогресса
+      monitorCampaignProgress(campaignData.id)
 
-      alert(`Рассылка запущена! Успешно отправлено: ${result.sent} писем`)
-      router.push("/admin/newsletter")
     } catch (error) {
       console.error("Error sending campaign:", error)
       alert("Ошибка при отправке рассылки: " + error.message)
+      setIsSending(false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleStopCampaign = async () => {
+    if (!currentCampaignId) return
+
+    if (!confirm("Остановить рассылку?")) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    
+    try {
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ status: "stopped" })
+        .eq("id", currentCampaignId)
+
+      if (error) throw error
+
+      setIsSending(false)
+      alert("Рассылка остановлена")
+      router.push("/admin/newsletter")
+
+    } catch (error) {
+      console.error("Error stopping campaign:", error)
+      alert("Ошибка при остановке рассылки")
     }
   }
 
@@ -167,6 +316,9 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
     link.download = `selected_recipients_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
   }
+
+  const selectedTemplateData = templates.find(t => t.id === selectedTemplate)
+  const attachmentsCount = selectedTemplateData?.attachments?.length || 0
 
   return (
     <div className="p-8">
@@ -244,10 +396,9 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
                   <Label>Информация о шаблоне:</Label>
                   <div className="mt-2 text-sm text-gray-600">
                     <p>Шаблон: {templates.find(t => t.id === selectedTemplate)?.name}</p>
-                    {templates.find(t => t.id === selectedTemplate)?.attachments && 
-                     templates.find(t => t.id === selectedTemplate)!.attachments!.length > 0 ? (
+                    {attachmentsCount > 0 ? (
                       <p className="text-green-600 font-medium">
-                        Вложения: {templates.find(t => t.id === selectedTemplate)!.attachments!.length} файл(ов)
+                        Вложения: {attachmentsCount} файл(ов)
                       </p>
                     ) : (
                       <p className="text-gray-500">Вложения отсутствуют</p>
@@ -298,51 +449,197 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
         </div>
 
         <div className="space-y-6">
+          {/* Расширенная сводка */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Сводка</h2>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-blue-500" />
-                <div>
-                  <p className="text-sm text-gray-600">Получателей</p>
-                  <p className="text-2xl font-bold">{selectedSubscribers.length}</p>
+            <h2 className="text-xl font-semibold mb-4">Сводка кампании</h2>
+            
+            {/* Прогресс отправки */}
+            {isSending && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-800">Отправка писем</span>
+                  <span className="text-sm text-blue-600">{Math.round(campaignStats.progress)}%</span>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5 text-green-500" />
-                <div>
-                  <p className="text-sm text-gray-600">Шаблон</p>
-                  <p className="font-medium">
-                    {selectedTemplate ? templates.find((t) => t.id === selectedTemplate)?.name : "Не выбран"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Информация о вложениях в сводке */}
-              {selectedTemplate && templates.find(t => t.id === selectedTemplate)?.attachments && 
-               templates.find(t => t.id === selectedTemplate)!.attachments!.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <Download className="w-5 h-5 text-orange-500" />
+                <Progress value={campaignStats.progress} className="mb-3" />
+                <div className="grid grid-cols-3 gap-2 text-xs text-blue-700">
                   <div>
-                    <p className="text-sm text-gray-600">Вложения</p>
-                    <p className="font-medium text-orange-600">
-                      {templates.find(t => t.id === selectedTemplate)!.attachments!.length} файл(ов)
+                    <CheckCircle className="w-3 h-3 inline mr-1" />
+                    Отправлено: {campaignStats.sent}
+                  </div>
+                  <div>
+                    <AlertCircle className="w-3 h-3 inline mr-1" />
+                    Ошибок: {campaignStats.failed}
+                  </div>
+                  <div>
+                    <Clock className="w-3 h-3 inline mr-1" />
+                    {campaignStats.estimatedTime}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Основная статистика */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Users className="w-8 h-8 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-gray-600">Получателей</p>
+                    <p className="text-xl font-bold">{selectedSubscribers.length}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <Mail className="w-8 h-8 text-green-500" />
+                  <div>
+                    <p className="text-sm text-gray-600">Шаблон</p>
+                    <p className="text-sm font-medium truncate">
+                      {selectedTemplate ? templates.find((t) => t.id === selectedTemplate)?.name : "Не выбран"}
                     </p>
                   </div>
                 </div>
-              )}
-
-              <div className="pt-4 border-t">
-                <Button onClick={handleSendCampaign} disabled={loading} className="w-full" size="lg">
-                  <Send className="w-4 h-4 mr-2" />
-                  {loading ? "Отправка..." : "Отправить рассылку"}
-                </Button>
               </div>
+
+              {/* Дополнительная информация */}
+              <div className="space-y-3">
+                {attachmentsCount > 0 && (
+                  <div className="flex items-center justify-between p-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
+                      <span className="text-sm text-gray-600">Вложения</span>
+                    </div>
+                    <span className="text-sm font-medium text-orange-600">
+                      {attachmentsCount} файл(ов)
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4 text-purple-500" />
+                    <span className="text-sm text-gray-600">Отправитель</span>
+                  </div>
+                  <span className="text-sm font-medium text-purple-600 truncate max-w-[120px]">
+                    {campaign.from_email}
+                  </span>
+                </div>
+
+                {selectedSubscribers.length > 0 && (
+                  <div className="flex items-center justify-between p-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">Примерное время</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">
+                      {calculateEstimatedTime(selectedSubscribers.length)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Кнопки управления */}
+              <div className="pt-4 border-t space-y-2">
+                {!isSending ? (
+                  <Button 
+                    onClick={handleSendCampaign} 
+                    disabled={loading || selectedSubscribers.length === 0 || !selectedTemplate}
+                    className="w-full" 
+                    size="lg"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    {loading ? "Подготовка..." : "Запустить рассылку"}
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={handleStopCampaign}
+                      variant="outline"
+                      className="w-full" 
+                      size="lg"
+                    >
+                      <Square className="w-4 h-4 mr-2" />
+                      Остановить рассылку
+                    </Button>
+                    <div className="text-xs text-gray-500 text-center">
+                      Отправлено {campaignStats.sent} из {campaignStats.total} писем
+                    </div>
+                  </div>
+                )}
+
+                {/* Предпросмотр */}
+                {selectedTemplate && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setShowPreview(!showPreview)}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    {showPreview ? "Скрыть предпросмотр" : "Предпросмотр письма"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Быстрая статистика */}
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Быстрая статистика</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Активных подписчиков:</span>
+                <span className="font-medium">{subscribers.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Выбрано:</span>
+                <span className="font-medium">{selectedSubscribers.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Доступных шаблонов:</span>
+                <span className="font-medium">{templates.length}</span>
+              </div>
+              {selectedSubscribers.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Охват аудитории:</span>
+                  <span className="font-medium text-green-600">
+                    {((selectedSubscribers.length / subscribers.length) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Предпросмотр письма */}
+      {showPreview && selectedTemplateData && (
+        <div className="mt-6">
+          <Card className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Предпросмотр письма</h2>
+              <Button variant="outline" onClick={() => setShowPreview(false)}>
+                Закрыть
+              </Button>
+            </div>
+            <div className="border rounded-lg p-4 bg-white">
+              <div className="mb-4 pb-4 border-b">
+                <p className="text-sm text-gray-600">
+                  От: {campaign.from_name} &lt;{campaign.from_email}&gt;
+                </p>
+                <p className="text-sm text-gray-600">Тема: {campaign.subject}</p>
+                {attachmentsCount > 0 && (
+                  <p className="text-sm text-green-600">
+                    Вложения: {attachmentsCount} файл(ов)
+                  </p>
+                )}
+              </div>
+              <div 
+                className="prose max-w-none"
+                dangerouslySetInnerHTML={{ __html: selectedTemplateData.html_content }}
+              />
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
