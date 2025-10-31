@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createBrowserClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { Send, Users, Mail } from "lucide-react"
+import { Send, Users, Mail, Download } from "lucide-react"
 
 interface Template {
   id: string
@@ -127,6 +127,17 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
     }
   }
 
+  const handleExportSelected = () => {
+    const selectedEmails = subscribers.filter((s) => selectedSubscribers.includes(s.id))
+    const csv = [["Email", "Имя"].join(","), ...selectedEmails.map((s) => [s.email, s.name || ""].join(","))].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `selected_recipients_${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -202,6 +213,12 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Получатели</h2>
               <div className="flex items-center gap-2">
+                {selectedSubscribers.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handleExportSelected}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Экспорт ({selectedSubscribers.length})
+                  </Button>
+                )}
                 <Checkbox checked={selectAll} onCheckedChange={handleSelectAll} />
                 <Label>Выбрать всех ({subscribers.length})</Label>
               </div>

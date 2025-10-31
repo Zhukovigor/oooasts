@@ -10,7 +10,35 @@ import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createBrowserClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, ImageIcon, Upload, Save, Eye } from "lucide-react"
+import {
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  ImageIcon,
+  Upload,
+  Save,
+  Eye,
+  LinkIcon,
+  List,
+  ListOrdered,
+  Quote,
+  Heading1,
+  Heading2,
+  Heading3,
+  Minus,
+  Type,
+} from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 interface SmtpAccount {
   id: string
@@ -48,6 +76,14 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
 
   const [attachments, setAttachments] = useState<File[]>([])
 
+  const [showButtonDialog, setShowButtonDialog] = useState(false)
+  const [showLinkDialog, setShowLinkDialog] = useState(false)
+  const [buttonText, setButtonText] = useState("Нажмите здесь")
+  const [buttonUrl, setButtonUrl] = useState("https://")
+  const [linkText, setLinkText] = useState("")
+  const [linkUrl, setLinkUrl] = useState("https://")
+  const [textColor, setTextColor] = useState("#333333")
+
   const applyFormat = (command: string, value?: string) => {
     document.execCommand(command, false, value)
     updateContent()
@@ -60,8 +96,12 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   }
 
   const insertButton = () => {
+    setShowButtonDialog(true)
+  }
+
+  const handleInsertButton = () => {
     const buttonHtml = `
-      <a href="https://example.com" style="
+      <a href="${buttonUrl}" style="
         display: inline-block;
         padding: 12px 24px;
         background-color: ${template.styles.buttonColor};
@@ -70,10 +110,56 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
         border-radius: 6px;
         font-weight: bold;
         margin: 10px 0;
-      ">Нажмите здесь</a>
+      ">${buttonText}</a>
     `
     document.execCommand("insertHTML", false, buttonHtml)
     updateContent()
+    setShowButtonDialog(false)
+    setButtonText("Нажмите здесь")
+    setButtonUrl("https://")
+  }
+
+  const insertLink = () => {
+    const selection = window.getSelection()
+    if (selection && selection.toString()) {
+      setLinkText(selection.toString())
+    }
+    setShowLinkDialog(true)
+  }
+
+  const handleInsertLink = () => {
+    if (linkText) {
+      const linkHtml = `<a href="${linkUrl}" style="color: ${template.styles.primaryColor}; text-decoration: underline;">${linkText}</a>`
+      document.execCommand("insertHTML", false, linkHtml)
+    } else {
+      document.execCommand("createLink", false, linkUrl)
+    }
+    updateContent()
+    setShowLinkDialog(false)
+    setLinkText("")
+    setLinkUrl("https://")
+  }
+
+  const insertHeading = (level: number) => {
+    applyFormat("formatBlock", `h${level}`)
+  }
+
+  const insertBlockquote = () => {
+    const selection = window.getSelection()
+    if (selection && selection.toString()) {
+      const quoteHtml = `<blockquote style="border-left: 4px solid ${template.styles.primaryColor}; padding-left: 16px; margin: 16px 0; color: #666; font-style: italic;">${selection.toString()}</blockquote>`
+      document.execCommand("insertHTML", false, quoteHtml)
+      updateContent()
+    }
+  }
+
+  const insertHorizontalRule = () => {
+    document.execCommand("insertHorizontalRule", false)
+    updateContent()
+  }
+
+  const changeTextColor = (color: string) => {
+    applyFormat("foreColor", color)
   }
 
   const insertImage = () => {
@@ -229,44 +315,188 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                 <div>
                   <Label>Содержание письма *</Label>
                   <div className="border rounded-lg overflow-hidden">
-                    {/* Toolbar */}
                     <div className="bg-gray-50 border-b p-2 flex flex-wrap gap-1">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("bold")}>
+                      {/* Text formatting */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("bold")}
+                        title="Жирный"
+                      >
                         <Bold className="w-4 h-4" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("italic")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("italic")}
+                        title="Курсив"
+                      >
                         <Italic className="w-4 h-4" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("underline")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("underline")}
+                        title="Подчеркнутый"
+                      >
                         <Underline className="w-4 h-4" />
                       </Button>
+
                       <div className="w-px bg-gray-300 mx-1" />
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyLeft")}>
+
+                      {/* Headings */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => insertHeading(1)}
+                        title="Заголовок 1"
+                      >
+                        <Heading1 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => insertHeading(2)}
+                        title="Заголовок 2"
+                      >
+                        <Heading2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => insertHeading(3)}
+                        title="Заголовок 3"
+                      >
+                        <Heading3 className="w-4 h-4" />
+                      </Button>
+
+                      <div className="w-px bg-gray-300 mx-1" />
+
+                      {/* Alignment */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("justifyLeft")}
+                        title="По левому краю"
+                      >
                         <AlignLeft className="w-4 h-4" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyCenter")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("justifyCenter")}
+                        title="По центру"
+                      >
                         <AlignCenter className="w-4 h-4" />
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyRight")}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("justifyRight")}
+                        title="По правому краю"
+                      >
                         <AlignRight className="w-4 h-4" />
                       </Button>
+
                       <div className="w-px bg-gray-300 mx-1" />
-                      <Button type="button" variant="ghost" size="sm" onClick={insertButton}>
+
+                      {/* Lists */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("insertUnorderedList")}
+                        title="Маркированный список"
+                      >
+                        <List className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => applyFormat("insertOrderedList")}
+                        title="Нумерованный список"
+                      >
+                        <ListOrdered className="w-4 h-4" />
+                      </Button>
+
+                      <div className="w-px bg-gray-300 mx-1" />
+
+                      {/* Quote and HR */}
+                      <Button type="button" variant="ghost" size="sm" onClick={insertBlockquote} title="Цитата">
+                        <Quote className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={insertHorizontalRule}
+                        title="Горизонтальная линия"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+
+                      <div className="w-px bg-gray-300 mx-1" />
+
+                      {/* Text color */}
+                      <div className="flex items-center gap-1">
+                        <Type className="w-4 h-4 text-gray-600" />
+                        <Input
+                          type="color"
+                          value={textColor}
+                          onChange={(e) => {
+                            setTextColor(e.target.value)
+                            changeTextColor(e.target.value)
+                          }}
+                          className="w-12 h-8 p-1 cursor-pointer"
+                          title="Цвет текста"
+                        />
+                      </div>
+
+                      <div className="w-px bg-gray-300 mx-1" />
+
+                      {/* Insert elements */}
+                      <Button type="button" variant="ghost" size="sm" onClick={insertLink} title="Вставить ссылку">
+                        <LinkIcon className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={insertButton} title="Вставить кнопку">
                         Кнопка
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={insertImage}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={insertImage}
+                        title="Вставить изображение"
+                      >
                         <ImageIcon className="w-4 h-4" />
                       </Button>
+
+                      <div className="w-px bg-gray-300 mx-1" />
+
+                      {/* Font size */}
                       <select
                         className="px-2 py-1 border rounded text-sm"
                         onChange={(e) => applyFormat("fontSize", e.target.value)}
+                        title="Размер шрифта"
                       >
-                        <option value="3">Маленький</option>
-                        <option value="4" selected>
-                          Обычный
-                        </option>
+                        <option value="">Размер</option>
+                        <option value="1">Очень маленький</option>
+                        <option value="2">Маленький</option>
+                        <option value="3">Обычный</option>
+                        <option value="4">Средний</option>
                         <option value="5">Большой</option>
                         <option value="6">Очень большой</option>
+                        <option value="7">Огромный</option>
                       </select>
                     </div>
 
@@ -529,6 +759,74 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={showButtonDialog} onOpenChange={setShowButtonDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Вставить кнопку</DialogTitle>
+            <DialogDescription>Настройте текст и ссылку для кнопки</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Текст кнопки</Label>
+              <Input value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="Нажмите здесь" />
+            </div>
+            <div>
+              <Label>Ссылка (URL)</Label>
+              <Input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="https://" />
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-2">Предпросмотр:</p>
+              <a
+                href="#"
+                onClick={(e) => e.preventDefault()}
+                style={{
+                  display: "inline-block",
+                  padding: "12px 24px",
+                  backgroundColor: template.styles.buttonColor,
+                  color: template.styles.buttonTextColor,
+                  textDecoration: "none",
+                  borderRadius: "6px",
+                  fontWeight: "bold",
+                }}
+              >
+                {buttonText}
+              </a>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowButtonDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleInsertButton}>Вставить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Вставить ссылку</DialogTitle>
+            <DialogDescription>Добавьте текст и URL для ссылки</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Текст ссылки</Label>
+              <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="Нажмите здесь" />
+            </div>
+            <div>
+              <Label>URL</Label>
+              <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleInsertLink}>Вставить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

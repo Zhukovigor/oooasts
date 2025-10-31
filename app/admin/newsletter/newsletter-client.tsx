@@ -4,8 +4,9 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Plus, Mail, Users, FileText, Send } from "lucide-react"
+import { Plus, Mail, Users, FileText, Send, Upload, Download } from "lucide-react"
 import Link from "next/link"
+import { createBrowserClient } from "@/lib/supabase-client"
 
 interface Subscriber {
   id: string
@@ -41,11 +42,97 @@ interface Props {
 }
 
 export default function NewsletterClient({ initialSubscribers, initialTemplates, initialCampaigns }: Props) {
-  const [subscribers] = useState(initialSubscribers)
+  const [subscribers, setSubscribers] = useState(initialSubscribers)
   const [templates] = useState(initialTemplates)
   const [campaigns] = useState(initialCampaigns)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
 
   const activeSubscribers = subscribers.filter((s) => s.status === "active").length
+
+  const handleExport = () => {
+    const csv = [
+      ["Email", "Имя", "Статус", "Дата подписки"].join(","),
+      ...subscribers.map((s) =>
+        [s.email, s.name || "", s.status, new Date(s.subscribed_at).toLocaleDateString("ru-RU")].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `subscribers_${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+
+    setImporting(true)
+    setImportResult(null)
+
+    try {
+      const text = await importFile.text()
+      const lines = text.split("\n").filter((line) => line.trim())
+      const errors: string[] = []
+      let successCount = 0
+
+      const supabase = createBrowserClient()
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+
+        const [email, name] = line.split(",").map((s) => s.trim().replace(/^"|"$/g, ""))
+
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          errors.push(`Строка ${i + 1}: Неверный email "${email}"`)
+          continue
+        }
+
+        const { data: existing } = await supabase
+          .from("newsletter_subscribers")
+          .select("id")
+          .eq("email", email)
+          .single()
+
+        if (existing) {
+          errors.push(`Строка ${i + 1}: Email "${email}" уже существует`)
+          continue
+        }
+
+        const { error } = await supabase.from("newsletter_subscribers").insert({
+          email,
+          name: name || null,
+          status: "active",
+        })
+
+        if (error) {
+          errors.push(`Строка ${i + 1}: Ошибка при добавлении "${email}": ${error.message}`)
+        } else {
+          successCount++
+        }
+      }
+
+      setImportResult({ success: successCount, errors })
+
+      const { data: newSubscribers } = await supabase
+        .from("newsletter_subscribers")
+        .select("*")
+        .order("subscribed_at", { ascending: false })
+
+      if (newSubscribers) {
+        setSubscribers(newSubscribers)
+      }
+    } catch (error) {
+      console.error("Import error:", error)
+      setImportResult({ success: 0, errors: ["Ошибка при чтении файла"] })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   return (
     <div className="p-8">
@@ -54,7 +141,6 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
         <p className="text-gray-600">Управление подписчиками и email кампаниями</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card className="p-6">
           <div className="flex items-center justify-between">
@@ -108,14 +194,12 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">База подписчиков</h2>
             <div className="flex gap-2">
-              <Link href="/admin/newsletter/import">
-                <Button variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Импорт
-                </Button>
-              </Link>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button variant="outline" onClick={() => setShowImportModal(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Импорт
+              </Button>
+              <Button onClick={handleExport}>
+                <Download className="w-4 h-4 mr-2" />
                 Экспорт
               </Button>
             </div>
@@ -254,6 +338,56 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           </Card>
         </TabsContent>
       </Tabs>
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl p-6 m-4">
+            <h2 className="text-2xl font-bold mb-4">Импорт подписчиков</h2>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Загрузите CSV файл с колонками: Email, Имя (опционально)</p>
+                <p className="text-xs text-gray-500 mb-4">Пример: email@example.com,Иван Иванов</p>
+
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+
+              {importResult && (
+                <div className="space-y-2">
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-green-800 font-semibold">Успешно импортировано: {importResult.success}</p>
+                  </div>
+
+                  {importResult.errors.length > 0 && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-md max-h-48 overflow-y-auto">
+                      <p className="text-red-800 font-semibold mb-2">Ошибки ({importResult.errors.length}):</p>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {importResult.errors.map((error, i) => (
+                          <li key={i}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
+                  Отмена
+                </Button>
+                <Button onClick={handleImport} disabled={!importFile || importing}>
+                  {importing ? "Импорт..." : "Импортировать"}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
