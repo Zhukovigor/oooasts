@@ -285,14 +285,14 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
         .list()
       
       if (error) {
-        console.error("[DEBUG] Bucket access error:", error)
+        console.error("❌ Bucket access error:", error)
         return false
       }
       
-      console.log("[DEBUG] Bucket access OK, files count:", data?.length)
+      console.log("✅ Bucket access OK, files count:", data?.length)
       return true
     } catch (error) {
-      console.error("[DEBUG] Bucket check failed:", error)
+      console.error("❌ Bucket check failed:", error)
       return false
     }
   }
@@ -301,98 +301,69 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     const supabase = createBrowserClient()
     const uploaded: Attachment[] = []
 
+    console.log("🔄 Starting file upload process...", { fileCount: files.length })
+
+    // 🔴 ПРОВЕРКА АУТЕНТИФИКАЦИИ
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.error("❌ User not authenticated for file upload:", authError)
+      throw new Error("Пользователь не авторизован для загрузки файлов")
+    }
+
+    console.log("✅ User authenticated for upload:", user.id)
+
     for (const file of files) {
       try {
-        // Генерируем уникальное имя файла
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`
+        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${file.name.split('.').pop()}`
         
-        console.log("[DEBUG] Uploading file:", {
-          originalName: file.name,
-          storageName: fileName,
+        console.log("📤 Uploading file:", {
+          name: file.name,
           size: file.size,
-          type: file.type
+          type: file.type,
+          storageName: fileName,
+          user: user.id
         })
 
-        // Определяем MIME type
-        const getMimeType = (filename: string, fileType: string): string => {
-          if (fileType && fileType !== 'application/octet-stream') {
-            return fileType
-          }
-          
-          const ext = filename.toLowerCase().split('.').pop()
-          const mimeTypes: { [key: string]: string } = {
-            'pdf': 'application/pdf',
-            'doc': 'application/msword',
-            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'png': 'image/png'
-          }
-          return mimeTypes[ext] || 'application/octet-stream'
-        }
-
-        const contentType = getMimeType(file.name, file.type)
-
-        // Загружаем файл в storage
+        // 🔴 УПРОЩЕННАЯ ЗАГРУЗКА
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("email-attachments")
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: contentType
-          })
+          .upload(fileName, file) // Только обязательные параметры
 
         if (uploadError) {
-          console.error("[DEBUG] Upload error details:", {
+          console.error("❌ STORAGE UPLOAD ERROR:", {
             message: uploadError.message,
             details: uploadError.details,
-            hint: uploadError.hint,
             statusCode: uploadError.statusCode
           })
-          
-          // Пробуем загрузить с базовым MIME type если есть ошибка
-          if (uploadError.message.includes('MIME') || uploadError.statusCode === '415') {
-            console.log("[DEBUG] Retrying with basic MIME type...")
-            const { data: retryData, error: retryError } = await supabase.storage
-              .from("email-attachments")
-              .upload(fileName, file, {
-                cacheControl: '3600',
-                upsert: false,
-                contentType: 'application/octet-stream'
-              })
-            
-            if (retryError) {
-              throw new Error(`Ошибка загрузки файла ${file.name}: ${retryError.message}`)
-            }
-          } else {
-            throw new Error(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
-          }
+          throw new Error(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
         }
+
+        console.log("✅ File uploaded to storage:", uploadData)
 
         // Получаем публичный URL
         const { data: { publicUrl } } = supabase.storage
           .from("email-attachments")
           .getPublicUrl(fileName)
 
-        console.log("[DEBUG] File uploaded successfully:", {
+        console.log("🔗 Public URL:", publicUrl)
+
+        const attachment: Attachment = {
           name: file.name,
           url: publicUrl,
-          size: file.size
-        })
-        
-        uploaded.push({
-          name: file.name, // Оригинальное имя
-          url: publicUrl,  // URL в storage
           size: file.size,
           type: file.type,
-        })
+        }
+
+        uploaded.push(attachment)
+        console.log("📝 Attachment added:", attachment)
+
       } catch (error) {
-        console.error("[DEBUG] Error uploading file:", error)
+        console.error("💥 CRITICAL UPLOAD ERROR:", error)
         throw error
       }
     }
 
+    console.log("🎉 All files uploaded successfully:", uploaded)
     return uploaded
   }
 
@@ -400,19 +371,18 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     const supabase = createBrowserClient()
     
     const filesToDelete = urls.map(url => {
-      // Извлекаем имя файла из URL
       const path = url.split('/').pop()
       return path
     }).filter(Boolean)
 
     if (filesToDelete.length > 0) {
-      console.log("[DEBUG] Deleting files:", filesToDelete)
+      console.log("🗑️ Deleting files:", filesToDelete)
       const { error } = await supabase.storage
         .from("email-attachments")
         .remove(filesToDelete)
       
       if (error) {
-        console.error("[DEBUG] Error deleting files:", error)
+        console.error("❌ Error deleting files:", error)
         throw error
       }
     }
@@ -422,6 +392,8 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     if (e.target.files) {
       const newFiles = Array.from(e.target.files)
       
+      console.log("🖱️ File input changed:", newFiles.map(f => ({ name: f.name, size: f.size, type: f.type })))
+
       // Проверяем типы файлов и размер
       const validFiles = newFiles.filter(file => {
         const validTypes = ['.pdf', '.doc', '.docx', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -444,7 +416,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
       })
       
       setNewAttachments(prev => [...prev, ...validFiles])
-      console.log("[DEBUG] New files selected:", validFiles.map(f => ({ name: f.name, size: f.size })))
+      console.log("✅ Valid files selected:", validFiles.map(f => ({ name: f.name, size: f.size })))
       
       // Сбрасываем значение input
       if (fileInputRef.current) {
@@ -489,6 +461,17 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     const supabase = createBrowserClient()
 
     try {
+      console.log("💾 Starting template save process...")
+
+      // 🔴 ПРОВЕРКА АУТЕНТИФИКАЦИИ
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error("❌ User not authenticated:", authError)
+        throw new Error("Пользователь не авторизован. Пожалуйста, войдите в систему.")
+      }
+
+      console.log("✅ User authenticated:", { id: user.id, email: user.email })
+
       // Проверяем доступность бакета
       const bucketAccess = await checkBucketAccess()
       if (!bucketAccess) {
@@ -497,27 +480,30 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
 
       let newUploadedAttachments: Attachment[] = []
 
-      // Загружаем новые файлы если они есть
+      // 🔴 ЗАГРУЗКА ФАЙЛОВ
       if (newAttachments.length > 0) {
-        console.log("[DEBUG] Starting file upload for", newAttachments.length, "files")
+        console.log("📎 Processing new attachments:", newAttachments.length)
         newUploadedAttachments = await uploadFilesToStorage(newAttachments)
-        console.log("[DEBUG] New files uploaded successfully:", newUploadedAttachments)
+        console.log("✅ New attachments uploaded:", newUploadedAttachments)
+      } else {
+        console.log("ℹ️ No new attachments to upload")
       }
 
-      // Удаляем файлы, помеченные на удаление
+      // Удаляем файлы если нужно
       if (attachmentsToDelete.length > 0) {
-        console.log("[DEBUG] Deleting files:", attachmentsToDelete)
+        console.log("🗑️ Deleting attachments:", attachmentsToDelete)
         await deleteFilesFromStorage(attachmentsToDelete)
       }
 
-      // Объединяем существующие и новые вложения
+      // Объединяем вложения
       const existingAttachments = template.attachments?.filter(att => 
         !attachmentsToDelete.includes(att.url)
       ) || []
 
       const allAttachments = [...existingAttachments, ...newUploadedAttachments]
 
-      // Подготавливаем данные для сохранения
+      console.log("📋 Final attachments list:", allAttachments)
+
       const templateData = {
         name: template.name,
         subject: template.subject,
@@ -526,22 +512,20 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
         reply_to: template.reply_to,
         html_content: finalContent,
         styles: template.styles,
-        attachments: allAttachments,
+        attachments: allAttachments, // 🔴 ВАЖНО: attachments ДОЛЖНЫ БЫТЬ ЗДЕСЬ
         is_active: true,
       }
 
-      console.log("[DEBUG] Saving template data:", templateData)
+      console.log("💿 Saving template to database:", templateData)
 
       let result
       if (isEditing && templateId) {
-        // Обновляем существующий шаблон
         result = await supabase
           .from("email_templates")
           .update(templateData)
           .eq("id", templateId)
           .select()
       } else {
-        // Создаем новый шаблон
         result = await supabase
           .from("email_templates")
           .insert(templateData)
@@ -549,17 +533,17 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
       }
 
       if (result.error) {
-        console.error("[DEBUG] Database error:", result.error)
+        console.error("❌ DATABASE ERROR:", result.error)
         throw result.error
       }
 
-      console.log("[DEBUG] Template saved successfully:", result.data)
+      console.log("✅ Template saved successfully:", result.data)
       alert(`Шаблон успешно ${isEditing ? 'обновлен' : 'сохранен'}!`)
       router.push("/admin/newsletter")
       
     } catch (error: any) {
-      console.error("[DEBUG] Error saving template:", error)
-      alert(`Ошибка при ${isEditing ? 'обновлении' : 'сохранении'} шаблона: ${error.message}`)
+      console.error("💥 SAVE PROCESS FAILED:", error)
+      alert(`Ошибка при сохранении: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -1022,7 +1006,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                         ref={fileInputRef}
                         type="file"
                         className="hidden"
-                        multiple
+                        multiple                    
                         accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         onChange={handleFileUpload}
                       />
