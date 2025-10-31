@@ -31,6 +31,7 @@ import {
   Minus,
   Type,
   Trash2,
+  Edit,
 } from "lucide-react"
 import {
   Dialog,
@@ -54,18 +55,40 @@ interface Attachment {
   type: string
 }
 
-interface Props {
-  smtpAccounts: SmtpAccount[]
+interface EmailTemplate {
+  id?: string
+  name: string
+  subject: string
+  from_name: string
+  from_email: string
+  reply_to: string
+  html_content: string
+  styles: {
+    backgroundColor: string
+    textColor: string
+    primaryColor: string
+    fontFamily: string
+    fontSize: string
+    buttonColor: string
+    buttonTextColor: string
+  }
+  attachments?: Attachment[]
 }
 
-export default function TemplateEditorClient({ smtpAccounts }: Props) {
+interface Props {
+  smtpAccounts: SmtpAccount[]
+  templateId?: string
+}
+
+export default function TemplateEditorClient({ smtpAccounts, templateId }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isEditing, setIsEditing] = useState(!!templateId)
 
-  const [template, setTemplate] = useState({
+  const [template, setTemplate] = useState<EmailTemplate>({
     name: "",
     subject: "",
     from_name: "ООО АСТС",
@@ -81,10 +104,11 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
       buttonColor: "#2563eb",
       buttonTextColor: "#ffffff",
     },
+    attachments: [],
   })
 
-  const [attachments, setAttachments] = useState<File[]>([])
-  const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([])
+  const [newAttachments, setNewAttachments] = useState<File[]>([])
+  const [attachmentsToDelete, setAttachmentsToDelete] = useState<string[]>([])
 
   const [showButtonDialog, setShowButtonDialog] = useState(false)
   const [showLinkDialog, setShowLinkDialog] = useState(false)
@@ -95,6 +119,59 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   const [textColor, setTextColor] = useState("#333333")
 
   const savedSelection = useRef<Range | null>(null)
+
+  // Загрузка шаблона при редактировании
+  useEffect(() => {
+    if (templateId) {
+      loadTemplate()
+    }
+  }, [templateId])
+
+  const loadTemplate = async () => {
+    if (!templateId) return
+
+    setLoading(true)
+    const supabase = createBrowserClient()
+
+    try {
+      const { data: templateData, error } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("id", templateId)
+        .single()
+
+      if (error) throw error
+
+      if (templateData) {
+        // Преобразуем строки JSON в объекты
+        const styles = typeof templateData.styles === 'string' 
+          ? JSON.parse(templateData.styles) 
+          : templateData.styles
+        
+        const attachments = typeof templateData.attachments === 'string'
+          ? JSON.parse(templateData.attachments)
+          : templateData.attachments
+
+        setTemplate({
+          ...templateData,
+          styles,
+          attachments: attachments || [],
+        })
+
+        // Устанавливаем содержимое редактора
+        setTimeout(() => {
+          if (editorRef.current && templateData.html_content) {
+            editorRef.current.innerHTML = templateData.html_content
+          }
+        }, 100)
+      }
+    } catch (error) {
+      console.error("[DEBUG] Error loading template:", error)
+      alert("Ошибка при загрузке шаблона")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const saveCursorPosition = () => {
     const selection = window.getSelection()
@@ -113,12 +190,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
       editorRef.current.focus()
     }
   }
-
-  useEffect(() => {
-    if (editorRef.current && template.html_content && editorRef.current.innerHTML !== template.html_content) {
-      editorRef.current.innerHTML = template.html_content
-    }
-  }, [template.html_content])
 
   const applyFormat = (command: string, value?: string) => {
     saveCursorPosition()
@@ -230,8 +301,8 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
         return true
       })
       
-      setAttachments(prev => [...prev, ...validFiles])
-      console.log("[DEBUG] Files selected:", validFiles.map(f => ({ name: f.name, size: f.size })))
+      setNewAttachments(prev => [...prev, ...validFiles])
+      console.log("[DEBUG] New files selected:", validFiles.map(f => ({ name: f.name, size: f.size })))
       
       // Сбрасываем значение input
       if (fileInputRef.current) {
@@ -240,8 +311,23 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     }
   }
 
-  const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index))
+  const removeNewAttachment = (index: number) => {
+    setNewAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const removeExistingAttachment = (index: number) => {
+    const attachment = template.attachments?.[index]
+    if (attachment) {
+      // Добавляем в список для удаления
+      setAttachmentsToDelete(prev => [...prev, attachment.url])
+      
+      // Удаляем из текущего шаблона
+      const updatedAttachments = template.attachments?.filter((_, i) => i !== index) || []
+      setTemplate({
+        ...template,
+        attachments: updatedAttachments
+      })
+    }
   }
 
   const uploadFilesToStorage = async (files: File[]): Promise<Attachment[]> => {
@@ -286,6 +372,30 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     return uploaded
   }
 
+  const deleteFilesFromStorage = async (urls: string[]) => {
+    const supabase = createBrowserClient()
+    
+    for (const url of urls) {
+      try {
+        // Извлекаем имя файла из URL
+        const fileName = url.split('/').pop()
+        if (fileName) {
+          const { error } = await supabase.storage
+            .from("email-attachments")
+            .remove([fileName])
+          
+          if (error) {
+            console.error("[DEBUG] Error deleting file:", error)
+          } else {
+            console.log("[DEBUG] File deleted successfully:", fileName)
+          }
+        }
+      } catch (error) {
+        console.error("[DEBUG] Error in delete operation:", error)
+      }
+    }
+  }
+
   const handleSave = async () => {
     if (!template.name || !template.subject) {
       alert("Заполните все обязательные поля")
@@ -303,16 +413,29 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     const supabase = createBrowserClient()
 
     try {
-      let uploadedAttachments: Attachment[] = []
+      let newUploadedAttachments: Attachment[] = []
 
-      // Загружаем файлы если они есть
-      if (attachments.length > 0) {
-        console.log("[DEBUG] Starting file upload for", attachments.length, "files")
-        uploadedAttachments = await uploadFilesToStorage(attachments)
-        console.log("[DEBUG] Files uploaded successfully:", uploadedAttachments)
+      // Загружаем новые файлы если они есть
+      if (newAttachments.length > 0) {
+        console.log("[DEBUG] Starting file upload for", newAttachments.length, "files")
+        newUploadedAttachments = await uploadFilesToStorage(newAttachments)
+        console.log("[DEBUG] New files uploaded successfully:", newUploadedAttachments)
       }
 
-      // Сохраняем шаблон
+      // Удаляем файлы, помеченные на удаление
+      if (attachmentsToDelete.length > 0) {
+        console.log("[DEBUG] Deleting files:", attachmentsToDelete)
+        await deleteFilesFromStorage(attachmentsToDelete)
+      }
+
+      // Объединяем существующие и новые вложения
+      const existingAttachments = template.attachments?.filter(att => 
+        !attachmentsToDelete.includes(att.url)
+      ) || []
+
+      const allAttachments = [...existingAttachments, ...newUploadedAttachments]
+
+      // Подготавливаем данные для сохранения
       const templateData = {
         name: template.name,
         subject: template.subject,
@@ -321,29 +444,40 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
         reply_to: template.reply_to,
         html_content: finalContent,
         styles: template.styles,
-        attachments: uploadedAttachments,
+        attachments: allAttachments,
         is_active: true,
       }
 
       console.log("[DEBUG] Saving template data:", templateData)
 
-      const { data, error } = await supabase
-        .from("email_templates")
-        .insert(templateData)
-        .select()
-
-      if (error) {
-        console.error("[DEBUG] Database error:", error)
-        throw error
+      let result
+      if (isEditing && templateId) {
+        // Обновляем существующий шаблон
+        result = await supabase
+          .from("email_templates")
+          .update(templateData)
+          .eq("id", templateId)
+          .select()
+      } else {
+        // Создаем новый шаблон
+        result = await supabase
+          .from("email_templates")
+          .insert(templateData)
+          .select()
       }
 
-      console.log("[DEBUG] Template saved successfully:", data)
-      alert("Шаблон успешно сохранен!")
+      if (result.error) {
+        console.error("[DEBUG] Database error:", result.error)
+        throw result.error
+      }
+
+      console.log("[DEBUG] Template saved successfully:", result.data)
+      alert(`Шаблон успешно ${isEditing ? 'обновлен' : 'сохранен'}!`)
       router.push("/admin/newsletter")
       
     } catch (error: any) {
       console.error("[DEBUG] Error saving template:", error)
-      alert(`Ошибка при сохранении шаблона: ${error.message}`)
+      alert(`Ошибка при ${isEditing ? 'обновлении' : 'сохранении'} шаблона: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -395,11 +529,15 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
     }
   }
 
+  const allAttachmentsCount = (template.attachments?.length || 0) + newAttachments.length
+
   return (
     <div className="p-8">
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Создать шаблон письма</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {isEditing ? 'Редактировать шаблон письма' : 'Создать шаблон письма'}
+          </h1>
           <p className="text-gray-600">Настройте дизайн и содержание email рассылки</p>
         </div>
         <div className="flex gap-2">
@@ -408,13 +546,20 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             {showPreview ? "Редактор" : "Предпросмотр"}
           </Button>
           <Button onClick={handleSave} disabled={loading}>
-            <Save className="w-4 h-4 mr-2" />
-            {loading ? "Сохранение..." : "Сохранить"}
+            {isEditing ? <Edit className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            {loading ? "Сохранение..." : (isEditing ? "Обновить" : "Сохранить")}
           </Button>
         </div>
       </div>
 
-      {showPreview ? (
+      {loading && !isEditing ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Загрузка шаблона...</p>
+          </div>
+        </div>
+      ) : showPreview ? (
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Предпросмотр письма</h2>
           <div className="border rounded-lg p-4 bg-white">
@@ -423,9 +568,9 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                 От: {template.from_name} &lt;{template.from_email}&gt;
               </p>
               <p className="text-sm text-gray-600">Тема: {template.subject}</p>
-              {attachments.length > 0 && (
+              {allAttachmentsCount > 0 && (
                 <p className="text-sm text-gray-600">
-                  Вложения: {attachments.map(f => f.name).join(", ")}
+                  Вложения: {allAttachmentsCount} файл(ов)
                 </p>
               )}
             </div>
@@ -442,9 +587,10 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
             <TabsTrigger value="content">Содержание</TabsTrigger>
             <TabsTrigger value="settings">Настройки</TabsTrigger>
             <TabsTrigger value="style">Стиль</TabsTrigger>
-            <TabsTrigger value="attachments">Вложения</TabsTrigger>
+            <TabsTrigger value="attachments">Вложения ({allAttachmentsCount})</TabsTrigger>
           </TabsList>
 
+          {/* Остальной код вкладок остается таким же, как в предыдущем примере */}
           <TabsContent value="content" className="space-y-4">
             <Card className="p-6">
               <div className="space-y-4">
@@ -472,138 +618,51 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                   <Label>Содержание письма *</Label>
                   <div className="border rounded-lg overflow-hidden">
                     <div className="bg-gray-50 border-b p-2 flex flex-wrap gap-1">
-                      {/* Text formatting */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("bold")}
-                        title="Жирный"
-                      >
+                      {/* Toolbar buttons - same as before */}
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("bold")} title="Жирный">
                         <Bold className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("italic")}
-                        title="Курсив"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("italic")} title="Курсив">
                         <Italic className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("underline")}
-                        title="Подчеркнутый"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("underline")} title="Подчеркнутый">
                         <Underline className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Headings */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => insertHeading(1)}
-                        title="Заголовок 1"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => insertHeading(1)} title="Заголовок 1">
                         <Heading1 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => insertHeading(2)}
-                        title="Заголовок 2"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => insertHeading(2)} title="Заголовок 2">
                         <Heading2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => insertHeading(3)}
-                        title="Заголовок 3"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => insertHeading(3)} title="Заголовок 3">
                         <Heading3 className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Alignment */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("justifyLeft")}
-                        title="По левому краю"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyLeft")} title="По левому краю">
                         <AlignLeft className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("justifyCenter")}
-                        title="По центру"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyCenter")} title="По центру">
                         <AlignCenter className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("justifyRight")}
-                        title="По правому краю"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("justifyRight")} title="По правому краю">
                         <AlignRight className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Lists */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("insertUnorderedList")}
-                        title="Маркированный список"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("insertUnorderedList")} title="Маркированный список">
                         <List className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => applyFormat("insertOrderedList")}
-                        title="Нумерованный список"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("insertOrderedList")} title="Нумерованный список">
                         <ListOrdered className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Quote and HR */}
                       <Button type="button" variant="ghost" size="sm" onClick={insertBlockquote} title="Цитата">
                         <Quote className="w-4 h-4" />
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={insertHorizontalRule}
-                        title="Горизонтальная линия"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={insertHorizontalRule} title="Горизонтальная линия">
                         <Minus className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Text color */}
                       <div className="flex items-center gap-1">
                         <Type className="w-4 h-4 text-gray-600" />
                         <Input
@@ -617,29 +676,17 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                           title="Цвет текста"
                         />
                       </div>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Insert elements */}
                       <Button type="button" variant="ghost" size="sm" onClick={insertLink} title="Вставить ссылку">
                         <LinkIcon className="w-4 h-4" />
                       </Button>
                       <Button type="button" variant="ghost" size="sm" onClick={insertButton} title="Вставить кнопку">
                         Кнопка
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={insertImage}
-                        title="Вставить изображение"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={insertImage} title="Вставить изображение">
                         <ImageIcon className="w-4 h-4" />
                       </Button>
-
                       <div className="w-px bg-gray-300 mx-1" />
-
-                      {/* Font size */}
                       <select
                         className="px-2 py-1 border rounded text-sm"
                         onChange={(e) => applyFormat("fontSize", e.target.value)}
@@ -903,10 +950,10 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                   </div>
                   
                   {/* Информация о выбранных файлах */}
-                  {attachments.length > 0 && (
+                  {newAttachments.length > 0 && (
                     <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                       <p className="text-sm text-blue-700">
-                        Выбрано файлов: <strong>{attachments.length}</strong>
+                        Новые файлы для загрузки: <strong>{newAttachments.length}</strong>
                       </p>
                       <p className="text-xs text-blue-600 mt-1">
                         Файлы будут загружены при сохранении шаблона
@@ -915,15 +962,58 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                   )}
                 </div>
 
-                {attachments.length > 0 && (
+                {/* Существующие вложения */}
+                {template.attachments && template.attachments.length > 0 && (
                   <div>
-                    <Label>Прикрепленные файлы:</Label>
+                    <Label>Существующие вложения:</Label>
                     <div className="mt-3 space-y-3">
-                      {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+                      {template.attachments.map((attachment, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border">
                           <div className="flex items-center gap-3 flex-1">
                             <div className="p-2 bg-white rounded">
-                              <Upload className="w-4 h-4 text-gray-500" />
+                              <Upload className="w-4 h-4 text-green-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {attachment.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {(attachment.size / 1024).toFixed(1)} KB • {attachment.type || "Неизвестный тип"}
+                              </p>
+                              <a 
+                                href={attachment.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Открыть файл
+                              </a>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeExistingAttachment(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Новые вложения */}
+                {newAttachments.length > 0 && (
+                  <div>
+                    <Label>Новые вложения:</Label>
+                    <div className="mt-3 space-y-3">
+                      {newAttachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="p-2 bg-white rounded">
+                              <Upload className="w-4 h-4 text-blue-500" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">
@@ -937,7 +1027,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeAttachment(index)}
+                            onClick={() => removeNewAttachment(index)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -945,21 +1035,26 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                         </div>
                       ))}
                     </div>
-                    
-                    <div className="mt-4 p-3 bg-gray-100 rounded-lg">
-                      <p className="text-xs text-gray-600">
-                        <strong>Всего файлов:</strong> {attachments.length} • 
-                        <strong> Общий размер:</strong> {(attachments.reduce((acc, file) => acc + file.size, 0) / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
                   </div>
                 )}
 
-                {attachments.length === 0 && (
+                {allAttachmentsCount === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <Upload className="w-12 h-12 mx-auto mb-3 opacity-50" />
                     <p>Файлы не добавлены</p>
                     <p className="text-sm mt-1">Добавьте PDF, DOC или DOCX файлы для прикрепления к письму</p>
+                  </div>
+                )}
+
+                {/* Общая статистика */}
+                {allAttachmentsCount > 0 && (
+                  <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                    <p className="text-xs text-gray-600">
+                      <strong>Всего файлов:</strong> {allAttachmentsCount} • 
+                      <strong> Существующие:</strong> {template.attachments?.length || 0} •
+                      <strong> Новые:</strong> {newAttachments.length} •
+                      {attachmentsToDelete.length > 0 && <span> <strong>На удаление:</strong> {attachmentsToDelete.length}</span>}
+                    </p>
                   </div>
                 )}
               </div>
@@ -968,7 +1063,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
         </Tabs>
       )}
 
-      {/* Диалог вставки кнопки */}
+      {/* Диалоги остаются без изменений */}
       <Dialog open={showButtonDialog} onOpenChange={setShowButtonDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1025,7 +1120,6 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Диалог вставки ссылки */}
       <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
         <DialogContent>
           <DialogHeader>
