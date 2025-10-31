@@ -276,6 +276,148 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     }
   }
 
+  const checkBucketAccess = async (): Promise<boolean> => {
+    const supabase = createBrowserClient()
+    
+    try {
+      const { data, error } = await supabase.storage
+        .from("email-attachments")
+        .list()
+      
+      if (error) {
+        console.error("[DEBUG] Bucket access error:", error)
+        return false
+      }
+      
+      console.log("[DEBUG] Bucket access OK, files count:", data?.length)
+      return true
+    } catch (error) {
+      console.error("[DEBUG] Bucket check failed:", error)
+      return false
+    }
+  }
+
+  const uploadFilesToStorage = async (files: File[]): Promise<Attachment[]> => {
+    const supabase = createBrowserClient()
+    const uploaded: Attachment[] = []
+
+    for (const file of files) {
+      try {
+        // Генерируем уникальное имя файла
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`
+        
+        console.log("[DEBUG] Uploading file:", {
+          originalName: file.name,
+          storageName: fileName,
+          size: file.size,
+          type: file.type
+        })
+
+        // Определяем MIME type
+        const getMimeType = (filename: string, fileType: string): string => {
+          if (fileType && fileType !== 'application/octet-stream') {
+            return fileType
+          }
+          
+          const ext = filename.toLowerCase().split('.').pop()
+          const mimeTypes: { [key: string]: string } = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png'
+          }
+          return mimeTypes[ext] || 'application/octet-stream'
+        }
+
+        const contentType = getMimeType(file.name, file.type)
+
+        // Загружаем файл в storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("email-attachments")
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: contentType
+          })
+
+        if (uploadError) {
+          console.error("[DEBUG] Upload error details:", {
+            message: uploadError.message,
+            details: uploadError.details,
+            hint: uploadError.hint,
+            statusCode: uploadError.statusCode
+          })
+          
+          // Пробуем загрузить с базовым MIME type если есть ошибка
+          if (uploadError.message.includes('MIME') || uploadError.statusCode === '415') {
+            console.log("[DEBUG] Retrying with basic MIME type...")
+            const { data: retryData, error: retryError } = await supabase.storage
+              .from("email-attachments")
+              .upload(fileName, file, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: 'application/octet-stream'
+              })
+            
+            if (retryError) {
+              throw new Error(`Ошибка загрузки файла ${file.name}: ${retryError.message}`)
+            }
+          } else {
+            throw new Error(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
+          }
+        }
+
+        // Получаем публичный URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("email-attachments")
+          .getPublicUrl(fileName)
+
+        console.log("[DEBUG] File uploaded successfully:", {
+          name: file.name,
+          url: publicUrl,
+          size: file.size
+        })
+        
+        uploaded.push({
+          name: file.name, // Оригинальное имя
+          url: publicUrl,  // URL в storage
+          size: file.size,
+          type: file.type,
+        })
+      } catch (error) {
+        console.error("[DEBUG] Error uploading file:", error)
+        throw error
+      }
+    }
+
+    return uploaded
+  }
+
+  const deleteFilesFromStorage = async (urls: string[]) => {
+    const supabase = createBrowserClient()
+    
+    const filesToDelete = urls.map(url => {
+      // Извлекаем имя файла из URL
+      const path = url.split('/').pop()
+      return path
+    }).filter(Boolean)
+
+    if (filesToDelete.length > 0) {
+      console.log("[DEBUG] Deleting files:", filesToDelete)
+      const { error } = await supabase.storage
+        .from("email-attachments")
+        .remove(filesToDelete)
+      
+      if (error) {
+        console.error("[DEBUG] Error deleting files:", error)
+        throw error
+      }
+    }
+  }
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files)
@@ -330,72 +472,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     }
   }
 
-  const uploadFilesToStorage = async (files: File[]): Promise<Attachment[]> => {
-    const supabase = createBrowserClient()
-    const uploaded: Attachment[] = []
-
-    for (const file of files) {
-      try {
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${file.name}`
-        console.log("[DEBUG] Uploading file:", fileName)
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("email-attachments")
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (uploadError) {
-          console.error("[DEBUG] Upload error:", uploadError)
-          throw new Error(`Ошибка загрузки файла ${file.name}: ${uploadError.message}`)
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("email-attachments")
-          .getPublicUrl(fileName)
-
-        console.log("[DEBUG] File uploaded successfully:", publicUrl)
-        
-        uploaded.push({
-          name: file.name,
-          url: publicUrl,
-          size: file.size,
-          type: file.type,
-        })
-      } catch (error) {
-        console.error("[DEBUG] Error uploading file:", error)
-        throw error
-      }
-    }
-
-    return uploaded
-  }
-
-  const deleteFilesFromStorage = async (urls: string[]) => {
-    const supabase = createBrowserClient()
-    
-    for (const url of urls) {
-      try {
-        // Извлекаем имя файла из URL
-        const fileName = url.split('/').pop()
-        if (fileName) {
-          const { error } = await supabase.storage
-            .from("email-attachments")
-            .remove([fileName])
-          
-          if (error) {
-            console.error("[DEBUG] Error deleting file:", error)
-          } else {
-            console.log("[DEBUG] File deleted successfully:", fileName)
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG] Error in delete operation:", error)
-      }
-    }
-  }
-
   const handleSave = async () => {
     if (!template.name || !template.subject) {
       alert("Заполните все обязательные поля")
@@ -413,6 +489,12 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
     const supabase = createBrowserClient()
 
     try {
+      // Проверяем доступность бакета
+      const bucketAccess = await checkBucketAccess()
+      if (!bucketAccess) {
+        throw new Error("Нет доступа к хранилищу файлов. Проверьте настройки бакета.")
+      }
+
       let newUploadedAttachments: Attachment[] = []
 
       // Загружаем новые файлы если они есть
@@ -590,7 +672,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
             <TabsTrigger value="attachments">Вложения ({allAttachmentsCount})</TabsTrigger>
           </TabsList>
 
-          {/* Остальной код вкладок остается таким же, как в предыдущем примере */}
           <TabsContent value="content" className="space-y-4">
             <Card className="p-6">
               <div className="space-y-4">
@@ -618,7 +699,6 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
                   <Label>Содержание письма *</Label>
                   <div className="border rounded-lg overflow-hidden">
                     <div className="bg-gray-50 border-b p-2 flex flex-wrap gap-1">
-                      {/* Toolbar buttons - same as before */}
                       <Button type="button" variant="ghost" size="sm" onClick={() => applyFormat("bold")} title="Жирный">
                         <Bold className="w-4 h-4" />
                       </Button>
@@ -1063,7 +1143,7 @@ export default function TemplateEditorClient({ smtpAccounts, templateId }: Props
         </Tabs>
       )}
 
-      {/* Диалоги остаются без изменений */}
+      {/* Диалоги */}
       <Dialog open={showButtonDialog} onOpenChange={setShowButtonDialog}>
         <DialogContent>
           <DialogHeader>
