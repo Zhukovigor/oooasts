@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Plus, Mail, Users, FileText, Send, Upload, Download, X } from "lucide-react"
+import { Plus, Mail, Users, FileText, Send, Upload, Download, X, Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase-client"
 
@@ -52,6 +52,8 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
   const [selectedSeparator, setSelectedSeparator] = useState<SeparatorType>("auto")
+  const [editingSubscriber, setEditingSubscriber] = useState<Subscriber | null>(null)
+  const [editForm, setEditForm] = useState({ email: "", name: "", status: "active" })
 
   const activeSubscribers = subscribers.filter((s) => s.status === "active").length
 
@@ -312,6 +314,73 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     alert("Шаблон успешно удален")
   }
 
+  const handleEditSubscriber = (subscriber: Subscriber) => {
+    setEditingSubscriber(subscriber)
+    setEditForm({
+      email: subscriber.email,
+      name: subscriber.name || "",
+      status: subscriber.status
+    })
+  }
+
+  const handleUpdateSubscriber = async () => {
+    if (!editingSubscriber) return
+
+    if (!editForm.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email)) {
+      alert("Пожалуйста, введите корректный email")
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("newsletter_subscribers")
+      .update({
+        email: editForm.email,
+        name: editForm.name || null,
+        status: editForm.status
+      })
+      .eq("id", editingSubscriber.id)
+
+    if (error) {
+      console.error("Error updating subscriber:", error)
+      alert("Ошибка при обновлении подписчика")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setSubscribers(subscribers.map(s => 
+      s.id === editingSubscriber.id 
+        ? { ...s, email: editForm.email, name: editForm.name || null, status: editForm.status }
+        : s
+    ))
+
+    setEditingSubscriber(null)
+    setEditForm({ email: "", name: "", status: "active" })
+    alert("Подписчик успешно обновлен")
+  }
+
+  const handleDeleteSubscriber = async (subscriber: Subscriber) => {
+    if (!confirm(`Вы уверены, что хотите удалить подписчика "${subscriber.email}"?`)) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("newsletter_subscribers")
+      .delete()
+      .eq("id", subscriber.id)
+
+    if (error) {
+      console.error("Error deleting subscriber:", error)
+      alert("Ошибка при удалении подписчика")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setSubscribers(subscribers.filter(s => s.id !== subscriber.id))
+    alert("Подписчик успешно удален")
+  }
+
   const resetImportModal = () => {
     setShowImportModal(false)
     setImportFile(null)
@@ -406,15 +475,18 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12">№</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Имя</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата подписки</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24">Действия</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {subscribers.map((subscriber) => (
+                    {subscribers.map((subscriber, index) => (
                       <tr key={subscriber.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm text-gray-500 text-center">{index + 1}</td>
                         <td className="px-6 py-4 text-sm text-gray-900">{subscriber.email}</td>
                         <td className="px-6 py-4 text-sm text-gray-600">{subscriber.name || "—"}</td>
                         <td className="px-6 py-4">
@@ -428,6 +500,26 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {new Date(subscriber.subscribed_at).toLocaleDateString("ru-RU")}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditSubscriber(subscriber)}
+                              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteSubscriber(subscriber)}
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -570,6 +662,73 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Модальное окно редактирования подписчика */}
+      {editingSubscriber && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Редактировать подписчика</h2>
+                <Button variant="ghost" size="icon" onClick={() => setEditingSubscriber(null)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="email@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Имя (опционально)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Имя компании или ФИО"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Статус
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="active">Активен</option>
+                    <option value="unsubscribed">Отписан</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={() => setEditingSubscriber(null)}>
+                    Отмена
+                  </Button>
+                  <Button onClick={handleUpdateSubscriber}>
+                    Сохранить
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
