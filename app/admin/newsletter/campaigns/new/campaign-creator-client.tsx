@@ -15,6 +15,12 @@ interface Template {
   name: string
   subject: string
   html_content: string
+  attachments?: Array<{
+    name: string
+    url: string
+    size: number
+    type: string
+  }>
 }
 
 interface Subscriber {
@@ -89,6 +95,17 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
     const supabase = createBrowserClient()
 
     try {
+      // Получаем данные шаблона с вложениями
+      const { data: templateData, error: templateError } = await supabase
+        .from("email_templates")
+        .select("*, attachments")
+        .eq("id", selectedTemplate)
+        .single()
+
+      if (templateError) throw templateError
+
+      console.log("Template attachments:", templateData.attachments)
+
       // Create campaign
       const { data: campaignData, error: campaignError } = await supabase
         .from("email_campaigns")
@@ -110,18 +127,31 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
         body: JSON.stringify({
           campaignId: campaignData.id,
           templateId: selectedTemplate,
+          templateData: { // Добавляем передачу templateData
+            subject: templateData.subject,
+            html_content: templateData.html_content,
+            from_name: templateData.from_name,
+            reply_to: templateData.reply_to,
+            attachments: templateData.attachments || []
+          },
           subscriberIds: selectedSubscribers,
           fromEmail: campaign.from_email,
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to send emails")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to send emails")
+      }
 
-      alert("Рассылка запущена!")
+      const result = await response.json()
+      console.log("Campaign sent successfully:", result)
+
+      alert(`Рассылка запущена! Успешно отправлено: ${result.sent} писем`)
       router.push("/admin/newsletter")
     } catch (error) {
       console.error("Error sending campaign:", error)
-      alert("Ошибка при отправке рассылки")
+      alert("Ошибка при отправке рассылки: " + error.message)
     } finally {
       setLoading(false)
     }
@@ -170,6 +200,7 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
                   {templates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
+                      {template.attachments && template.attachments.length > 0 && ` (${template.attachments.length} влож.)`}
                     </option>
                   ))}
                 </select>
@@ -206,6 +237,24 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
                   ))}
                 </select>
               </div>
+
+              {/* Информация о вложениях */}
+              {selectedTemplate && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <Label>Информация о шаблоне:</Label>
+                  <div className="mt-2 text-sm text-gray-600">
+                    <p>Шаблон: {templates.find(t => t.id === selectedTemplate)?.name}</p>
+                    {templates.find(t => t.id === selectedTemplate)?.attachments && 
+                     templates.find(t => t.id === selectedTemplate)!.attachments!.length > 0 ? (
+                      <p className="text-green-600 font-medium">
+                        Вложения: {templates.find(t => t.id === selectedTemplate)!.attachments!.length} файл(ов)
+                      </p>
+                    ) : (
+                      <p className="text-gray-500">Вложения отсутствуют</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -219,8 +268,14 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
                     Экспорт ({selectedSubscribers.length})
                   </Button>
                 )}
-                <Checkbox checked={selectAll} onCheckedChange={handleSelectAll} />
-                <Label>Выбрать всех ({subscribers.length})</Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="select-all"
+                    checked={selectAll} 
+                    onCheckedChange={handleSelectAll} 
+                  />
+                  <Label htmlFor="select-all">Выбрать всех ({subscribers.length})</Label>
+                </div>
               </div>
             </div>
 
@@ -228,6 +283,7 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
               {subscribers.map((subscriber) => (
                 <div key={subscriber.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                   <Checkbox
+                    id={`subscriber-${subscriber.id}`}
                     checked={selectedSubscribers.includes(subscriber.id)}
                     onCheckedChange={(checked) => handleSelectSubscriber(subscriber.id, checked as boolean)}
                   />
@@ -262,6 +318,20 @@ export default function CampaignCreatorClient({ templates, subscribers, smtpAcco
                   </p>
                 </div>
               </div>
+
+              {/* Информация о вложениях в сводке */}
+              {selectedTemplate && templates.find(t => t.id === selectedTemplate)?.attachments && 
+               templates.find(t => t.id === selectedTemplate)!.attachments!.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <Download className="w-5 h-5 text-orange-500" />
+                  <div>
+                    <p className="text-sm text-gray-600">Вложения</p>
+                    <p className="font-medium text-orange-600">
+                      {templates.find(t => t.id === selectedTemplate)!.attachments!.length} файл(ов)
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 border-t">
                 <Button onClick={handleSendCampaign} disabled={loading} className="w-full" size="lg">

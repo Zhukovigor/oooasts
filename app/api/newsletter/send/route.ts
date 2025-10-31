@@ -4,16 +4,34 @@ import nodemailer from "nodemailer"
 
 export async function POST(request: Request) {
   try {
-    const { campaignId, templateId, subscriberIds, fromEmail } = await request.json()
+    const { campaignId, templateId, subscriberIds, fromEmail, templateData } = await request.json()
 
     const supabase = await createServerClient()
 
-    // Fetch template
-    const { data: template } = await supabase.from("email_templates").select("*").eq("id", templateId).single()
+    // Fetch template with attachments if templateData not provided
+    let template
+    let attachments = []
+    
+    if (templateData) {
+      // Используем данные из templateData если они переданы
+      template = templateData
+      attachments = templateData.attachments || []
+    } else {
+      // Иначе загружаем из базы
+      const { data: templateResult } = await supabase
+        .from("email_templates")
+        .select("*, attachments")
+        .eq("id", templateId)
+        .single()
 
-    if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 })
+      if (!templateResult) {
+        return NextResponse.json({ error: "Template not found" }, { status: 404 })
+      }
+      template = templateResult
+      attachments = templateResult.attachments || []
     }
+
+    console.log("[v0] Template attachments:", attachments)
 
     // Fetch SMTP account
     const { data: smtpAccount } = await supabase
@@ -45,21 +63,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No subscribers found" }, { status: 404 })
     }
 
+    // Prepare attachments if any
+    let emailAttachments = []
+    if (attachments && attachments.length > 0) {
+      console.log("[v0] Preparing attachments:", attachments.length)
+      
+      for (const attachment of attachments) {
+        try {
+          // Скачиваем файл из Supabase Storage
+          console.log("[v0] Downloading attachment:", attachment.name, attachment.url)
+          
+          const response = await fetch(attachment.url)
+          if (!response.ok) {
+            throw new Error(`Failed to download: ${response.statusText}`)
+          }
+          
+          const arrayBuffer = await response.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          
+          emailAttachments.push({
+            filename: attachment.name,
+            content: buffer,
+            contentType: attachment.type
+          })
+          
+          console.log("[v0] Attachment prepared:", attachment.name)
+        } catch (error) {
+          console.error("[v0] Error preparing attachment:", attachment.name, error)
+          // Продолжаем отправку даже если одно вложение не загрузилось
+        }
+      }
+    }
+
+    console.log("[v0] Total attachments prepared:", emailAttachments.length)
+
     // Send emails
     let sentCount = 0
     for (const subscriber of subscribers) {
       try {
         console.log("[v0] Sending email to:", subscriber.email)
         console.log("[v0] HTML content length:", template.html_content.length)
-        console.log("[v0] HTML content preview:", template.html_content.substring(0, 500))
+        console.log("[v0] Attachments count:", emailAttachments.length)
 
-        await transporter.sendMail({
+        const mailOptions = {
           from: `${template.from_name} <${fromEmail}>`,
           to: subscriber.email,
           subject: template.subject,
           html: template.html_content,
           replyTo: template.reply_to || fromEmail,
-        })
+        }
+
+        // Добавляем вложения если они есть
+        if (emailAttachments.length > 0) {
+          mailOptions.attachments = emailAttachments
+        }
+
+        await transporter.sendMail(mailOptions)
 
         console.log("[v0] Email sent successfully to:", subscriber.email)
 
@@ -97,9 +156,16 @@ export async function POST(request: Request) {
       })
       .eq("id", campaignId)
 
-    return NextResponse.json({ success: true, sentCount })
+    return NextResponse.json({ 
+      success: true, 
+      sentCount,
+      totalSubscribers: subscribers.length,
+      attachmentsCount: emailAttachments.length
+    })
   } catch (error) {
     console.error("Error sending campaign:", error)
-    return NextResponse.json({ error: "Failed to send campaign" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Failed to send campaign: " + (error instanceof Error ? error.message : "Unknown error")
+    }, { status: 500 })
   }
 }
