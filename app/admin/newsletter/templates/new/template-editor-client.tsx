@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,6 +55,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
+  const contentInitialized = useRef(false)
 
   const [template, setTemplate] = useState({
     name: "",
@@ -83,6 +84,13 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
   const [linkText, setLinkText] = useState("")
   const [linkUrl, setLinkUrl] = useState("https://")
   const [textColor, setTextColor] = useState("#333333")
+
+  useEffect(() => {
+    if (editorRef.current && !contentInitialized.current && template.html_content) {
+      editorRef.current.innerHTML = template.html_content
+      contentInitialized.current = true
+    }
+  }, [])
 
   const applyFormat = (command: string, value?: string) => {
     document.execCommand(command, false, value)
@@ -511,7 +519,7 @@ export default function TemplateEditorClient({ smtpAccounts }: Props) {
                         fontSize: template.styles.fontSize,
                         color: template.styles.textColor,
                       }}
-                      dangerouslySetInnerHTML={{ __html: template.html_content }}
+                      suppressContentEditableWarning
                     />
                   </div>
                 </div>
