@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Plus, Mail, Users, FileText, Send, Upload, Download } from "lucide-react"
+import { Plus, Mail, Users, FileText, Send, Upload, Download, X } from "lucide-react"
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase-client"
 
@@ -41,6 +41,8 @@ interface Props {
   initialCampaigns: Campaign[]
 }
 
+type SeparatorType = "auto" | "tab" | "comma" | "semicolon"
+
 export default function NewsletterClient({ initialSubscribers, initialTemplates, initialCampaigns }: Props) {
   const [subscribers, setSubscribers] = useState(initialSubscribers)
   const [templates, setTemplates] = useState(initialTemplates)
@@ -49,10 +51,20 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
+  const [selectedSeparator, setSelectedSeparator] = useState<SeparatorType>("auto")
 
   const activeSubscribers = subscribers.filter((s) => s.status === "active").length
 
   const handleExport = () => {
+    if (subscribers.length === 0) {
+      alert("Нет данных для экспорта")
+      return
+    }
+
+    if (!confirm(`Экспортировать ${subscribers.length} подписчиков?`)) {
+      return
+    }
+
     const csv = [
       ["Email", "Имя", "Статус", "Дата подписки"].join(","),
       ...subscribers.map((s) =>
@@ -67,8 +79,82 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     link.click()
   }
 
+  const detectSeparator = (line: string): string => {
+    // Проверяем наличие разных разделителей
+    const separators = {
+      'tab': '\t',
+      'comma': ',',
+      'semicolon': ';'
+    }
+
+    // Считаем количество каждого разделителя в строке
+    const counts = {
+      tab: (line.match(/\t/g) || []).length,
+      comma: (line.match(/,/g) || []).length,
+      semicolon: (line.match(/;/g) || []).length
+    }
+
+    // Возвращаем разделитель с наибольшим количеством вхождений
+    const maxSeparator = Object.entries(counts).reduce((max, [key, count]) => 
+      count > max.count ? { key, count } : max, 
+      { key: 'comma', count: 0 }
+    )
+
+    return separators[maxSeparator.key as keyof typeof separators]
+  }
+
+  const parseCSVLine = (line: string, separator: string) => {
+    const parts: string[] = []
+    let currentPart = ''
+    let inQuotes = false
+    let quoteChar = ''
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+      const nextChar = line[i + 1]
+
+      if ((char === '"' || char === "'") && !inQuotes) {
+        inQuotes = true
+        quoteChar = char
+        continue
+      }
+
+      if (char === quoteChar && inQuotes) {
+        if (nextChar === quoteChar) {
+          // Экранированная кавычка
+          currentPart += char
+          i++ // Пропускаем следующую кавычку
+        } else {
+          // Закрывающая кавычка
+          inQuotes = false
+          quoteChar = ''
+        }
+        continue
+      }
+
+      if (char === separator && !inQuotes) {
+        parts.push(currentPart.trim())
+        currentPart = ''
+        continue
+      }
+
+      currentPart += char
+    }
+
+    // Добавляем последнюю часть
+    parts.push(currentPart.trim())
+
+    return {
+      email: parts[0] || '',
+      name: parts[1] || ''
+    }
+  }
+
   const handleImport = async () => {
-    if (!importFile) return
+    if (!importFile) {
+      alert("Пожалуйста, выберите файл для импорта")
+      return
+    }
 
     setImporting(true)
     setImportResult(null)
@@ -76,56 +162,104 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     try {
       const text = await importFile.text()
       const lines = text.split("\n").filter((line) => line.trim())
+      
+      if (lines.length < 2) {
+        setImportResult({ success: 0, errors: ["Файл пустой или содержит только заголовки"] })
+        return
+      }
+
       const errors: string[] = []
       let successCount = 0
+      const importedSubscribers: Partial<Subscriber>[] = []
 
       const supabase = createBrowserClient()
+
+      // Определяем разделитель
+      let separator = ','
+      if (selectedSeparator === "auto") {
+        separator = detectSeparator(lines[1]) // Используем вторую строку для определения
+      } else {
+        separator = {
+          tab: '\t',
+          comma: ',',
+          semicolon: ';'
+        }[selectedSeparator]
+      }
+
+      console.log(`Используемый разделитель: "${separator}"`)
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim()
         if (!line) continue
 
-        const [email, name] = line.split(",").map((s) => s.trim().replace(/^"|"$/g, ""))
+        try {
+          const { email: rawEmail, name: rawName } = parseCSVLine(line, separator)
+          
+          // Очищаем email
+          let email = rawEmail
+            .replace(/[^a-zA-Z0-9@._+-]/g, '')
+            .toLowerCase()
+            .trim()
 
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          errors.push(`Строка ${i + 1}: Неверный email "${email}"`)
-          continue
-        }
+          // Проверяем валидность email
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push(`Строка ${i + 1}: Неверный email "${rawEmail}"`)
+            continue
+          }
 
-        const { data: existing } = await supabase
-          .from("newsletter_subscribers")
-          .select("id")
-          .eq("email", email)
-          .single()
+          // Очищаем имя, сохраняя кириллицу и основные символы
+          const name = rawName
+            .replace(/[^a-zA-Zа-яА-ЯёЁ0-9\s"«»'.,-]/g, '')
+            .trim()
 
-        if (existing) {
-          errors.push(`Строка ${i + 1}: Email "${email}" уже существует`)
-          continue
-        }
+          // Проверяем существование email
+          const { data: existing } = await supabase
+            .from("newsletter_subscribers")
+            .select("id")
+            .eq("email", email)
+            .single()
 
-        const { error } = await supabase.from("newsletter_subscribers").insert({
-          email,
-          name: name || null,
-          status: "active",
-        })
+          if (existing) {
+            errors.push(`Строка ${i + 1}: Email "${email}" уже существует`)
+            continue
+          }
 
-        if (error) {
-          errors.push(`Строка ${i + 1}: Ошибка при добавлении "${email}": ${error.message}`)
-        } else {
-          successCount++
+          // Добавляем подписчика
+          const { error } = await supabase.from("newsletter_subscribers").insert({
+            email,
+            name: name || null,
+            status: "active",
+          })
+
+          if (error) {
+            errors.push(`Строка ${i + 1}: Ошибка при добавлении "${email}": ${error.message}`)
+          } else {
+            successCount++
+            importedSubscribers.push({ email, name: name || null, status: "active" })
+          }
+
+        } catch (error) {
+          errors.push(`Строка ${i + 1}: Ошибка при обработке строки`)
+          console.error(`Error processing line ${i + 1}:`, error)
         }
       }
 
       setImportResult({ success: successCount, errors })
 
-      const { data: newSubscribers } = await supabase
-        .from("newsletter_subscribers")
-        .select("*")
-        .order("subscribed_at", { ascending: false })
+      // Обновляем список подписчиков, если были успешные добавления
+      if (successCount > 0) {
+        const { data: newSubscribers, error } = await supabase
+          .from("newsletter_subscribers")
+          .select("*")
+          .order("subscribed_at", { ascending: false })
 
-      if (newSubscribers) {
-        setSubscribers(newSubscribers)
+        if (error) {
+          console.error("Error fetching updated subscribers:", error)
+        } else if (newSubscribers) {
+          setSubscribers(newSubscribers)
+        }
       }
+
     } catch (error) {
       console.error("Import error:", error)
       setImportResult({ success: 0, errors: ["Ошибка при чтении файла"] })
@@ -143,13 +277,20 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     const { error } = await supabase.from("email_templates").delete().eq("id", templateId)
 
     if (error) {
-      console.error("[v0] Error deleting template:", error)
+      console.error("Error deleting template:", error)
       alert("Ошибка при удалении шаблона")
       return
     }
 
     setTemplates(templates.filter((t) => t.id !== templateId))
     alert("Шаблон успешно удален")
+  }
+
+  const resetImportModal = () => {
+    setShowImportModal(false)
+    setImportFile(null)
+    setImportResult(null)
+    setSelectedSeparator("auto")
   }
 
   return (
@@ -223,40 +364,52 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             </div>
           </div>
 
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Имя</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата подписки</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {subscribers.map((subscriber) => (
-                    <tr key={subscriber.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">{subscriber.email}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{subscriber.name || "—"}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            subscriber.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {subscriber.status === "active" ? "Активен" : "Отписан"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(subscriber.subscribed_at).toLocaleDateString("ru-RU")}
-                      </td>
+          {subscribers.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет подписчиков</h3>
+              <p className="text-gray-600 mb-4">Добавьте подписчиков вручную или импортируйте из CSV</p>
+              <Button onClick={() => setShowImportModal(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Импорт подписчиков
+              </Button>
+            </Card>
+          ) : (
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Имя</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата подписки</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {subscribers.map((subscriber) => (
+                      <tr key={subscriber.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm text-gray-900">{subscriber.email}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{subscriber.name || "—"}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              subscriber.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {subscriber.status === "active" ? "Активен" : "Отписан"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(subscriber.subscribed_at).toLocaleDateString("ru-RU")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">
@@ -270,38 +423,52 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {templates.map((template) => (
-              <Card key={template.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <FileText className="w-8 h-8 text-purple-500" />
-                  <span
-                    className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      template.is_active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                    }`}
-                  >
-                    {template.is_active ? "Активен" : "Неактивен"}
-                  </span>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">{template.name}</h3>
-                <p className="text-sm text-gray-600 mb-4">{template.subject}</p>
-                <div className="flex gap-2">
-                  <Link href={`/admin/newsletter/templates/edit/${template.id}`} className="flex-1">
-                    <Button variant="outline" className="w-full bg-transparent">
-                      Редактировать
+          {templates.length === 0 ? (
+            <Card className="p-8 text-center">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет шаблонов</h3>
+              <p className="text-gray-600 mb-4">Создайте ваш первый шаблон email рассылки</p>
+              <Link href="/admin/newsletter/templates/new">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Создать шаблон
+                </Button>
+              </Link>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {templates.map((template) => (
+                <Card key={template.id} className="p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-start justify-between mb-4">
+                    <FileText className="w-8 h-8 text-purple-500" />
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        template.is_active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {template.is_active ? "Активен" : "Неактивен"}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">{template.name}</h3>
+                  <p className="text-sm text-gray-600 mb-4">{template.subject}</p>
+                  <div className="flex gap-2">
+                    <Link href={`/admin/newsletter/templates/edit/${template.id}`} className="flex-1">
+                      <Button variant="outline" className="w-full bg-transparent">
+                        Редактировать
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      className="text-red-600 hover:bg-red-50 bg-transparent"
+                      onClick={() => handleDeleteTemplate(template.id, template.name)}
+                    >
+                      Удалить
                     </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    className="text-red-600 hover:bg-red-50 bg-transparent"
-                    onClick={() => handleDeleteTemplate(template.id, template.name)}
-                  >
-                    Удалить
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="campaigns" className="space-y-4">
@@ -315,99 +482,160 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             </Link>
           </div>
 
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тема</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Отправлено</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {campaigns.map((campaign) => (
-                    <tr key={campaign.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{campaign.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{campaign.subject}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            campaign.status === "sent"
-                              ? "bg-green-100 text-green-800"
-                              : campaign.status === "sending"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {campaign.status === "sent"
-                            ? "Отправлено"
-                            : campaign.status === "sending"
-                              ? "Отправка"
-                              : "Черновик"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {campaign.sent_count} / {campaign.total_recipients}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(campaign.created_at).toLocaleDateString("ru-RU")}
-                      </td>
+          {campaigns.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Send className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет кампаний</h3>
+              <p className="text-gray-600 mb-4">Создайте вашу первую email кампанию</p>
+              <Link href="/admin/newsletter/campaigns/new">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Создать кампанию
+                </Button>
+              </Link>
+            </Card>
+          ) : (
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тема</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Отправлено</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {campaigns.map((campaign) => (
+                      <tr key={campaign.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{campaign.name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{campaign.subject}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              campaign.status === "sent"
+                                ? "bg-green-100 text-green-800"
+                                : campaign.status === "sending"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {campaign.status === "sent"
+                              ? "Отправлено"
+                              : campaign.status === "sending"
+                                ? "Отправка"
+                                : "Черновик"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {campaign.sent_count} / {campaign.total_recipients}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(campaign.created_at).toLocaleDateString("ru-RU")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
       {showImportModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-2xl p-6 m-4">
-            <h2 className="text-2xl font-bold mb-4">Импорт подписчиков</h2>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Загрузите CSV файл с колонками: Email, Имя (опционально)</p>
-                <p className="text-xs text-gray-500 mb-4">Пример: email@example.com,Иван Иванов</p>
-
-                <input
-                  type="file"
-                  accept=".csv,.txt"
-                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Импорт подписчиков</h2>
+                <Button variant="ghost" size="icon" onClick={resetImportModal}>
+                  <X className="w-5 h-5" />
+                </Button>
               </div>
 
-              {importResult && (
-                <div className="space-y-2">
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                    <p className="text-green-800 font-semibold">Успешно импортировано: {importResult.success}</p>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Разделитель в CSV файле:
+                  </label>
+                  <select 
+                    value={selectedSeparator}
+                    onChange={(e) => setSelectedSeparator(e.target.value as SeparatorType)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="auto">Автоопределение (рекомендуется)</option>
+                    <option value="tab">Табуляция (Excel)</option>
+                    <option value="comma">Запятая</option>
+                    <option value="semicolon">Точка с запятой</option>
+                  </select>
+                </div>
 
-                  {importResult.errors.length > 0 && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-md max-h-48 overflow-y-auto">
-                      <p className="text-red-800 font-semibold mb-2">Ошибки ({importResult.errors.length}):</p>
-                      <ul className="text-sm text-red-700 space-y-1">
-                        {importResult.errors.map((error, i) => (
-                          <li key={i}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">Загрузите CSV файл с двумя колонками: Email и Имя (опционально)</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Формат файла (пример):<br />
+                    <code className="bg-gray-100 p-1 rounded text-xs block mt-1">
+                      Email\tИмя<br />
+                      yugbetonkrym@mail.ru\tООО "ЮБК"<br />
+                      mss-ural@mail.ru\tООО "ТЕХПРОМСЕРВИС"<br />
+                      test@example.com\tИван Иванов
+                    </code>
+                  </p>
+
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {importFile && (
+                    <p className="text-sm text-green-600 mt-2">Выбран файл: {importFile.name}</p>
                   )}
                 </div>
-              )}
 
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
-                  Отмена
-                </Button>
-                <Button onClick={handleImport} disabled={!importFile || importing}>
-                  {importing ? "Импорт..." : "Импортировать"}
-                </Button>
+                {importResult && (
+                  <div className="space-y-2">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-green-800 font-semibold">Успешно импортировано: {importResult.success}</p>
+                    </div>
+
+                    {importResult.errors.length > 0 && (
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-red-800 font-semibold mb-2">Ошибки ({importResult.errors.length}):</p>
+                        <div className="max-h-48 overflow-y-auto">
+                          <ul className="text-sm text-red-700 space-y-1">
+                            {importResult.errors.map((error, i) => (
+                              <li key={i}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={resetImportModal} disabled={importing}>
+                    Отмена
+                  </Button>
+                  <Button 
+                    onClick={handleImport} 
+                    disabled={!importFile || importing}
+                    className="min-w-24"
+                  >
+                    {importing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Импорт...
+                      </>
+                    ) : (
+                      "Импортировать"
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>
