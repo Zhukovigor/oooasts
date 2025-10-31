@@ -4,9 +4,10 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Plus, Mail, Users, FileText, Send, Upload, Download, X, Edit, Trash2 } from "lucide-react"
+import { Plus, Mail, Users, FileText, Send, Upload, Download, X, Edit, Trash2, Play, Square } from "lucide-react"
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase-client"
+import { useRouter } from "next/navigation"
 
 interface Subscriber {
   id: string
@@ -33,6 +34,7 @@ interface Campaign {
   total_recipients: number
   sent_count: number
   created_at: string
+  sent_at?: string
 }
 
 interface Props {
@@ -44,9 +46,10 @@ interface Props {
 type SeparatorType = "auto" | "tab" | "comma" | "semicolon"
 
 export default function NewsletterClient({ initialSubscribers, initialTemplates, initialCampaigns }: Props) {
+  const router = useRouter()
   const [subscribers, setSubscribers] = useState(initialSubscribers)
   const [templates, setTemplates] = useState(initialTemplates)
-  const [campaigns] = useState(initialCampaigns)
+  const [campaigns, setCampaigns] = useState(initialCampaigns)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
@@ -54,6 +57,8 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
   const [selectedSeparator, setSelectedSeparator] = useState<SeparatorType>("auto")
   const [editingSubscriber, setEditingSubscriber] = useState<Subscriber | null>(null)
   const [editForm, setEditForm] = useState({ email: "", name: "", status: "active" })
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
+  const [campaignEditForm, setCampaignEditForm] = useState({ name: "", subject: "" })
 
   const activeSubscribers = subscribers.filter((s) => s.status === "active").length
 
@@ -381,6 +386,131 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     alert("Подписчик успешно удален")
   }
 
+  // Функции для работы с кампаниями
+  const handleEditCampaign = (campaign: Campaign) => {
+    setEditingCampaign(campaign)
+    setCampaignEditForm({
+      name: campaign.name,
+      subject: campaign.subject
+    })
+  }
+
+  const handleUpdateCampaign = async () => {
+    if (!editingCampaign) return
+
+    if (!campaignEditForm.name || !campaignEditForm.subject) {
+      alert("Пожалуйста, заполните все поля")
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("email_campaigns")
+      .update({
+        name: campaignEditForm.name,
+        subject: campaignEditForm.subject
+      })
+      .eq("id", editingCampaign.id)
+
+    if (error) {
+      console.error("Error updating campaign:", error)
+      alert("Ошибка при обновлении кампании")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setCampaigns(campaigns.map(c => 
+      c.id === editingCampaign.id 
+        ? { ...c, name: campaignEditForm.name, subject: campaignEditForm.subject }
+        : c
+    ))
+
+    setEditingCampaign(null)
+    setCampaignEditForm({ name: "", subject: "" })
+    alert("Кампания успешно обновлена")
+  }
+
+  const handleDeleteCampaign = async (campaign: Campaign) => {
+    if (!confirm(`Вы уверены, что хотите удалить кампанию "${campaign.name}"?`)) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("email_campaigns")
+      .delete()
+      .eq("id", campaign.id)
+
+    if (error) {
+      console.error("Error deleting campaign:", error)
+      alert("Ошибка при удалении кампании")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setCampaigns(campaigns.filter(c => c.id !== campaign.id))
+    alert("Кампания успешно удалена")
+  }
+
+  const handleStartCampaign = async (campaign: Campaign) => {
+    if (!confirm(`Запустить кампанию "${campaign.name}"?`)) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("email_campaigns")
+      .update({
+        status: "sending",
+        sent_at: new Date().toISOString()
+      })
+      .eq("id", campaign.id)
+
+    if (error) {
+      console.error("Error starting campaign:", error)
+      alert("Ошибка при запуске кампании")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setCampaigns(campaigns.map(c => 
+      c.id === campaign.id 
+        ? { ...c, status: "sending", sent_at: new Date().toISOString() }
+        : c
+    ))
+
+    alert("Кампания запущена")
+  }
+
+  const handleStopCampaign = async (campaign: Campaign) => {
+    if (!confirm(`Остановить кампанию "${campaign.name}"?`)) {
+      return
+    }
+
+    const supabase = createBrowserClient()
+    const { error } = await supabase
+      .from("email_campaigns")
+      .update({
+        status: "stopped"
+      })
+      .eq("id", campaign.id)
+
+    if (error) {
+      console.error("Error stopping campaign:", error)
+      alert("Ошибка при остановке кампании")
+      return
+    }
+
+    // Обновляем локальное состояние
+    setCampaigns(campaigns.map(c => 
+      c.id === campaign.id 
+        ? { ...c, status: "stopped" }
+        : c
+    ))
+
+    alert("Кампания остановлена")
+  }
+
   const resetImportModal = () => {
     setShowImportModal(false)
     setImportFile(null)
@@ -623,6 +753,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Отправлено</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32">Действия</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -637,21 +768,72 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                                 ? "bg-green-100 text-green-800"
                                 : campaign.status === "sending"
                                   ? "bg-blue-100 text-blue-800"
-                                  : "bg-gray-100 text-gray-800"
+                                  : campaign.status === "stopped"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-gray-100 text-gray-800"
                             }`}
                           >
                             {campaign.status === "sent"
                               ? "Отправлено"
                               : campaign.status === "sending"
                                 ? "Отправка"
-                                : "Черновик"}
+                                : campaign.status === "stopped"
+                                  ? "Остановлено"
+                                  : "Черновик"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {campaign.sent_count} / {campaign.total_recipients}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(campaign.created_at).toLocaleDateString("ru-RU")}
+                          {campaign.sent_at 
+                            ? new Date(campaign.sent_at).toLocaleDateString("ru-RU")
+                            : new Date(campaign.created_at).toLocaleDateString("ru-RU")
+                          }
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-1">
+                            {campaign.status === "draft" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStartCampaign(campaign)}
+                                className="text-green-600 hover:text-green-800 hover:bg-green-50"
+                                title="Запустить кампанию"
+                              >
+                                <Play className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {campaign.status === "sending" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStopCampaign(campaign)}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                title="Остановить кампанию"
+                              >
+                                <Square className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditCampaign(campaign)}
+                              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                              title="Редактировать кампанию"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteCampaign(campaign)}
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                              title="Удалить кампанию"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -721,6 +903,59 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                     Отмена
                   </Button>
                   <Button onClick={handleUpdateSubscriber}>
+                    Сохранить
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Модальное окно редактирования кампании */}
+      {editingCampaign && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Редактировать кампанию</h2>
+                <Button variant="ghost" size="icon" onClick={() => setEditingCampaign(null)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Название кампании *
+                  </label>
+                  <input
+                    type="text"
+                    value={campaignEditForm.name}
+                    onChange={(e) => setCampaignEditForm({ ...campaignEditForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Название кампании"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Тема письма *
+                  </label>
+                  <input
+                    type="text"
+                    value={campaignEditForm.subject}
+                    onChange={(e) => setCampaignEditForm({ ...campaignEditForm, subject: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Тема письма"
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={() => setEditingCampaign(null)}>
+                    Отмена
+                  </Button>
+                  <Button onClick={handleUpdateCampaign}>
                     Сохранить
                   </Button>
                 </div>
