@@ -122,7 +122,10 @@ async function getImageSize(url: string): Promise<number> {
   return 102400 // 100KB в байтах
 }
 
-export async function GET(request: Request) {
+// Динамический рендеринг для RSS
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
   try {
     const supabase = createAdminClient()
 
@@ -162,8 +165,7 @@ export async function GET(request: Request) {
     )
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
-    const currentUrl = new URL(request.url)
-    const rssUrl = `${currentUrl.origin}${currentUrl.pathname}`
+    const rssUrl = `${baseUrl}/rss.xml`
 
     const rssItems = await Promise.all(
       articlesToUse?.map(async (article) => {
