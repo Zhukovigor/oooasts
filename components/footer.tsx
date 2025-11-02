@@ -449,31 +449,39 @@ export default function Footer() {
                 ИНН: 6700037092 • ОГРН: 1156733004978
               </p>
 
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>Сделано с</span>
-                <span className="text-red-500">❤</span>
-                <span>для развития бизнеса</span>
-              </div>
-            </div>
-
-            {/* Legal Notice */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              viewport={{ once: true, margin: "-50px" }}
-              className="mt-8 pt-6 border-t border-gray-200"
+              <div className="flex space-x-6">
+            <Link
+              href="/politika-obrabotki-dannyh"
+              className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
             >
-              <p className="text-sm text-gray-500 text-center leading-relaxed max-w-4xl mx-auto">
-                Информация, размещенная на сайте, носит информационный характер и не является 
-                публичной офертой согласно статье 437 ГК РФ. ООО «АСТС» оставляет за собой 
-                право в одностороннем порядке и без уведомления вносить изменения, удалять, 
-                исправлять, дополнять, либо иным способом обновлять информацию на сайте.
-              </p>
-            </motion.div>
-          </motion.div>
-        </div>
-      </footer>
-    </>
+              Политика обработки данных
+            </Link>
+            <Link
+              href="/o-faylah-cookie"
+              className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium"
+            >
+              О файлах cookie
+            </Link>
+            <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors duration-300 font-medium">
+              Условия использования
+            </a>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          viewport={{ once: true }}
+          className="mt-8 pt-6 border-t border-gray-200"
+        >
+          <p className="text-sm text-gray-500 text-center leading-relaxed max-w-4xl mx-auto">
+            Информация, размещенная на сайте, носит информационный характер и не является публичной офертой согласно
+            статье 437 ГК РФ. ООО «АСТС» оставляет за собой право в одностороннем порядке и без уведомления вносить
+            изменения, удалять, исправлять, дополнять, либо иным способом обновлять информацию на сайте.
+          </p>
+        </motion.div>
+      </div>
+    </footer>
   )
 }
