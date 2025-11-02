@@ -126,36 +126,51 @@ function parseComplexSentence(
   category: keyof ParsedSpecifications,
   result: ParsedSpecifications,
 ): void {
-  // Improved patterns for different text formats
+  // Improved patterns for different text formats with better separation
   const patterns = [
     // "Ключ: значение" format
-    /([^:]+?):\s*([^:,]+?)(?=\s+[^:]+?:|,|$)/g,
+    /([^:;=\-*]+?):\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
     // "Ключ = значение" format
-    /([^=]+?)\s*=\s*([^=,]+?)(?=\s+[^=]+?=|,|$)/g,
+    /([^:;=\-*]+?)\s*=\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
     // "Ключ - значение" format
-    /([^-]+?)\s*-\s*([^-,]+?)(?=\s+[^-]+?-|,|$)/g,
+    /([^:;=\-*]+?)\s*-\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
+    // "Ключ; значение" format
+    /([^:;=\-*]+?);\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
+    // "* ключ = значение" format
+    /\*\s*([^:;=\-*]+?)\s*[=\-:]\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
+    // "- ключ = значение" format
+    /-\s*([^:;=\-*]+?)\s*[=\-:]\s*([^:;=\-*]+?)(?=[;=\-*]|$)/g,
   ]
 
   for (const pattern of patterns) {
-    const matches = [...sentence.matchAll(pattern)]
-    for (const match of matches) {
+    let match
+    pattern.lastIndex = 0
+    while ((match = pattern.exec(sentence)) !== null) {
       if (match[1] && match[2]) {
         let key = match[1].trim()
         let value = match[2].trim()
 
-        // Clean key from units at the beginning
+        // Clean key from units and brackets
+        key = key
+          .replace(/^\s*[[$$]*\s*/, "")
+          .replace(/\s*[\]$$]*\s*$/, "")
+          .trim()
         key = key.replace(/^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+/, "").trim()
         key = key.replace(/[•·\-—\d]/g, "").trim()
 
-        // Skip short keys or numeric values
+        // Skip short keys or numeric-only values
         if (key.length < 2 || /^\d+$/.test(key)) continue
 
-        // Clean value
-        value = value.replace(/^[•·\-—\s,]+/, "").trim()
+        // Clean value from brackets
+        value = value
+          .replace(/^\s*[[$$]*\s*/, "")
+          .replace(/\s*[\]$$]*\s*$/, "")
+          .trim()
+        value = value.replace(/^[•·\-—\s,;:]+/, "").trim()
         value = fixValueUnitOrder(value)
         value = addMissingUnits(key, value)
 
-        if (value && !value.endsWith(":")) {
+        if (value && !value.endsWith(":") && value.length > 0) {
           result[category][key] = value
         }
       }
@@ -163,8 +178,8 @@ function parseComplexSentence(
   }
 
   const sizePatterns = [
-    /(\d+)\s*[×x*]\s*(\d+)\s*[×x*]\s*(\d+)\s*(мм)?/,
-    /(\d+)\s*(м|мм)\s*[×x*]\s*(\d+)\s*(м|мм)\s*[×x*]\s*(\d+)\s*(м|мм)/,
+    /(\d+(?:[.,]\d+)?)\s*[×x*]\s*(\d+(?:[.,]\d+)?)\s*[×x*]\s*(\d+(?:[.,]\d+)?)\s*(м|см|мм)?/,
+    /(\d+(?:[.,]\d+)?)\s*(м|см|мм)\s*[×x*]\s*(\d+(?:[.,]\d+)?)\s*(м|см|мм)\s*[×x*]\s*(\d+(?:[.,]\d+)?)\s*(м|см|мм)/,
   ]
 
   for (const pattern of sizePatterns) {
@@ -176,17 +191,21 @@ function parseComplexSentence(
     }
   }
 
-  // Enhanced standalone value extraction
-  const standaloneValues = sentence.match(/(\d+(?:[.,]\d+)?)\s*(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)/gi)
-  if (standaloneValues) {
-    for (const value of standaloneValues) {
-      const keyMatch = sentence.match(
-        new RegExp(`([А-Яа-яA-Za-z\\s]+?)\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
-      )
-      if (keyMatch && keyMatch[1]) {
-        const potentialKey = keyMatch[1].trim()
-        if (potentialKey.length > 2) {
-          result[category][potentialKey] = value
+  const nestedPatterns = [/([А-Яа-яA-Za-z\s]+?):\s*\*?([А-Яа-яA-Za-z]+?)\s*[=\-:]\s*([^;]*?)(?=[;,]|$)/gi]
+
+  for (const pattern of nestedPatterns) {
+    let match
+    pattern.lastIndex = 0
+    while ((match = pattern.exec(sentence)) !== null) {
+      if (match[2] && match[3]) {
+        const key = match[2].trim()
+        let value = match[3].trim()
+        value = value.replace(/^[•·\-—\s,;:]+/, "").trim()
+        value = fixValueUnitOrder(value)
+        value = addMissingUnits(key, value)
+
+        if (value && value.length > 0) {
+          result[category][key] = value
         }
       }
     }

@@ -7,63 +7,86 @@ export interface AIParsingResult {
 }
 
 export async function parseSpecificationsWithAI(text: string): Promise<AIParsingResult> {
-  const prompt = `You are a technical specifications parser. Extract all technical specifications from the following equipment description and return them in a structured format.
+  const prompt = `You are a technical specifications parser. Extract ALL technical specifications from the equipment description, handling any format variations.
 
 Equipment Description:
 ${text}
 
-Please extract all specifications and organize them into these categories (only include categories that have data):
-- Основные параметры (Basic Parameters)
-- Двигатель (Engine)
-- Гидравлика (Hydraulics)
-- Габариты (Dimensions)
-- Рабочие характеристики (Operating Characteristics)
-- Шасси (Chassis)
-- Ходовая часть (Undercarriage)
-- Подвеска (Suspension)
-- Весовые показатели (Weight Parameters)
-- Крановое оборудование (Crane Equipment)
-- Трансмиссия (Transmission)
-- Прочее (Other)
+IMPORTANT: The text may contain specifications in various formats:
+- "Ключ: значение" or "Ключ = значение" or "Ключ - значение"
+- "-Ключ" or "*Ключ" or "[Ключ]" formats
+- Nested structures like "Размеры корзины: *длина = 3.0 м, *ширина = 1.2 м"
+- Mixed separators (;, =, -, :)
+- Missing or uppercase/lowercase inconsistencies
 
-For each specification, provide:
-1. Clear, descriptive key name
-2. Value with appropriate units of measurement
+Please:
+1. Extract ALL specifications regardless of format
+2. Clean up keys by removing brackets, asterisks, dashes from the beginning
+3. Standardize all values with proper units (мм, см, м, км, кг, т, л, кВт, л.с., об/мин, °, МПа)
+4. Handle nested parameters by extracting them as individual specs
+5. Combine related parameters into logical category groupings
 
-Important rules:
-- Always include units of measurement (мм, см, м, км, кг, т, л, кВт, л.с., об/мин, °, МПа, etc.)
-- Clean and normalize all values
-- Group similar specifications together
-- Only include specifications that are explicitly mentioned in the description
+Return JSON with these categories (only include categories with data):
+- Основные параметры
+- Двигатель
+- Гидравлика
+- Габариты
+- Рабочие характеристики
+- Шасси
+- Ходовая часть
+- Подвеска
+- Весовые показатели
+- Крановое оборудование
+- Трансмиссия
+- Системы безопасности
+- Прочее
 
-Return the response as valid JSON with this structure:
+Example output:
 {
-  "Основные параметры": {
-    "Модель": "value",
-    "Производитель": "value"
+  "Габариты": {
+    "Длина": "3.0 м",
+    "Ширина": "1.2 м",
+    "Высота": "36 м"
   },
-  "Двигатель": {
-    "Тип": "value",
-    "Мощность": "value"
+  "Рабочие характеристики": {
+    "Рабочая высота": "36 м"
   }
 }
 
-Only return the JSON object, no additional text.`
+Return ONLY valid JSON, no other text.`
 
   try {
     const { text: responseText } = await generateText({
       model: "openai/gpt-4-mini",
       prompt: prompt,
-      temperature: 0.3,
-      maxTokens: 2000,
+      temperature: 0.2, // Lower temperature for more consistent parsing
+      maxTokens: 2500, // Increased token limit for complex texts
     })
 
-    const parsed = JSON.parse(responseText)
+    let parsed: Record<string, any> = {}
+    const cleanedResponse = responseText.trim()
+
+    try {
+      parsed = JSON.parse(cleanedResponse)
+    } catch (parseError) {
+      // Try to extract JSON from response if it contains extra text
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0])
+      } else {
+        throw parseError
+      }
+    }
+
+    const totalSpecs = Object.values(parsed).reduce(
+      (sum: number, specs: any) => sum + (typeof specs === "object" ? Object.keys(specs).length : 0),
+      0,
+    )
 
     return {
       specifications: parsed,
-      confidence: 0.95,
-      summary: `Успешно извлечено ${Object.values(parsed).reduce((sum: number, specs: any) => sum + Object.keys(specs).length, 0)} характеристик`,
+      confidence: 0.92,
+      summary: `Успешно извлечено ${totalSpecs} характеристик`,
     }
   } catch (error) {
     console.error("[v0] AI parsing error:", error)
