@@ -329,19 +329,24 @@ export default function EquipmentFormClient() {
                       <h3 className="font-semibold text-green-900">Извлеченные характеристики</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
                       {Object.entries(parsedSpecs).map(([category, specs]) => {
                         if (Object.keys(specs).length === 0) return null
                         return (
-                          <div key={category} className="bg-white p-4 rounded border border-green-200">
-                            <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">
+                          <div
+                            key={category}
+                            className="bg-white p-4 rounded-lg border border-green-200 hover:border-green-400 hover:shadow-md transition-all"
+                          >
+                            <h4 className="font-semibold text-green-700 mb-3 text-xs uppercase tracking-widest border-b border-green-200 pb-2">
                               {category}
                             </h4>
                             <div className="space-y-2">
                               {Object.entries(specs).map(([key, value]) => (
-                                <div key={key} className="flex justify-between text-sm">
-                                  <span className="text-gray-600 font-medium">{key}:</span>
-                                  <span className="text-gray-900 font-semibold">{value}</span>
+                                <div key={key} className="flex justify-between items-start gap-2 text-xs">
+                                  <span className="text-gray-600 font-medium flex-1">{key}</span>
+                                  <span className="text-gray-900 font-bold text-right flex-shrink-0 bg-green-50 px-2 py-1 rounded">
+                                    {value}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -372,15 +377,22 @@ export default function EquipmentFormClient() {
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <h2 className="text-xl font-bold text-gray-900">Предпросмотр характеристик</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(formData.specifications).map(([category, specs]) => (
-                  <div key={category} className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border">
-                    <h3 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">{category}</h3>
-                    <div className="space-y-2">
+                  <div
+                    key={category}
+                    className="bg-gradient-to-br from-blue-50 via-white to-blue-50 p-5 rounded-lg border border-blue-200 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <h3 className="font-bold text-blue-900 mb-4 text-sm uppercase tracking-wide border-b-2 border-blue-300 pb-2">
+                      {category}
+                    </h3>
+                    <div className="space-y-3">
                       {Object.entries(specs as Record<string, any>).map(([key, value]) => (
-                        <div key={key} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{key}:</span>
-                          <span className="font-medium text-gray-900">{String(value)}</span>
+                        <div key={key} className="flex justify-between items-start gap-3">
+                          <span className="text-gray-700 text-sm font-medium">{key}</span>
+                          <span className="font-semibold text-blue-600 text-sm bg-blue-50 px-2 py-1 rounded whitespace-nowrap">
+                            {String(value)}
+                          </span>
                         </div>
                       ))}
                     </div>

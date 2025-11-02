@@ -69,17 +69,9 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
     if (!sentence.trim()) continue
 
     const cleanSentence = sentence.trim()
-
-    // Определяем категорию по ключевым словам
     const lowerSentence = cleanSentence.toLowerCase()
 
-    // Проверяем, не является ли предложение заголовком категории
-    if (lowerSentence === "прочее" || lowerSentence === "описание") {
-      currentCategory = "Прочее"
-      continue
-    }
-
-    // Автоматически определяем категорию по содержимому
+    // Определяем категорию по ключевым словам
     if (
       lowerSentence.includes("двигатель") ||
       lowerSentence.includes("мощность") ||
@@ -88,46 +80,41 @@ export function parseSpecificationsFromText(text: string): ParsedSpecifications 
       currentCategory = "Двигатель"
     } else if (
       lowerSentence.includes("шасси") ||
-      lowerSentence.includes("модель:") ||
+      lowerSentence.includes("модель") ||
       lowerSentence.includes("максимальная скорость")
     ) {
       currentCategory = "Шасси"
-    } else if (
-      lowerSentence.includes("ходовая часть") ||
-      lowerSentence.includes("колесная") ||
-      lowerSentence.includes("шины")
-    ) {
+    } else if (lowerSentence.includes("ходовая") || lowerSentence.includes("колесн") || lowerSentence.includes("шин")) {
       currentCategory = "Ходовая часть"
-    } else if (lowerSentence.includes("подвеска") || lowerSentence.includes("рессор")) {
+    } else if (lowerSentence.includes("подвеск") || lowerSentence.includes("рессор")) {
       currentCategory = "Подвеска"
-    } else if (lowerSentence.includes("масса") || lowerSentence.includes("нагрузка") || lowerSentence.includes("кг")) {
+    } else if (lowerSentence.includes("масс") || lowerSentence.includes("нагруз") || lowerSentence.includes("кг")) {
       currentCategory = "Весовые показатели"
     } else if (
       lowerSentence.includes("кран") ||
       lowerSentence.includes("стрел") ||
-      lowerSentence.includes("грузоподъемность")
+      lowerSentence.includes("грузоподъемност")
     ) {
       currentCategory = "Крановое оборудование"
     } else if (
-      lowerSentence.includes("гидравлическ") ||
+      lowerSentence.includes("гидравлич") ||
       lowerSentence.includes("гидробак") ||
       lowerSentence.includes("мпа")
     ) {
       currentCategory = "Гидравлика"
-    } else if (lowerSentence.includes("трансмиссия") || lowerSentence.includes("привод")) {
+    } else if (lowerSentence.includes("трансмисс") || lowerSentence.includes("привод")) {
       currentCategory = "Трансмиссия"
     } else if (
       lowerSentence.includes("габарит") ||
       lowerSentence.includes("размер") ||
       lowerSentence.includes("мм") ||
-      lowerSentence.includes("высота") ||
-      lowerSentence.includes("ширина") ||
-      lowerSentence.includes("длина")
+      lowerSentence.includes("высот") ||
+      lowerSentence.includes("ширин") ||
+      lowerSentence.includes("длин")
     ) {
       currentCategory = "Габариты"
     }
 
-    // Парсим отдельные пары ключ-значение внутри предложения
     parseComplexSentence(cleanSentence, currentCategory, result)
   }
 
@@ -139,10 +126,14 @@ function parseComplexSentence(
   category: keyof ParsedSpecifications,
   result: ParsedSpecifications,
 ): void {
-  // Разные паттерны для извлечения данных
+  // Improved patterns for different text formats
   const patterns = [
-    // Паттерн для "Ключ: значение"
-    /([^:]+?):\s*([^:]+?)(?=\s+[^:]+?:|$)/g,
+    // "Ключ: значение" format
+    /([^:]+?):\s*([^:,]+?)(?=\s+[^:]+?:|,|$)/g,
+    // "Ключ = значение" format
+    /([^=]+?)\s*=\s*([^=,]+?)(?=\s+[^=]+?=|,|$)/g,
+    // "Ключ - значение" format
+    /([^-]+?)\s*-\s*([^-,]+?)(?=\s+[^-]+?-|,|$)/g,
   ]
 
   for (const pattern of patterns) {
@@ -152,20 +143,16 @@ function parseComplexSentence(
         let key = match[1].trim()
         let value = match[2].trim()
 
-        // Очистка ключа от оставшихся единиц измерения в начале
-        key = key.replace(/^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+/, "")
+        // Clean key from units at the beginning
+        key = key.replace(/^(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)\s+/, "").trim()
         key = key.replace(/[•·\-—\d]/g, "").trim()
 
-        // Пропускаем слишком короткие ключи или числовые значения
+        // Skip short keys or numeric values
         if (key.length < 2 || /^\d+$/.test(key)) continue
 
-        // Очистка значения
+        // Clean value
         value = value.replace(/^[•·\-—\s,]+/, "").trim()
-
-        // Дополнительная проверка и исправление порядка единиц измерения в значении
         value = fixValueUnitOrder(value)
-
-        // Автоматически добавляем единицы измерения, если их нет
         value = addMissingUnits(key, value)
 
         if (value && !value.endsWith(":")) {
@@ -175,21 +162,26 @@ function parseComplexSentence(
     }
   }
 
-  // Специальная обработка для габаритных размеров
-  if (sentence.includes("×") || sentence.includes("x") || sentence.includes("*")) {
-    const sizeMatch = sentence.match(/(\d+)\s*[×x*]\s*(\d+)\s*[×x*]\s*(\d+)\s*мм/)
+  const sizePatterns = [
+    /(\d+)\s*[×x*]\s*(\d+)\s*[×x*]\s*(\d+)\s*(мм)?/,
+    /(\d+)\s*(м|мм)\s*[×x*]\s*(\d+)\s*(м|мм)\s*[×x*]\s*(\d+)\s*(м|мм)/,
+  ]
+
+  for (const pattern of sizePatterns) {
+    const sizeMatch = sentence.match(pattern)
     if (sizeMatch) {
-      result["Габариты"]["Размеры кузова"] = `${sizeMatch[1]} × ${sizeMatch[2]} × ${sizeMatch[3]} мм`
+      const unit = sizeMatch[4] || sizeMatch[2] || "мм"
+      result[category]["Размеры"] = `${sizeMatch[1]} × ${sizeMatch[3]} × ${sizeMatch[5] || sizeMatch[4]} ${unit}`
+      break
     }
   }
 
-  // Обработка отдельных числовых значений с единицами измерения
-  const standaloneValues = sentence.match(/(\d+(?:[.,]\d+)?)\s*(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)/g)
+  // Enhanced standalone value extraction
+  const standaloneValues = sentence.match(/(\d+(?:[.,]\d+)?)\s*(мм|см|м|км|кг|т|л|кВт|л\.с\.|об\/мин|°|МПа)/gi)
   if (standaloneValues) {
     for (const value of standaloneValues) {
-      // Пытаемся найти соответствующий ключ перед значением
       const keyMatch = sentence.match(
-        new RegExp(`([А-Яа-яA-Za-z\\s]+)\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+        new RegExp(`([А-Яа-яA-Za-z\\s]+?)\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
       )
       if (keyMatch && keyMatch[1]) {
         const potentialKey = keyMatch[1].trim()
