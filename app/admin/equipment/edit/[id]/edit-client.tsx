@@ -305,8 +305,24 @@ export default function EquipmentEditClient({ id }: { id: string }) {
                           key={key}
                           className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4"
                         >
+                          <div className="mb-3 pb-3 border-b border-blue-200">
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Название категории</label>
+                            <Input
+                              value={key}
+                              onChange={(e) => {
+                                const newKey = e.target.value
+                                const updated = { ...formData.specifications }
+                                delete updated[key]
+                                updated[newKey] = value
+                                setFormData({ ...formData, specifications: updated })
+                              }}
+                              placeholder="Введите название категории"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+
                           <label className="block text-xs font-semibold text-gray-700 uppercase mb-2 text-pretty">
-                            {key}
+                            Содержание
                           </label>
                           <textarea
                             value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
@@ -316,6 +332,17 @@ export default function EquipmentEditClient({ id }: { id: string }) {
                             }}
                             className="w-full px-3 py-2 border border-blue-300 rounded-lg bg-white text-sm min-h-[80px] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...formData.specifications }
+                              delete updated[key]
+                              setFormData({ ...formData, specifications: updated })
+                            }}
+                            className="mt-2 w-full px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors"
+                          >
+                            Удалить категорию
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -325,7 +352,7 @@ export default function EquipmentEditClient({ id }: { id: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        const newKey = `field_${Date.now()}`
+                        const newKey = `Новая категория ${Object.keys(formData.specifications).length + 1}`
                         setFormData({
                           ...formData,
                           specifications: {
@@ -350,7 +377,7 @@ export default function EquipmentEditClient({ id }: { id: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const newKey = `field_${Date.now()}`
+                      const newKey = "Новая категория"
                       setFormData({
                         ...formData,
                         specifications: {
