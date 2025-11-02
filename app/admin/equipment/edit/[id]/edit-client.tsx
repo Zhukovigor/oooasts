@@ -39,6 +39,7 @@ export default function EquipmentEditClient({ id }: { id: string }) {
   const [categories, setCategories] = useState<Category[]>([])
   const [formData, setFormData] = useState<Equipment | null>(null)
   const [activeTab, setActiveTab] = useState<"basic" | "specs" | "gallery">("basic")
+  const [parsedSpecs, setParsedSpecs] = useState<Record<string, any>>({})
 
   useEffect(() => {
     fetchData()
@@ -294,13 +295,76 @@ export default function EquipmentEditClient({ id }: { id: string }) {
         {activeTab === "specs" && (
           <Card>
             <CardContent className="p-6">
-              <div className="text-center py-12">
-                <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">Характеристики добавляются при создании техники через парсер</p>
-                <p className="text-sm text-gray-500">
-                  Перейдите в редактирование через форму создания для полного редактирования характеристик
-                </p>
-              </div>
+              {formData.specifications && Object.keys(formData.specifications).length > 0 ? (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Характеристики</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Object.entries(formData.specifications).map(([key, value]) => (
+                        <div
+                          key={key}
+                          className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4"
+                        >
+                          <label className="block text-xs font-semibold text-gray-700 uppercase mb-2 text-pretty">
+                            {key}
+                          </label>
+                          <textarea
+                            value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+                            onChange={(e) => {
+                              const updated = { ...formData.specifications, [key]: e.target.value }
+                              setFormData({ ...formData, specifications: updated })
+                            }}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg bg-white text-sm min-h-[80px] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newKey = `field_${Date.now()}`
+                        setFormData({
+                          ...formData,
+                          specifications: {
+                            ...formData.specifications,
+                            [newKey]: "",
+                          },
+                        })
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      + Добавить характеристику
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">Характеристики еще не добавлены</p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Добавьте характеристики через форму создания техники или добавьте их вручную ниже
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newKey = `field_${Date.now()}`
+                      setFormData({
+                        ...formData,
+                        specifications: {
+                          ...formData.specifications,
+                          [newKey]: "",
+                        },
+                      })
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    + Добавить характеристику
+                  </button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
