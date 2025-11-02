@@ -443,7 +443,7 @@ export default function Footer() {
             {/* Copyright */}
             <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
               <p className="text-gray-600 font-medium text-center md:text-left">
-                Copyright © 2015-{new Date().getFullYear()} ООО «АСТС». Все права защищены.
+                Copyright © 2025-{new Date().getFullYear()} ООО «АСТС». Все права защищены.
                 <br className="sm:hidden" />
                 <span className="hidden sm:inline"> • </span>
                 ИНН: 6700037092 • ОГРН: 1156733004978
@@ -466,7 +466,7 @@ export default function Footer() {
               Условия использования
             </a>
           </div>
-        </motion.div>
+        
 
         <motion.div
           initial={{ opacity: 0 }}
