@@ -7,10 +7,11 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, Sparkles } from "lucide-react"
+import { ArrowLeft, Sparkles, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase/client"
-import { parseSpecificationsFromText, convertParsedToJSON, type ParsedSpecifications } from "@/lib/parse-specifications"
+import { parseSpecificationsFromText, convertParsedToJSON } from "@/lib/parse-specifications"
+import { parseSpecificationsWithAI } from "@/lib/parse-specifications-ai"
 
 interface Category {
   id: string
@@ -21,10 +22,12 @@ interface Category {
 export default function EquipmentFormClient() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [rawText, setRawText] = useState("")
-  const [parsedSpecs, setParsedSpecs] = useState<ParsedSpecifications | null>(null)
+  const [parsedSpecs, setParsedSpecs] = useState<Record<string, Record<string, string>> | null>(null)
   const [showParser, setShowParser] = useState(false)
+  const [useAI, setUseAI] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -56,32 +59,42 @@ export default function EquipmentFormClient() {
       .replace(/^-+|-+$/g, "")
   }
 
-  function handleParseText() {
+  async function handleParseText() {
     if (!rawText.trim()) {
       alert("Пожалуйста, вставьте текст с характеристиками")
       return
     }
 
-    const parsed = parseSpecificationsFromText(rawText)
-    setParsedSpecs(parsed)
+    setParsing(true)
 
-    // Автоматически заполняем поля формы
-    const specsJSON = convertParsedToJSON(parsed)
-    setFormData((prev) => ({
-      ...prev,
-      specifications: specsJSON,
-    }))
+    try {
+      let specs: Record<string, Record<string, string>>
 
-    alert("Характеристики успешно извлечены! Проверьте результат ниже.")
+      if (useAI) {
+        const aiResult = await parseSpecificationsWithAI(rawText)
+        specs = aiResult.specifications
+      } else {
+        const parsed = parseSpecificationsFromText(rawText)
+        specs = convertParsedToJSON(parsed)
+      }
+
+      setParsedSpecs(specs)
+      alert("Характеристики успешно извлечены!")
+    } catch (error) {
+      console.error("[v0] Parse error:", error)
+      alert("Ошибка при парсинге. Попробуйте с обычным парсером.")
+      setUseAI(false)
+    } finally {
+      setParsing(false)
+    }
   }
 
   function applyParsedSpecs() {
     if (!parsedSpecs) return
 
-    const specsJSON = convertParsedToJSON(parsedSpecs)
     setFormData((prev) => ({
       ...prev,
-      specifications: specsJSON,
+      specifications: parsedSpecs,
     }))
 
     setShowParser(false)
@@ -269,6 +282,18 @@ export default function EquipmentFormClient() {
 
             {showParser && (
               <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={useAI}
+                    onChange={(e) => setUseAI(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <label className="text-sm font-medium text-gray-700 cursor-pointer">
+                    Использовать AI для более точного парсинга (рекомендуется)
+                  </label>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Вставьте текст с характеристиками
@@ -281,32 +306,42 @@ export default function EquipmentFormClient() {
 Гидравлический экскаватор KOMATSU PC300-8M0
 Рабочий вес: 31100 кг
 Объем ковша: 1.14 м³
-Макс. глубина копания: 6400 м
+Макс. глубина копания: 6400 мм
 Мощность двигателя: 194 кВт
-Производитель двигателя: Komatsu
 ..."
                   />
                 </div>
 
-                <Button type="button" onClick={handleParseText} className="bg-purple-600 hover:bg-purple-700">
+                <Button
+                  type="button"
+                  onClick={handleParseText}
+                  disabled={parsing}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Извлечь характеристики
+                  {parsing ? "Парсинг..." : "Извлечь характеристики"}
                 </Button>
 
                 {parsedSpecs && (
                   <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h3 className="font-semibold text-green-900 mb-3">Извлеченные характеристики:</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <h3 className="font-semibold text-green-900">Извлеченные характеристики</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                       {Object.entries(parsedSpecs).map(([category, specs]) => {
                         if (Object.keys(specs).length === 0) return null
                         return (
-                          <div key={category} className="bg-white p-3 rounded border">
-                            <h4 className="font-medium text-gray-900 mb-2 capitalize">{category}</h4>
-                            <div className="space-y-1 text-sm">
+                          <div key={category} className="bg-white p-4 rounded border border-green-200">
+                            <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">
+                              {category}
+                            </h4>
+                            <div className="space-y-2">
                               {Object.entries(specs).map(([key, value]) => (
-                                <div key={key} className="flex justify-between">
-                                  <span className="text-gray-600">{key}:</span>
-                                  <span className="font-medium">{value}</span>
+                                <div key={key} className="flex justify-between text-sm">
+                                  <span className="text-gray-600 font-medium">{key}:</span>
+                                  <span className="text-gray-900 font-semibold">{value}</span>
                                 </div>
                               ))}
                             </div>
@@ -314,7 +349,13 @@ export default function EquipmentFormClient() {
                         )
                       })}
                     </div>
-                    <Button type="button" onClick={applyParsedSpecs} className="mt-4 bg-green-600 hover:bg-green-700">
+
+                    <Button
+                      type="button"
+                      onClick={applyParsedSpecs}
+                      className="mt-4 bg-green-600 hover:bg-green-700 w-full"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
                       Применить к форме
                     </Button>
                   </div>
@@ -327,16 +368,19 @@ export default function EquipmentFormClient() {
         {Object.keys(formData.specifications).length > 0 && (
           <Card>
             <CardContent className="p-6 space-y-4">
-              <h2 className="text-xl font-bold text-gray-900">Предпросмотр характеристик</h2>
+              <div className="flex items-center gap-2 mb-4">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <h2 className="text-xl font-bold text-gray-900">Предпросмотр характеристик</h2>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(formData.specifications).map(([category, specs]) => (
-                  <div key={category} className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-gray-900 mb-2 capitalize">{category}</h3>
-                    <div className="space-y-1 text-sm">
+                  <div key={category} className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border">
+                    <h3 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">{category}</h3>
+                    <div className="space-y-2">
                       {Object.entries(specs as Record<string, any>).map(([key, value]) => (
-                        <div key={key} className="flex justify-between">
+                        <div key={key} className="flex justify-between text-sm">
                           <span className="text-gray-600">{key}:</span>
-                          <span className="font-medium">{String(value)}</span>
+                          <span className="font-medium text-gray-900">{String(value)}</span>
                         </div>
                       ))}
                     </div>
