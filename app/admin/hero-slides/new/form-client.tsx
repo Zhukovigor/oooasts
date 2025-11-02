@@ -10,14 +10,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createBrowserClient } from "@supabase/ssr"
+import { AlertCircle, CheckCircle, Loader } from "lucide-react"
 
 export default function HeroSlideFormClient() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [conversionMessage, setConversionMessage] = useState("")
+  const [conversionStatus, setConversionStatus] = useState<"idle" | "converting" | "success" | "error">("idle")
   const [formData, setFormData] = useState({
     title: "",
     subtitle: "",
     image_url: "",
+    image_webp_url: "",
     image_alt: "",
     button_text: "Связаться с нами",
     button_link: "#join",
@@ -38,12 +43,58 @@ export default function HeroSlideFormClient() {
     sort_order: 0,
     is_active: true,
     auto_rotate_seconds: 15,
+    image_conversion_status: "pending",
+    image_original_size: 0,
+    image_webp_size: 0,
   })
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
+
+  const handleConvertImage = async () => {
+    if (!formData.image_url) {
+      setConversionMessage("Пожалуйста, укажите URL изображения")
+      setConversionStatus("error")
+      return
+    }
+
+    setConverting(true)
+    setConversionStatus("converting")
+    setConversionMessage("Конвертирование изображения в WebP...")
+
+    try {
+      const response = await fetch("/api/convert-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: formData.image_url }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Ошибка при конвертации")
+      }
+
+      const data = await response.json()
+      setFormData({
+        ...formData,
+        image_webp_url: data.webpUrl,
+        image_original_size: data.originalSize,
+        image_webp_size: data.webpSize,
+        image_conversion_status: "completed",
+      })
+      setConversionStatus("success")
+      setConversionMessage(
+        `Успешно! Экономия: ${data.compression}% (${Math.round(data.originalSize / 1024)}KB → ${Math.round(data.webpSize / 1024)}KB)`,
+      )
+    } catch (error) {
+      setConversionStatus("error")
+      setConversionMessage("Ошибка при конвертации изображения")
+      console.error(error)
+    } finally {
+      setConverting(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -86,16 +137,50 @@ export default function HeroSlideFormClient() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="image_url">URL изображения *</Label>
-            <Input
-              id="image_url"
-              type="url"
-              value={formData.image_url}
-              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-              placeholder="/images/banner.jpg"
-              required
-            />
+          <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <Label htmlFor="image_url">URL изображения (JPG/PNG) *</Label>
+            <div className="flex gap-2">
+              <Input
+                id="image_url"
+                type="url"
+                value={formData.image_url}
+                onChange={(e) => {
+                  setFormData({ ...formData, image_url: e.target.value })
+                  setConversionStatus("idle")
+                  setConversionMessage("")
+                }}
+                placeholder="https://example.com/image.jpg"
+                required
+              />
+              <Button
+                type="button"
+                onClick={handleConvertImage}
+                disabled={converting || !formData.image_url}
+                className="whitespace-nowrap"
+              >
+                {converting && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                {converting ? "Конвертирую..." : "Конвертировать в WebP"}
+              </Button>
+            </div>
+
+            {conversionMessage && (
+              <div
+                className={`flex items-center gap-2 p-2 rounded text-sm ${
+                  conversionStatus === "success"
+                    ? "bg-green-100 text-green-800"
+                    : conversionStatus === "error"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-blue-100 text-blue-800"
+                }`}
+              >
+                {conversionStatus === "success" && <CheckCircle className="w-4 h-4" />}
+                {conversionStatus === "error" && <AlertCircle className="w-4 h-4" />}
+                {conversionStatus === "converting" && <Loader className="w-4 h-4 animate-spin" />}
+                {conversionMessage}
+              </div>
+            )}
+
+            {formData.image_webp_url && <p className="text-xs text-green-600">✓ WebP версия готова</p>}
           </div>
 
           <div>
