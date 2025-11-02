@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
     }
   }
 
-  const articleUrl = `https://oooasts.ru/stati/${article.slug}`
+  const articleUrl = `https://asts.vercel.app/stati/${article.slug}`
 
   return {
     title: article.meta_title || article.title,
@@ -101,14 +101,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       name: "ООО АСТС",
       logo: {
         "@type": "ImageObject",
-        url: "https://oooasts.ru/images/logo.png",
+        url: "https://asts.vercel.app/images/logo.png",
       },
     },
     datePublished: article.published_at,
     dateModified: article.updated_at,
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://oooasts.ru/stati/${article.slug}`,
+      "@id": `https://asts.vercel.app/stati/${article.slug}`,
     },
   }
 

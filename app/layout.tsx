@@ -8,7 +8,7 @@ import Script from "next/script"
 import CookieConsent from "@/components/cookie-consent"
 import "./globals.css"
 
-const CANONICAL_URL = "https://oooasts.ru"
+const CANONICAL_URL = "https://asts.vercel.app"
 
 export const metadata: Metadata = {
   title: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасозов SANY и Zoomlion | ООО АСТС",
