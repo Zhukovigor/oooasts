@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://oooasts.ru"
+  const baseUrl = "https://asts.vercel.app"
   const supabase = createAdminClient()
 
   try {
