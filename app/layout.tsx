@@ -1,4 +1,3 @@
-import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
@@ -36,42 +35,16 @@ export const metadata: Metadata = {
     ],
   },
   keywords: [
-    // Основные запросы
     "купить спецтехнику",
     "спецтехника из китая",
     "поставка спецтехники",
-    
-    // Экскаваторы
     "купить экскаватор",
     "экскаватор komatsu",
-    "экскаватор бу",
-    "экскаватор новый",
-    
-    // Бульдозеры
-    "купить бульдозер", 
-    "бульдозер komatsu",
-    "бульдозер бу",
-    
-    // Автобетононасосы
     "купить автобетононасос",
     "автобетононасос sany",
     "автобетононасос zoomlion",
-    "бетононасос бу",
-    
-    // Другая техника
-    "автокран",
-    "погрузчик",
-    "каток дорожный",
-    "грейдер",
-    
-    // Услуги
     "лизинг спецтехники",
-    "доставка спецтехники",
-    "техника с пробегом",
-    
-    // Компания
     "ооо астс",
-    "asts",
   ],
   authors: [{ name: "ООО АСТС" }],
   creator: "ООО АСТС",
@@ -95,14 +68,11 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: "ООО АСТС - Поставка спецтехники из Китая",
-        type: "image/jpeg",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    site: "@asts",
-    creator: "@asts",
     title: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
     description:
       "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните!",
@@ -117,15 +87,11 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
       "max-image-preview": "large",
       "max-snippet": -1,
-      noimageindex: false,
     },
   },
   verification: {
     google: "2v-vYX6Wszq50FTPt5WDDrW5bxHWOHp1MdGtrf9tbSI",
     yandex: "04df37bb570ff95c",
-    other: {
-      "yandex-verification": ["04df37bb570ff95c", "af7a35725a67ba4e"],
-    },
   },
   category: "construction equipment",
     generator: 'v0.app'
@@ -145,22 +111,16 @@ const organizationSchema = {
     addressCountry: "RU",
     addressRegion: "Смоленская область",
     addressLocality: "Рославль",
-    streetAddress: "",
     postalCode: "216500"
   },
   contactPoint: {
     "@type": "ContactPoint",
     telephone: "+7-919-042-24-92",
     contactType: "customer service",
-    contactOption: "TollFree",
     areaServed: "RU",
     availableLanguage: ["Russian"]
   },
-  sameAs: [
-    "https://t.me/oooasts",
-    "https://vk.com/oooasts",
-    "https://www.youtube.com/@oooasts"
-  ]
+  sameAs: []
 }
 
 // Structured Data для LocalBusiness
@@ -177,17 +137,12 @@ const localBusinessSchema = {
     addressLocality: "Рославль"
   },
   telephone: "+7-919-042-24-92",
-  email: "zhukovigor@yandex.ru",
   priceRange: "$$$",
   openingHours: ["Mo-Fr 08:00-21:00", "Sa 09:00-18:00"],
   geo: {
     "@type": "GeoCoordinates",
     latitude: "53.9500",
     longitude: "32.8667"
-  },
-  areaServed: {
-    "@type": "Country",
-    name: "Россия"
   },
   makesOffer: [
     "Экскаваторы",
@@ -197,30 +152,6 @@ const localBusinessSchema = {
     "Погрузчики",
     "Дорожные катки"
   ]
-}
-
-// Structured Data для WebSite
-const websiteSchema = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: "ООО АСТС - Поставка спецтехники из Китая",
-  url: CANONICAL_URL,
-  description: "Официальный сайт ООО АСТС - поставщика строительной спецтехники из Китая. Экскаваторы, бульдозеры, автобетононасосы и другая техника.",
-  potentialAction: {
-    "@type": "SearchAction",
-    target: `${CANONICAL_URL}/search?q={search_term_string}`,
-    "query-input": "required name=search_term_string"
-  },
-  publisher: {
-    "@type": "Organization",
-    name: "ООО АСТС",
-    logo: {
-      "@type": "ImageObject",
-      url: `${CANONICAL_URL}/images/logo.png`,
-      width: 200,
-      height: 200
-    }
-  }
 }
 
 export default function RootLayout({
@@ -235,9 +166,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://mc.yandex.ru" />
         <link rel="preconnect" href="https://top-fwz1.mail.ru" />
-        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        <link rel="dns-prefetch" href="https://mc.yandex.ru" />
-        <link rel="dns-prefetch" href="https://top-fwz1.mail.ru" />
         
         {/* Favicon */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -255,11 +183,6 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
           key="localbusiness-schema"
         />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
-          key="website-schema"
-        />
 
         {/* Google Tag Manager */}
         <Script
@@ -271,6 +194,25 @@ export default function RootLayout({
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
             })(window,document,'script','dataLayer','GTM-NJHGMTJQ');`
+          }}
+        />
+
+        {/* Google Analytics (gtag.js) */}
+        <Script
+          id="google-analytics"
+          strategy="afterInteractive"
+          src="https://www.googletagmanager.com/gtag/js?id=G-JV4J54L6G6"
+        />
+        <Script
+          id="google-analytics-config"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-JV4J54L6G6');
+            `
           }}
         />
 
