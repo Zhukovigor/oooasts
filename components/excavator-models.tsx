@@ -65,7 +65,7 @@ export default function ExcavatorModels() {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-6xl font-black tracking-wider mb-6 text-gray-900">ЭКСКАВАТОРЫ KOMATSU</h2>
+          <h2 className="text-4xl md:text-6xl font-black tracking-wider mb-6 text-gray-900">ЭКСКАВАТОРЫ KOMATSU   </h2>
           <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto">
             Надежный выбор для строительства и горных работ
           </p>
@@ -117,17 +117,12 @@ export default function ExcavatorModels() {
           viewport={{ once: true }}
           className="mt-16 text-center"
         >
-          <h3 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">Почему стоит купить экскаватор Komatsu?</h3>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8">
-            Экскаваторы Komatsu зарекомендовали себя как надежная техника для строительства и горных работ. Высокое
-            качество сборки, экономичность и простота обслуживания делают их оптимальным выбором для российских условий
-            эксплуатации. Мы поставляем как новые, так и проверенные б/у экскаваторы с полным документальным
-            сопровождением.
-          </p>
+          
+          
 
           <div className="mb-16">
             <h3 className="text-3xl mb-8 text-center text-gray-900 font-black md:text-6xl">
-              Автобетононасосы SANY и ZOOMLION
+              АВТОБЕТОНОНАСОСЫ SANY и ZOOMLION
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
               {/* SANY 33m Card */}
@@ -237,22 +232,7 @@ export default function ExcavatorModels() {
             </div>
           </div>
 
-          <div className="mt-12 pt-12 border-t border-gray-200">
-            <h3 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">
-              Почему стоит покупать автобетононасосы у нас?
-            </h3>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8">
-              Мы специализируемся на поставке автобетононасосов SANY и Zoomlion из Китая и находим для наших клиентов
-              лучшие предложения на рынке. Прямое сотрудничество с производителями позволяет нам предлагать выгодные
-              цены без посредников. Полное сопровождение сделки, помощь в выборе модели, организация доставки и
-              растаможка - мы берем на себя все заботы, чтобы вы получили надежную технику в кратчайшие сроки.
-            </p>
-            <Link href="/avtobetonanosy">
-              <Button size="lg" className="text-lg">
-                Подробнее об автобетононасосах
-              </Button>
-            </Link>
-          </div>
+          
         </motion.div>
       </div>
     </section>

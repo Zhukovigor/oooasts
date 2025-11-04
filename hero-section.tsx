@@ -592,7 +592,7 @@ export default function HeroSection() {
               <div className="flex items-center space-x-4">
                 <button 
                   className="relative text-gray-900 hover:text-blue-600 transition-colors"
-                  aria-label="Избранное"
+                  aria-label="Избранно��"
                 >
                   <Heart size={20} />
                   <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
