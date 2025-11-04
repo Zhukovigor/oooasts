@@ -6,8 +6,8 @@ import { createBrowserClient } from "@supabase/ssr"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import TextOverlayEditor from "@/components/advertisement/text-overlay-editor"
-import CollageEditor from "@/components/advertisement/collage-editor"
+import TextOverlayEditor from "./text-overlay-editor"  // ← измените путь
+import CollageEditor from "./collage-editor"          // ← измените путь
 
 interface Advertisement {
   id: string
