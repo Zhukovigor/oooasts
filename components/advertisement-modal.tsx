@@ -162,7 +162,7 @@ export default function AdvertisementModal() {
     }
   }
 
-  // Функция для получения стилей текста
+  // Функция для получения стилей текста - УЛУЧШЕННАЯ
   const getTextStyle = () => {
     if (!textOverlay) return {}
     
@@ -172,40 +172,83 @@ export default function AdvertisementModal() {
       : "none"
 
     return {
-      fontSize: `${textOverlay.fontSize}px`,
-      fontFamily: textOverlay.fontFamily,
-      fontWeight: textOverlay.fontWeight,
-      fontStyle: textOverlay.fontStyle,
-      textDecoration: textOverlay.textDecoration,
-      textAlign: textOverlay.textAlign as any,
-      color: textOverlay.color,
-      opacity: textOverlay.opacity,
+      fontSize: `${textOverlay.fontSize || 24}px`,
+      fontFamily: textOverlay.fontFamily || 'Arial, sans-serif',
+      fontWeight: textOverlay.fontWeight || 'normal',
+      fontStyle: textOverlay.fontStyle || 'normal',
+      textDecoration: textOverlay.textDecoration || 'none',
+      textAlign: (textOverlay.textAlign || 'center') as any,
+      color: textOverlay.color || '#ffffff',
+      opacity: textOverlay.opacity || 1,
       margin: 0,
       textShadow: shadowStyle,
-      transform: `rotate(${textOverlay.rotation}deg)`,
-      maxWidth: `${textOverlay.maxWidth}%`,
-      wordWrap: "break-word" as const,
-      overflowWrap: "break-word" as const,
-      whiteSpace: "pre-wrap" as const,
-      wordBreak: "break-word" as const,
-      lineHeight: 1.4,
+      transform: `rotate(${textOverlay.rotation || 0}deg)`,
+      maxWidth: `${textOverlay.maxWidth || 80}%`,
+      // КРИТИЧЕСКИ ВАЖНЫЕ НАСТРОЙКИ ДЛЯ КРАСИВОГО ТЕКСТА:
+      wordWrap: "break-word",
+      overflowWrap: "break-word",
+      whiteSpace: "pre-line", // Сохраняет переносы строк, но не пробелы
+      wordBreak: "normal", // Не разрываем слова без необходимости
+      lineHeight: 1.3, // Оптимальный межстрочный интервал
+      letterSpacing: '0.02em', // Немного увеличиваем межбуквенный интервал
+      textAlign: 'center' as const, // Центрируем текст
+      // Гарантируем читаемость:
+      textRendering: 'optimizeLegibility',
+      WebkitFontSmoothing: 'antialiased',
+      MozOsxFontSmoothing: 'grayscale',
       pointerEvents: 'none' as const,
     }
   }
 
-  // Функция для получения стилей фона текста
+  // Функция для получения стилей фона текста - УЛУЧШЕННАЯ
   const getBackgroundStyle = () => {
     if (!textOverlay) return {}
     
     return {
-      backgroundColor: textOverlay.backgroundColor,
-      opacity: textOverlay.backgroundOpacity,
-      padding: `${textOverlay.padding}px`,
-      borderRadius: `${textOverlay.borderRadius}px`,
-      width: "fit-content",
-      maxWidth: "100%",
+      backgroundColor: textOverlay.backgroundColor || '#000000',
+      opacity: textOverlay.backgroundOpacity || 0.7,
+      padding: `${textOverlay.padding || 16}px ${textOverlay.padding || 20}px`,
+      borderRadius: `${textOverlay.borderRadius || 8}px`,
+      width: "auto",
+      maxWidth: "90%",
+      // Центрируем блок с текстом:
+      left: '50%',
+      top: '50%',
+      transform: 'translate(-50%, -50%)',
+      textAlign: 'center' as const,
       pointerEvents: 'none' as const,
+      // Добавляем тень для лучшего отделения от фона:
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     }
+  }
+
+  // Функция для форматирования текста - разбивает на строки правильно
+  const formatText = (text: string) => {
+    if (!text) return ""
+    
+    // Заменяем двойные пробелы на одинарные
+    let formattedText = text.replace(/\s+/g, ' ')
+    
+    // Добавляем переносы после пунктуации для лучшего вида
+    formattedText = formattedText.replace(/([.!?])\s*/g, '$1\n')
+    
+    // Ограничиваем максимальную длину строки
+    const words = formattedText.split(' ')
+    const lines = []
+    let currentLine = ''
+    
+    for (const word of words) {
+      if ((currentLine + word).length <= 25) { // Максимум 25 символов в строке
+        currentLine += (currentLine ? ' ' : '') + word
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    }
+    
+    if (currentLine) lines.push(currentLine)
+    
+    return lines.join('\n')
   }
 
   if (!isVisible || !ad) return null
@@ -220,29 +263,29 @@ export default function AdvertisementModal() {
     >
       <div
         style={{
-          backgroundColor: ad.background_color,
-          color: ad.text_color,
-          width: ad.width || "800px",
-          height: ad.height || "500px",
-          maxWidth: "90vw",
-          maxHeight: "90vh",
+          backgroundColor: ad.background_color || '#ffffff',
+          color: ad.text_color || '#000000',
+          width: ad.width || '800px',
+          height: ad.height || '500px',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
         }}
         className="rounded-xl shadow-2xl relative animate-in fade-in zoom-in-95 duration-300 flex flex-col md:flex-row overflow-hidden"
       >
         {/* Close button / Timer */}
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           {canClose ? (
             <button
               onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all duration-200 text-lg font-bold"
-              style={{ color: ad.text_color }}
+              className="w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all duration-200 text-lg font-bold backdrop-blur-sm"
+              style={{ color: ad.text_color || '#000000' }}
             >
               ×
             </button>
           ) : (
             <div 
               className="px-3 py-1 rounded-full text-sm font-medium bg-white bg-opacity-20 backdrop-blur-sm"
-              style={{ color: ad.text_color }}
+              style={{ color: ad.text_color || '#000000' }}
             >
               {timeLeft}s
             </div>
@@ -258,20 +301,19 @@ export default function AdvertisementModal() {
               className="w-full h-full object-cover"
             />
             
-            {/* Текстовый оверлей поверх изображения */}
+            {/* Текстовый оверлей поверх изображения - УЛУЧШЕННЫЙ */}
             {textOverlay?.enabled && textOverlay.text && (
               <div
-                className="absolute"
-                style={{
-                  left: `${textOverlay.x}%`,
-                  top: `${textOverlay.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  ...getBackgroundStyle(),
-                }}
+                className="absolute inset-0 flex items-center justify-center p-4"
               >
-                <p style={getTextStyle()}>
-                  {textOverlay.text}
-                </p>
+                <div
+                  style={getBackgroundStyle()}
+                  className="text-center"
+                >
+                  <p style={getTextStyle()}>
+                    {formatText(textOverlay.text)}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -280,37 +322,43 @@ export default function AdvertisementModal() {
         {/* Content Section */}
         <div className="flex-1 flex flex-col p-6 md:p-8">
           {/* Заголовок рекламы */}
-          <div className="mb-2">
-            <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-200 bg-opacity-50">
+          <div className="mb-4">
+            <span 
+              className="text-xs font-semibold px-3 py-1 rounded-full inline-block"
+              style={{ 
+                backgroundColor: `${ad.text_color}15`,
+                color: ad.text_color 
+              }}
+            >
               РЕКЛАМА
             </span>
           </div>
 
           {/* Основной контент */}
-          <div className="flex-1 flex flex-col justify-center">
-            <h2 className="text-2xl md:text-3xl font-bold leading-tight mb-4">
+          <div className="flex-1 flex flex-col justify-center space-y-4">
+            <h2 className="text-2xl md:text-3xl font-bold leading-tight">
               {ad.title}
             </h2>
             
             {ad.description && (
-              <p className="text-base md:text-lg leading-relaxed opacity-90 mb-6">
+              <p className="text-base md:text-lg leading-relaxed opacity-90">
                 {ad.description}
               </p>
             )}
 
             {/* Кнопка */}
             {ad.button_url && ad.button_text && (
-              <div className="mt-auto pt-4">
+              <div className="mt-6">
                 <a
                   href={ad.button_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={handleClose}
                   style={{ 
-                    backgroundColor: ad.button_color,
-                    color: '#ffffff' // Белый текст для лучшей читаемости
+                    backgroundColor: ad.button_color || '#007bff',
+                    color: '#ffffff'
                   }}
-                  className="inline-block py-3 px-6 text-center font-semibold rounded-lg hover:opacity-90 transition-all duration-200 text-base shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="inline-block py-3 px-8 text-center font-semibold rounded-lg hover:opacity-90 transition-all duration-200 text-base shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   {ad.button_text}
                 </a>
