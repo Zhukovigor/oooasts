@@ -6,8 +6,8 @@ import { createBrowserClient } from "@supabase/ssr"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import TextOverlayEditor from "./text-overlay-editor"
-import CollageEditor from "./collage-editor"
+import TextOverlayEditor from "@/components/advertisement/text-overlay-editor"
+import CollageEditor from "@/components/advertisement/collage-editor"
 
 interface Advertisement {
   id: string
@@ -56,8 +56,8 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
       newErrors.title = "Название обязательно"
     }
 
-    if (formData.display_duration_seconds < 5) {
-      newErrors.display_duration_seconds = "Продолжительность должна быть не менее 5 секунд"
+    if (formData.display_duration_seconds < 1) {
+      newErrors.display_duration_seconds = "Продолжительность должна быть не менее 1 секунды"
     }
 
     if (formData.close_delay_seconds < 0) {
@@ -171,7 +171,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
       alert("Реклама успешно обновлена")
       router.push("/admin/advertisements")
-      router.refresh()
+      router.refresh() // Обновляем данные на странице
     } catch (error) {
       console.error("Error updating advertisement:", error)
       alert("Ошибка при обновлении рекламы")
@@ -199,6 +199,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
       if (error) throw error
 
       alert("Статистика сброшена")
+      // Обновляем локальные данные
       setFormData(prev => ({
         ...prev,
         shows_today: 0,
@@ -323,83 +324,65 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
         <TabsContent value="settings" className="bg-white rounded-lg shadow p-8 space-y-8">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Настройки показа</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Время показа</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Начало показа</label>
-                  <input
-                    type="datetime-local"
-                    name="start_date"
-                    value={formData.start_date ? formData.start_date.slice(0, 16) : ""}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Конец показа</label>
-                  <input
-                    type="datetime-local"
-                    name="end_date"
-                    value={formData.end_date ? formData.end_date.slice(0, 16) : ""}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.end_date ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.end_date && <p className="text-red-500 text-sm mt-1">{errors.end_date}</p>}
-                </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Настройки времени</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Начало показа</label>
+                <input
+                  type="datetime-local"
+                  name="start_date"
+                  value={formData.start_date ? formData.start_date.slice(0, 16) : ""}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Тайминги</h3>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Продолжительность показа (сек) *
-                  </label>
-                  <input
-                    type="number"
-                    name="display_duration_seconds"
-                    value={formData.display_duration_seconds}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.display_duration_seconds ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    min="5"
-                    max="300"
-                  />
-                  {errors.display_duration_seconds && (
-                    <p className="text-red-500 text-sm mt-1">{errors.display_duration_seconds}</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    Минимум 5 секунд. Реклама будет показываться указанное время, затем появится кнопка закрытия
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Конец показа</label>
+                <input
+                  type="datetime-local"
+                  name="end_date"
+                  value={formData.end_date ? formData.end_date.slice(0, 16) : ""}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.end_date ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.end_date && <p className="text-red-500 text-sm mt-1">{errors.end_date}</p>}
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Задержка до закрытия (сек)
-                  </label>
-                  <input
-                    type="number"
-                    name="close_delay_seconds"
-                    value={formData.close_delay_seconds}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.close_delay_seconds ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    min="0"
-                    max="60"
-                  />
-                  {errors.close_delay_seconds && (
-                    <p className="text-red-500 text-sm mt-1">{errors.close_delay_seconds}</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    Через сколько секунд появится возможность закрыть рекламу (0 = сразу)
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Продолжительность показа (сек) *</label>
+                <input
+                  type="number"
+                  name="display_duration_seconds"
+                  value={formData.display_duration_seconds}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.display_duration_seconds ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  min="1"
+                />
+                {errors.display_duration_seconds && (
+                  <p className="text-red-500 text-sm mt-1">{errors.display_duration_seconds}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Задержка до закрытия (сек)</label>
+                <input
+                  type="number"
+                  name="close_delay_seconds"
+                  value={formData.close_delay_seconds}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.close_delay_seconds ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  min="0"
+                />
+                {errors.close_delay_seconds && (
+                  <p className="text-red-500 text-sm mt-1">{errors.close_delay_seconds}</p>
+                )}
               </div>
             </div>
           </div>
@@ -417,7 +400,6 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   errors.max_shows_per_day ? 'border-red-500' : 'border-gray-300'
                 }`}
                 min="1"
-                max="1000"
               />
               {errors.max_shows_per_day && <p className="text-red-500 text-sm mt-1">{errors.max_shows_per_day}</p>}
             </div>
