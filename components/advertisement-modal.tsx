@@ -51,7 +51,7 @@ interface Advertisement {
   width: string
   height: string
   background_opacity: number
-  text_overlay?: string // JSON строка с конфигурацией текста
+  text_overlay?: string
 }
 
 export default function AdvertisementModal() {
@@ -93,8 +93,8 @@ export default function AdvertisementModal() {
         // Парсим конфигурацию текста если она есть
         if (data.text_overlay) {
           try {
-            const overlayConfig = JSON.parse(data.text_overlay.replace(/\\"/g, '"'))
-            setTextOverlay(overlayConfig)
+            const parsedTextOverlay = JSON.parse(data.text_overlay.replace(/\\"/g, '"').replace(/^"|"$/g, ''))
+            setTextOverlay(parsedTextOverlay)
           } catch (parseError) {
             console.error("Error parsing text overlay:", parseError)
             setTextOverlay(null)
@@ -111,7 +111,7 @@ export default function AdvertisementModal() {
           .from("advertisements")
           .update({
             shows_today: data.shows_today + 1,
-            total_views: data.total_views + 1,
+            total_views: (data.total_views || 0) + 1,
             last_shown_at: now.toISOString(),
           })
           .eq("id", data.id)
@@ -147,13 +147,19 @@ export default function AdvertisementModal() {
     try {
       await supabase
         .from("advertisements")
-        .update({ total_clicks: ad.total_clicks + 1 })
+        .update({ total_clicks: (ad.total_clicks || 0) + 1 })
         .eq("id", ad.id)
     } catch (error) {
       console.error("Error updating clicks:", error)
     }
 
     setIsVisible(false)
+  }
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && canClose) {
+      handleClose()
+    }
   }
 
   // Функция для получения стилей текста
@@ -182,7 +188,8 @@ export default function AdvertisementModal() {
       overflowWrap: "break-word" as const,
       whiteSpace: "pre-wrap" as const,
       wordBreak: "break-word" as const,
-      lineHeight: 1.2,
+      lineHeight: 1.4,
+      pointerEvents: 'none' as const,
     }
   }
 
@@ -197,6 +204,7 @@ export default function AdvertisementModal() {
       borderRadius: `${textOverlay.borderRadius}px`,
       width: "fit-content",
       maxWidth: "100%",
+      pointerEvents: 'none' as const,
     }
   }
 
@@ -206,52 +214,48 @@ export default function AdvertisementModal() {
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center p-4" // ← z-30 вместо z-50
+      className="fixed inset-0 z-30 flex items-center justify-center p-4"
       style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})` }}
+      onClick={handleBackgroundClick}
     >
       <div
         style={{
           backgroundColor: ad.background_color,
           color: ad.text_color,
-          width: ad.width,
-          height: ad.height,
+          width: ad.width || "800px",
+          height: ad.height || "500px",
           maxWidth: "90vw",
-          maxHeight: "80vh",
+          maxHeight: "90vh",
         }}
-        className="rounded-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-300 flex overflow-hidden"
+        className="rounded-xl shadow-2xl relative animate-in fade-in zoom-in-95 duration-300 flex flex-col md:flex-row overflow-hidden"
       >
-        <div className="absolute top-4 left-4 text-xs font-bold opacity-70">РЕКЛАМА</div>
-
         {/* Close button / Timer */}
-        <div className="absolute top-4 right-4 flex items-center gap-2">
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
           {canClose ? (
             <button
               onClick={handleClose}
-              className="text-2xl font-bold hover:opacity-70 transition-opacity leading-none w-6 h-6 flex items-center justify-center"
+              className="w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all duration-200 text-lg font-bold"
               style={{ color: ad.text_color }}
             >
               ×
             </button>
           ) : (
             <div 
-              className="text-xs font-medium opacity-70 px-2 py-1 rounded"
-              style={{ 
-                backgroundColor: `${ad.text_color}20`,
-                color: ad.text_color 
-              }}
+              className="px-3 py-1 rounded-full text-sm font-medium bg-white bg-opacity-20 backdrop-blur-sm"
+              style={{ color: ad.text_color }}
             >
               {timeLeft}s
             </div>
           )}
         </div>
 
-        {/* Image Section - Left с текстовым оверлеем */}
+        {/* Image Section */}
         {ad.image_url && (
-          <div className="flex-shrink-0 w-1/2 mr-4 relative">
+          <div className="flex-1 relative min-h-[200px] md:min-h-0">
             <img
               src={ad.image_url || "/placeholder.svg"}
               alt={ad.title}
-              className="w-full h-full rounded-lg object-cover"
+              className="w-full h-full object-cover"
             />
             
             {/* Текстовый оверлей поверх изображения */}
@@ -273,26 +277,46 @@ export default function AdvertisementModal() {
           </div>
         )}
 
-        {/* Content Section - Right */}
-        <div className="flex-1 flex flex-col justify-between pt-8 pb-6 pl-2">
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold leading-tight">{ad.title}</h2>
-            {ad.description && <p className="text-sm leading-relaxed line-clamp-3 opacity-90">{ad.description}</p>}
+        {/* Content Section */}
+        <div className="flex-1 flex flex-col p-6 md:p-8">
+          {/* Заголовок рекламы */}
+          <div className="mb-2">
+            <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-200 bg-opacity-50">
+              РЕКЛАМА
+            </span>
           </div>
 
-          {/* Button */}
-          {ad.button_url && (
-            <a
-              href={ad.button_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleClose}
-              style={{ backgroundColor: ad.button_color }}
-              className="py-2 px-4 text-center font-semibold rounded-lg text-white hover:opacity-90 transition-opacity text-sm"
-            >
-              {ad.button_text}
-            </a>
-          )}
+          {/* Основной контент */}
+          <div className="flex-1 flex flex-col justify-center">
+            <h2 className="text-2xl md:text-3xl font-bold leading-tight mb-4">
+              {ad.title}
+            </h2>
+            
+            {ad.description && (
+              <p className="text-base md:text-lg leading-relaxed opacity-90 mb-6">
+                {ad.description}
+              </p>
+            )}
+
+            {/* Кнопка */}
+            {ad.button_url && ad.button_text && (
+              <div className="mt-auto pt-4">
+                <a
+                  href={ad.button_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleClose}
+                  style={{ 
+                    backgroundColor: ad.button_color,
+                    color: '#ffffff' // Белый текст для лучшей читаемости
+                  }}
+                  className="inline-block py-3 px-6 text-center font-semibold rounded-lg hover:opacity-90 transition-all duration-200 text-base shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  {ad.button_text}
+                </a>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
