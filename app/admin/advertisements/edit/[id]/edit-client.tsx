@@ -45,18 +45,34 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  const [formData, setFormData] = useState<Advertisement>(advertisement)
+  // Правильно инициализируем форму с данными из advertisement
+  const [formData, setFormData] = useState<Advertisement>({
+    ...advertisement,
+    // Убеждаемся, что числовые поля имеют значения
+    display_duration_seconds: advertisement.display_duration_seconds || 10,
+    close_delay_seconds: advertisement.close_delay_seconds || 5,
+    max_shows_per_day: advertisement.max_shows_per_day || 5,
+    background_opacity: advertisement.background_opacity || 0.8,
+    // Убеждаемся, что строковые поля не undefined
+    width: advertisement.width || "800px",
+    height: advertisement.height || "400px",
+    background_color: advertisement.background_color || "#ffffff",
+    text_color: advertisement.text_color || "#000000",
+    button_color: advertisement.button_color || "#007bff",
+    position: advertisement.position || "center",
+  })
+
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
-    if (!formData.title.trim()) {
+    if (!formData.title?.trim()) {
       newErrors.title = "Название обязательно"
     }
 
-    if (formData.display_duration_seconds < 1) {
+    if (!formData.display_duration_seconds || formData.display_duration_seconds < 1) {
       newErrors.display_duration_seconds = "Продолжительность должна быть не менее 1 секунды"
     }
 
@@ -64,7 +80,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
       newErrors.close_delay_seconds = "Задержка не может быть отрицательной"
     }
 
-    if (formData.max_shows_per_day < 1) {
+    if (!formData.max_shows_per_day || formData.max_shows_per_day < 1) {
       newErrors.max_shows_per_day = "Максимум показов должен быть не менее 1"
     }
 
@@ -80,13 +96,18 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
     const { name, value, type } = e.target
     const checked = (e.target as HTMLInputElement).checked
 
-    const processedValue = type === "checkbox"
-      ? checked
-      : type === "number"
-        ? Number(value)
-        : name === "background_opacity"
-          ? Math.max(0, Math.min(1, Number.parseFloat(value) || 0.8))
-          : value
+    let processedValue: any = value
+
+    if (type === "checkbox") {
+      processedValue = checked
+    } else if (type === "number") {
+      processedValue = value === "" ? 0 : Number(value)
+    } else if (name === "background_opacity") {
+      processedValue = Math.max(0, Math.min(1, Number.parseFloat(value) || 0.8))
+    } else if (type === "datetime-local") {
+      // Преобразуем локальную дату в ISO строку
+      processedValue = value ? new Date(value).toISOString() : null
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -128,53 +149,70 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
     try {
       setIsLoading(true)
 
-      // Подготовка данных для обновления
-      const updateData = {
-        title: formData.title,
-        description: formData.description,
-        image_url: formData.image_url,
-        button_text: formData.button_text,
-        button_url: formData.button_url,
-        is_active: formData.is_active,
+      // Подготовка данных для обновления - ВСЕ поля явно
+      const updateData: any = {
+        title: formData.title || "",
+        description: formData.description || "",
+        image_url: formData.image_url || "",
+        button_text: formData.button_text || "",
+        button_url: formData.button_url || "",
+        is_active: Boolean(formData.is_active),
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
-        display_duration_seconds: formData.display_duration_seconds,
-        close_delay_seconds: formData.close_delay_seconds,
-        max_shows_per_day: formData.max_shows_per_day,
-        position: formData.position,
-        width: formData.width,
-        height: formData.height,
-        background_color: formData.background_color,
-        background_opacity: formData.background_opacity,
-        text_color: formData.text_color,
-        button_color: formData.button_color,
-        collage_mode: formData.collage_mode,
+        display_duration_seconds: Number(formData.display_duration_seconds) || 10,
+        close_delay_seconds: Number(formData.close_delay_seconds) || 5,
+        max_shows_per_day: Number(formData.max_shows_per_day) || 5,
+        position: formData.position || "center",
+        width: formData.width || "800px",
+        height: formData.height || "400px",
+        background_color: formData.background_color || "#ffffff",
+        background_opacity: Number(formData.background_opacity) || 0.8,
+        text_color: formData.text_color || "#000000",
+        button_color: formData.button_color || "#007bff",
+        collage_mode: Boolean(formData.collage_mode),
         updated_at: new Date().toISOString(),
-        // Обработка JSON полей
-        text_overlay: formData.text_overlay && Object.keys(formData.text_overlay).length > 0
-          ? JSON.stringify(formData.text_overlay)
-          : null,
-        collage_config: formData.collage_config && Object.keys(formData.collage_config).length > 0
-          ? JSON.stringify(formData.collage_config)
-          : null,
       }
 
-      const { error } = await supabase
+      // Обработка JSON полей
+      if (formData.text_overlay && Object.keys(formData.text_overlay).length > 0) {
+        updateData.text_overlay = JSON.stringify(formData.text_overlay)
+      } else {
+        updateData.text_overlay = null
+      }
+
+      if (formData.collage_config && Object.keys(formData.collage_config).length > 0) {
+        updateData.collage_config = JSON.stringify(formData.collage_config)
+      } else {
+        updateData.collage_config = null
+      }
+
+      console.log("Updating advertisement with data:", updateData)
+
+      const { data, error } = await supabase
         .from("advertisements")
         .update(updateData)
         .eq("id", formData.id)
+        .select() // Добавляем select чтобы получить обновленные данные
 
       if (error) {
-        console.error("Error updating advertisement:", error)
-        throw error
+        console.error("Supabase error:", error)
+        throw new Error(`Ошибка базы данных: ${error.message}`)
       }
 
+      if (!data || data.length === 0) {
+        throw new Error("Реклама не найдена")
+      }
+
+      console.log("Successfully updated advertisement:", data)
       alert("Реклама успешно обновлена")
+      
+      // Обновляем страницу
       router.push("/admin/advertisements")
-      router.refresh() // Обновляем данные на странице
-    } catch (error) {
+      router.refresh()
+      
+    } catch (error: any) {
       console.error("Error updating advertisement:", error)
-      alert("Ошибка при обновлении рекламы")
+      alert(`Ошибка при обновлении рекламы: ${error.message}`)
     } finally {
       setIsLoading(false)
     }
@@ -212,6 +250,17 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
     }
   }
 
+  // Функция для форматирования даты для input[type="datetime-local"]
+  const formatDateForInput = (dateString: string | null) => {
+    if (!dateString) return ""
+    try {
+      const date = new Date(dateString)
+      return date.toISOString().slice(0, 16)
+    } catch {
+      return ""
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Tabs defaultValue="general" className="w-full">
@@ -231,7 +280,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="text"
                   name="title"
-                  value={formData.title}
+                  value={formData.title || ""}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     errors.title ? 'border-red-500' : 'border-gray-300'
@@ -245,7 +294,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <label className="block text-sm font-medium text-gray-700 mb-2">Описание</label>
                 <textarea
                   name="description"
-                  value={formData.description}
+                  value={formData.description || ""}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Описание рекламы"
@@ -258,7 +307,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="url"
                   name="image_url"
-                  value={formData.image_url}
+                  value={formData.image_url || ""}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://example.com/image.jpg"
@@ -288,7 +337,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="text"
                   name="button_text"
-                  value={formData.button_text}
+                  value={formData.button_text || ""}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Подробнее"
@@ -300,7 +349,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="url"
                   name="button_url"
-                  value={formData.button_url}
+                  value={formData.button_url || ""}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://example.com"
@@ -331,7 +380,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="datetime-local"
                   name="start_date"
-                  value={formData.start_date ? formData.start_date.slice(0, 16) : ""}
+                  value={formatDateForInput(formData.start_date)}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -342,7 +391,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="datetime-local"
                   name="end_date"
-                  value={formData.end_date ? formData.end_date.slice(0, 16) : ""}
+                  value={formatDateForInput(formData.end_date)}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     errors.end_date ? 'border-red-500' : 'border-gray-300'
@@ -356,7 +405,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="number"
                   name="display_duration_seconds"
-                  value={formData.display_duration_seconds}
+                  value={formData.display_duration_seconds || 10}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     errors.display_duration_seconds ? 'border-red-500' : 'border-gray-300'
@@ -373,7 +422,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="number"
                   name="close_delay_seconds"
-                  value={formData.close_delay_seconds}
+                  value={formData.close_delay_seconds || 5}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     errors.close_delay_seconds ? 'border-red-500' : 'border-gray-300'
@@ -394,7 +443,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
               <input
                 type="number"
                 name="max_shows_per_day"
-                value={formData.max_shows_per_day}
+                value={formData.max_shows_per_day || 5}
                 onChange={handleChange}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   errors.max_shows_per_day ? 'border-red-500' : 'border-gray-300'
@@ -412,7 +461,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <label className="block text-sm font-medium text-gray-700 mb-2">Позиция</label>
                 <select
                   name="position"
-                  value={formData.position}
+                  value={formData.position || "center"}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
@@ -431,7 +480,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="text"
                   name="width"
-                  value={formData.width}
+                  value={formData.width || "800px"}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="800px или 90vw"
@@ -443,7 +492,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 <input
                   type="text"
                   name="height"
-                  value={formData.height}
+                  value={formData.height || "400px"}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="400px или 80vh"
@@ -456,14 +505,14 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   <input
                     type="color"
                     name="background_color"
-                    value={formData.background_color}
+                    value={formData.background_color || "#ffffff"}
                     onChange={handleChange}
                     className="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer"
                   />
                   <input
                     type="text"
                     name="background_color"
-                    value={formData.background_color}
+                    value={formData.background_color || "#ffffff"}
                     onChange={handleChange}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="#000000"
@@ -493,14 +542,14 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   <input
                     type="color"
                     name="text_color"
-                    value={formData.text_color}
+                    value={formData.text_color || "#000000"}
                     onChange={handleChange}
                     className="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer"
                   />
                   <input
                     type="text"
                     name="text_color"
-                    value={formData.text_color}
+                    value={formData.text_color || "#000000"}
                     onChange={handleChange}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="#FFFFFF"
@@ -514,14 +563,14 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   <input
                     type="color"
                     name="button_color"
-                    value={formData.button_color}
+                    value={formData.button_color || "#007bff"}
                     onChange={handleChange}
                     className="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer"
                   />
                   <input
                     type="text"
                     name="button_color"
-                    value={formData.button_color}
+                    value={formData.button_color || "#007bff"}
                     onChange={handleChange}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="#007bff"
@@ -536,7 +585,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
               <input
                 type="checkbox"
                 name="is_active"
-                checked={formData.is_active}
+                checked={formData.is_active || false}
                 onChange={handleChange}
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
