@@ -165,7 +165,7 @@ export default function LeasingPageClient() {
               {
                 icon: <CheckCircle size={40} />,
                 title: "Низкий первый взнос",
-                description: "Начните работать с техникой, внеся всего 10-20% от стоимости",
+                description: "Начните работать с техникой, внеся всего 10-20% о�� стоимости",
               },
               {
                 icon: <FileText size={40} />,
