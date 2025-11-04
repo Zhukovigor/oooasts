@@ -3,6 +3,34 @@
 import { useEffect, useState } from "react"
 import { createBrowserClient } from "@supabase/ssr"
 
+interface TextOverlay {
+  enabled?: boolean
+  text?: string
+  x?: number
+  y?: number
+  fontSize?: number
+  fontFamily?: string
+  fontWeight?: string
+  fontStyle?: string
+  textDecoration?: string
+  textAlign?: string
+  color?: string
+  opacity?: number
+  backgroundColor?: string
+  backgroundOpacity?: number
+  padding?: number
+  borderRadius?: number
+  maxWidth?: number
+  rotation?: number
+  shadow?: {
+    enabled?: boolean
+    color?: string
+    blur?: number
+    offsetX?: number
+    offsetY?: number
+  }
+}
+
 interface Advertisement {
   id: string
   title: string
@@ -23,6 +51,7 @@ interface Advertisement {
   width: string
   height: string
   background_opacity: number
+  text_overlay?: string // JSON строка с конфигурацией текста
 }
 
 export default function AdvertisementModal() {
@@ -30,6 +59,8 @@ export default function AdvertisementModal() {
   const [isVisible, setIsVisible] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [canClose, setCanClose] = useState(false)
+  const [textOverlay, setTextOverlay] = useState<TextOverlay | null>(null)
+  
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -58,6 +89,20 @@ export default function AdvertisementModal() {
 
       if (data && data.shows_today < data.max_shows_per_day) {
         setAd(data)
+        
+        // Парсим конфигурацию текста если она есть
+        if (data.text_overlay) {
+          try {
+            const overlayConfig = JSON.parse(data.text_overlay.replace(/\\"/g, '"'))
+            setTextOverlay(overlayConfig)
+          } catch (parseError) {
+            console.error("Error parsing text overlay:", parseError)
+            setTextOverlay(null)
+          }
+        } else {
+          setTextOverlay(null)
+        }
+        
         setIsVisible(true)
         setTimeLeft(data.display_duration_seconds)
         setCanClose(false)
@@ -111,14 +156,57 @@ export default function AdvertisementModal() {
     setIsVisible(false)
   }
 
+  // Функция для получения стилей текста
+  const getTextStyle = () => {
+    if (!textOverlay) return {}
+    
+    const shadow = textOverlay.shadow
+    const shadowStyle = shadow?.enabled 
+      ? `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`
+      : "none"
+
+    return {
+      fontSize: `${textOverlay.fontSize}px`,
+      fontFamily: textOverlay.fontFamily,
+      fontWeight: textOverlay.fontWeight,
+      fontStyle: textOverlay.fontStyle,
+      textDecoration: textOverlay.textDecoration,
+      textAlign: textOverlay.textAlign as any,
+      color: textOverlay.color,
+      opacity: textOverlay.opacity,
+      margin: 0,
+      textShadow: shadowStyle,
+      transform: `rotate(${textOverlay.rotation}deg)`,
+      maxWidth: `${textOverlay.maxWidth}%`,
+      wordWrap: "break-word" as const,
+      overflowWrap: "break-word" as const,
+      whiteSpace: "pre-wrap" as const,
+      wordBreak: "break-word" as const,
+      lineHeight: 1.2,
+    }
+  }
+
+  // Функция для получения стилей фона текста
+  const getBackgroundStyle = () => {
+    if (!textOverlay) return {}
+    
+    return {
+      backgroundColor: textOverlay.backgroundColor,
+      opacity: textOverlay.backgroundOpacity,
+      padding: `${textOverlay.padding}px`,
+      borderRadius: `${textOverlay.borderRadius}px`,
+      width: "fit-content",
+      maxWidth: "100%",
+    }
+  }
+
   if (!isVisible || !ad) return null
 
   const bgOpacity = (ad.background_opacity || 0.8) as number
-  const overlayOpacity = Math.round(bgOpacity * 100)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-30 flex items-center justify-center p-4" // ← z-30 вместо z-50
       style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})` }}
     >
       <div
@@ -140,22 +228,48 @@ export default function AdvertisementModal() {
             <button
               onClick={handleClose}
               className="text-2xl font-bold hover:opacity-70 transition-opacity leading-none w-6 h-6 flex items-center justify-center"
+              style={{ color: ad.text_color }}
             >
               ×
             </button>
           ) : (
-            <div className="text-xs font-medium opacity-70 px-2 py-1 rounded bg-gray-200">{timeLeft}s</div>
+            <div 
+              className="text-xs font-medium opacity-70 px-2 py-1 rounded"
+              style={{ 
+                backgroundColor: `${ad.text_color}20`,
+                color: ad.text_color 
+              }}
+            >
+              {timeLeft}s
+            </div>
           )}
         </div>
 
-        {/* Image Section - Left */}
+        {/* Image Section - Left с текстовым оверлеем */}
         {ad.image_url && (
-          <div className="flex-shrink-0 w-1/2 mr-4">
+          <div className="flex-shrink-0 w-1/2 mr-4 relative">
             <img
               src={ad.image_url || "/placeholder.svg"}
               alt={ad.title}
               className="w-full h-full rounded-lg object-cover"
             />
+            
+            {/* Текстовый оверлей поверх изображения */}
+            {textOverlay?.enabled && textOverlay.text && (
+              <div
+                className="absolute"
+                style={{
+                  left: `${textOverlay.x}%`,
+                  top: `${textOverlay.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  ...getBackgroundStyle(),
+                }}
+              >
+                <p style={getTextStyle()}>
+                  {textOverlay.text}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
