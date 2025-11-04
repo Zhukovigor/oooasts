@@ -24,7 +24,9 @@ interface Advertisement {
   max_shows_per_day: number
   position: string
   width: string
+  height: string
   background_color: string
+  background_opacity: number
   text_color: string
   button_color: string
   text_overlay: any
@@ -48,7 +50,14 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : type === "number" ? Number(value) : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : type === "number"
+            ? Number(value)
+            : name === "background_opacity"
+              ? Number.parseFloat(value)
+              : value,
     }))
   }
 
@@ -90,7 +99,9 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
         max_shows_per_day: formData.max_shows_per_day,
         position: formData.position,
         width: formData.width,
+        height: formData.height,
         background_color: formData.background_color,
+        background_opacity: formData.background_opacity,
         text_color: formData.text_color,
         button_color: formData.button_color,
         text_overlay: formData.text_overlay
@@ -106,21 +117,18 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
         collage_mode: formData.collage_mode,
       }
 
-      console.log("[v0] Updating advertisement:", formData.id, updateData)
-
       const { error, data } = await supabase.from("advertisements").update(updateData).eq("id", formData.id).select()
 
       if (error) {
-        console.error("[v0] Supabase error:", error)
+        console.error("Error:", error)
         throw error
       }
 
-      console.log("[v0] Update successful:", data)
       alert("Реклама успешно обновлена")
       router.push("/admin/advertisements")
     } catch (error) {
-      console.error("[v0] Error updating ad:", error)
-      alert("Ошибка при обновлении рекламы: " + (error instanceof Error ? error.message : "Unknown error"))
+      console.error("Error updating ad:", error)
+      alert("Ошибка при обновлении рекламы")
     } finally {
       setIsLoading(false)
     }
@@ -319,7 +327,19 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formData.width}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="600px"
+                  placeholder="800px"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Высота</label>
+                <input
+                  type="text"
+                  name="height"
+                  value={formData.height}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="400px"
                 />
               </div>
 
@@ -331,6 +351,22 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formData.background_color}
                   onChange={handleChange}
                   className="w-full h-10 border border-gray-300 rounded-lg cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Прозрачность фона: {Math.round((formData.background_opacity || 0.8) * 100)}%
+                </label>
+                <input
+                  type="range"
+                  name="background_opacity"
+                  value={formData.background_opacity || 0.8}
+                  onChange={handleChange}
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  className="w-full"
                 />
               </div>
 

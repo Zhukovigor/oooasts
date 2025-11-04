@@ -21,6 +21,8 @@ interface Advertisement {
   text_color: string
   button_color: string
   width: string
+  height: string
+  background_opacity: number
 }
 
 export default function AdvertisementModal() {
@@ -111,47 +113,60 @@ export default function AdvertisementModal() {
 
   if (!isVisible || !ad) return null
 
+  const bgOpacity = (ad.background_opacity || 0.8) as number
+  const overlayOpacity = Math.round(bgOpacity * 100)
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})` }}
+    >
       <div
         style={{
           backgroundColor: ad.background_color,
           color: ad.text_color,
           width: ad.width,
+          height: ad.height,
           maxWidth: "90vw",
+          maxHeight: "80vh",
         }}
-        className="rounded-lg shadow-2xl p-8 relative animate-in fade-in zoom-in-95 duration-300"
+        className="rounded-lg shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-300 flex overflow-hidden"
       >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">РЕКЛАМА</h3>
-          <div className="flex items-center gap-4">
-            {canClose ? (
-              <button
-                onClick={handleClose}
-                className="text-3xl font-bold hover:opacity-70 transition-opacity leading-none"
-              >
-                ×
-              </button>
-            ) : (
-              <span className="text-sm font-medium opacity-70 px-2 py-1 rounded">{timeLeft}s</span>
-            )}
-          </div>
+        <div className="absolute top-4 left-4 text-xs font-bold opacity-70">РЕКЛАМА</div>
+
+        {/* Close button / Timer */}
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          {canClose ? (
+            <button
+              onClick={handleClose}
+              className="text-2xl font-bold hover:opacity-70 transition-opacity leading-none w-6 h-6 flex items-center justify-center"
+            >
+              ×
+            </button>
+          ) : (
+            <div className="text-xs font-medium opacity-70 px-2 py-1 rounded bg-gray-200">{timeLeft}s</div>
+          )}
         </div>
 
-        <div className="space-y-4">
-          {ad.image_url && (
+        {/* Image Section - Left */}
+        {ad.image_url && (
+          <div className="flex-shrink-0 w-1/2 mr-4">
             <img
               src={ad.image_url || "/placeholder.svg"}
               alt={ad.title}
-              className="w-full h-auto rounded-lg object-cover max-h-64"
+              className="w-full h-full rounded-lg object-cover"
             />
-          )}
+          </div>
+        )}
 
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{ad.title}</h2>
-            {ad.description && <p className="text-base leading-relaxed">{ad.description}</p>}
+        {/* Content Section - Right */}
+        <div className="flex-1 flex flex-col justify-between pt-8 pb-6 pl-2">
+          <div className="space-y-3">
+            <h2 className="text-2xl font-bold leading-tight">{ad.title}</h2>
+            {ad.description && <p className="text-sm leading-relaxed line-clamp-3 opacity-90">{ad.description}</p>}
           </div>
 
+          {/* Button */}
           {ad.button_url && (
             <a
               href={ad.button_url}
@@ -159,7 +174,7 @@ export default function AdvertisementModal() {
               rel="noopener noreferrer"
               onClick={handleClose}
               style={{ backgroundColor: ad.button_color }}
-              className="block w-full py-3 text-center font-semibold rounded-lg text-white hover:opacity-90 transition-opacity"
+              className="py-2 px-4 text-center font-semibold rounded-lg text-white hover:opacity-90 transition-opacity text-sm"
             >
               {ad.button_text}
             </a>

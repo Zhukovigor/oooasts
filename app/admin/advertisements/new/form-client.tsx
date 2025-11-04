@@ -29,14 +29,15 @@ export default function AdvertisementFormClient() {
     close_delay_seconds: 5,
     max_shows_per_day: 3,
     position: "center",
-    width: "600px",
+    width: "800px",
+    height: "400px",
     background_color: "#ffffff",
+    background_opacity: 0.8,
     text_color: "#000000",
     button_color: "#ff0000",
     is_active: true,
     text_overlay: null,
     collage_config: null,
-    collage_mode: false,
   })
 
   const [isLoading, setIsLoading] = useState(false)
@@ -47,7 +48,14 @@ export default function AdvertisementFormClient() {
 
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : type === "number" ? Number(value) : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : type === "number"
+            ? Number(value)
+            : name === "background_opacity"
+              ? Number.parseFloat(value)
+              : value,
     }))
   }
 
@@ -305,7 +313,19 @@ export default function AdvertisementFormClient() {
                     value={formData.width}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="600px"
+                    placeholder="800px"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Высота</label>
+                  <input
+                    type="text"
+                    name="height"
+                    value={formData.height}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="400px"
                   />
                 </div>
 
@@ -317,6 +337,22 @@ export default function AdvertisementFormClient() {
                     value={formData.background_color}
                     onChange={handleChange}
                     className="w-full h-10 border border-gray-300 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Прозрачность фона: {Math.round(formData.background_opacity * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    name="background_opacity"
+                    value={formData.background_opacity}
+                    onChange={handleChange}
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    className="w-full"
                   />
                 </div>
 
