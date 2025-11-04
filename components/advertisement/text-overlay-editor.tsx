@@ -112,12 +112,15 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       color: config.color,
       opacity: config.opacity,
       margin: 0,
-      whiteSpace: "nowrap" as const,
       textShadow: shadowStyle,
       transform: `rotate(${config.rotation}deg)`,
       maxWidth: `${config.maxWidth}%`,
-      wordWrap: "break-word" as const,
-      whiteSpace: "normal" as const,
+      // Ключевые изменения для правильного переноса текста:
+      wordWrap: "break-word",
+      overflowWrap: "break-word",
+      whiteSpace: "pre-wrap", // Сохраняет переносы строк и правильно переносит слова
+      wordBreak: "break-word", // Принудительный перенос длинных слов
+      lineHeight: 1.2, // Улучшает читаемость при переносе
     }
   }
 
@@ -127,6 +130,9 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       opacity: config.backgroundOpacity,
       padding: `${config.padding}px`,
       borderRadius: `${config.borderRadius}px`,
+      // Убедимся, что фон тоже адаптируется к содержимому
+      width: "fit-content",
+      maxWidth: "100%",
     }
   }
 
@@ -240,9 +246,14 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                   value={config.text}
                   onChange={(e) => handleChange("text", e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={3}
+                  rows={4}
                   placeholder="Введите текст, который будет отображаться на фото..."
                   maxLength={500}
+                  // Добавляем стили для лучшего ввода текста
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    wordWrap: "break-word",
+                  }}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   {config.text?.length || 0}/500 символов
