@@ -1,243 +1,155 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { useState, useEffect } from "react"
 
-interface Advertisement {
-  id: string
-  title: string
-  description: string
-  image_url: string
-  button_text: string
-  button_url: string
-  is_active: boolean
-  start_date: string
-  end_date: string
-  display_duration_seconds: number
-  close_delay_seconds: number
-  max_shows_per_day: number
-  shows_today: number
-  background_color: string
-  text_color: string
-  button_color: string
-  width: string
-  height: string
-  background_opacity: number
+interface CollageConfig {
+  mode?: string
+  orientation?: string
+  skewAngle?: number
+  images?: string[]
+  spacing?: number
+  borderRadius?: number
+  backgroundColor?: string
 }
 
-export default function AdvertisementModal() {
-  const [ad, setAd] = useState<Advertisement | null>(null)
-  const [isVisible, setIsVisible] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [canClose, setCanClose] = useState(false)
-  const [isClosing, setIsClosing] = useState(false)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+interface CollageEditorProps {
+  collageConfig: CollageConfig | null
+  onChange: (config: CollageConfig) => void
+}
+
+export default function CollageEditor({ collageConfig, onChange }: CollageEditorProps) {
+  const [config, setConfig] = useState<CollageConfig>(
+    collageConfig || {
+      mode: "2x1",
+      orientation: "horizontal",
+      skewAngle: 15,
+      images: [],
+      spacing: 8,
+      borderRadius: 12,
+      backgroundColor: "#ffffff",
+    },
   )
 
   useEffect(() => {
-    loadAdvertisement()
-    const timer = setInterval(loadAdvertisement, 60000) // Проверка каждую минуту
-    return () => clearInterval(timer)
-  }, [])
+    onChange(config)
+  }, [config, onChange])
 
-  const loadAdvertisement = async () => {
-    try {
-      const now = new Date()
-      const { data, error } = await supabase
-        .from("advertisements")
-        .select("*")
-        .eq("is_active", true)
-        .or(
-          `and(start_date.is.null,end_date.is.null),and(start_date.lte.${now.toISOString()},end_date.is.null),and(start_date.is.null,end_date.gte.${now.toISOString()}),and(start_date.lte.${now.toISOString()},end_date.gte.${now.toISOString()})`,
-        )
-        .limit(1)
-        .maybeSingle()
-
-      if (error) throw error
-
-      if (data && data.shows_today < data.max_shows_per_day) {
-        setAd(data)
-        setIsVisible(true)
-        setTimeLeft(data.display_duration_seconds)
-        setCanClose(data.close_delay_seconds === 0)
-        setIsClosing(false)
-
-        await supabase
-          .from("advertisements")
-          .update({
-            shows_today: data.shows_today + 1,
-            total_views: data.total_views + 1,
-            last_shown_at: now.toISOString(),
-          })
-          .eq("id", data.id)
-      }
-    } catch (error) {
-      console.error("Error loading advertisement:", error)
-    }
+  const handleChange = (key: string, value: any) => {
+    setConfig((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
   }
-
-  useEffect(() => {
-    if (!isVisible || !ad) return
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        const newTime = prev - 1
-        
-        // Проверяем, можно ли показывать кнопку закрытия
-        if (!canClose && newTime <= ad.display_duration_seconds - ad.close_delay_seconds) {
-          setCanClose(true)
-        }
-        
-        // Автоматическое закрытие по истечении времени
-        if (newTime <= 0) {
-          handleAutoClose()
-          return 0
-        }
-        return newTime
-      })
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [isVisible, ad, canClose])
-
-  const handleAutoClose = async () => {
-    if (!ad) return
-    setIsClosing(true)
-    
-    // Небольшая задержка для анимации
-    setTimeout(() => {
-      setIsVisible(false)
-      setIsClosing(false)
-    }, 300)
-  }
-
-  const handleClose = async () => {
-    if (!ad || !canClose) return
-
-    try {
-      await supabase
-        .from("advertisements")
-        .update({ total_clicks: (ad.total_clicks || 0) + 1 })
-        .eq("id", ad.id)
-    } catch (error) {
-      console.error("Error updating clicks:", error)
-    }
-
-    setIsClosing(true)
-    setTimeout(() => {
-      setIsVisible(false)
-      setIsClosing(false)
-    }, 300)
-  }
-
-  const handleButtonClick = async () => {
-    if (!ad) return
-
-    try {
-      await supabase
-        .from("advertisements")
-        .update({ total_clicks: (ad.total_clicks || 0) + 1 })
-        .eq("id", ad.id)
-    } catch (error) {
-      console.error("Error updating clicks:", error)
-    }
-  }
-
-  if (!isVisible || !ad) return null
-
-  const bgOpacity = (ad.background_opacity || 0.8) as number
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${
-        isClosing ? 'opacity-0' : 'opacity-100'
-      }`}
-      style={{ backgroundColor: `rgba(0, 0, 0, ${bgOpacity})` }}
-    >
-      <div
-        style={{
-          backgroundColor: ad.background_color,
-          color: ad.text_color,
-          width: ad.width,
-          height: ad.height,
-          maxWidth: "90vw",
-          maxHeight: "80vh",
-        }}
-        className={`rounded-lg shadow-2xl p-6 relative flex overflow-hidden transition-transform duration-300 ${
-          isClosing ? 'scale-95' : 'scale-100'
-        }`}
-      >
-        <div className="absolute top-4 left-4 text-xs font-bold opacity-70">РЕКЛАМА</div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">Редактор коллажа</h2>
+      </div>
 
-        {/* Close button / Timer */}
-        <div className="absolute top-4 right-4 flex items-center gap-2">
-          {canClose ? (
-            <button
-              onClick={handleClose}
-              className="text-2xl font-bold hover:opacity-70 transition-opacity leading-none w-6 h-6 flex items-center justify-center"
-              style={{ color: ad.text_color }}
-            >
-              ×
-            </button>
-          ) : (
-            <div 
-              className="text-xs font-medium opacity-70 px-2 py-1 rounded"
-              style={{ 
-                backgroundColor: `${ad.text_color}20`,
-                color: ad.text_color
-              }}
-            >
-              {timeLeft}s
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Preview */}
+        <div className="flex flex-col gap-4">
+          <label className="block text-sm font-medium text-gray-700">Предпросмотр коллажа</label>
+          <div className="bg-gray-100 rounded-lg h-64 flex items-center justify-center text-gray-500 border-2 border-dashed border-gray-300">
+            <div className="text-center">
+              <p>Предпросмотр коллажа</p>
+              <p className="text-sm mt-2">Режим: {config.mode}</p>
+              <p className="text-sm">Ориентация: {config.orientation}</p>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Image Section */}
-        {ad.image_url && (
-          <div className="flex-shrink-0 w-1/2 mr-4">
-            <img
-              src={ad.image_url || "/placeholder.svg"}
-              alt={ad.title}
-              className="w-full h-full rounded-lg object-cover"
+        {/* Editor */}
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Режим коллажа</label>
+              <select
+                value={config.mode}
+                onChange={(e) => handleChange("mode", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="2x1">2x1</option>
+                <option value="1x2">1x2</option>
+                <option value="2x2">2x2</option>
+                <option value="3x1">3x1</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ориентация</label>
+              <select
+                value={config.orientation}
+                onChange={(e) => handleChange("orientation", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="horizontal">Горизонтальная</option>
+                <option value="vertical">Вертикальная</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Угол наклона: {config.skewAngle}°
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="45"
+              value={config.skewAngle}
+              onChange={(e) => handleChange("skewAngle", Number(e.target.value))}
+              className="w-full"
             />
           </div>
-        )}
 
-        {/* Content Section */}
-        <div className="flex-1 flex flex-col justify-between pt-8 pb-6 pl-2">
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold leading-tight">{ad.title}</h2>
-            {ad.description && (
-              <p className="text-sm leading-relaxed opacity-90 whitespace-pre-wrap">
-                {ad.description}
-              </p>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Отступ между фото: {config.spacing}px
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="20"
+              value={config.spacing}
+              onChange={(e) => handleChange("spacing", Number(e.target.value))}
+              className="w-full"
+            />
           </div>
 
-          {/* Timer Info */}
-          <div className="text-xs opacity-70 mt-2">
-            {canClose ? (
-              <p>Вы можете закрыть это окно</p>
-            ) : (
-              <p>Автоматическое закрытие через {timeLeft} секунд</p>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Скругление углов: {config.borderRadius}px
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="20"
+              value={config.borderRadius}
+              onChange={(e) => handleChange("borderRadius", Number(e.target.value))}
+              className="w-full"
+            />
           </div>
 
-          {/* Button */}
-          {ad.button_url && (
-            <a
-              href={ad.button_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleButtonClick}
-              style={{ backgroundColor: ad.button_color }}
-              className="py-2 px-4 text-center font-semibold rounded-lg text-white hover:opacity-90 transition-opacity text-sm mt-4"
-            >
-              {ad.button_text}
-            </a>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Цвет фона</label>
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={config.backgroundColor}
+                onChange={(e) => handleChange("backgroundColor", e.target.value)}
+                className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+              />
+              <input
+                type="text"
+                value={config.backgroundColor}
+                onChange={(e) => handleChange("backgroundColor", e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                placeholder="#ffffff"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
