@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, X } from "lucide-react"
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette } from "lucide-react"
 
 interface TextOverlay {
   enabled?: boolean
@@ -23,6 +23,7 @@ interface TextOverlay {
   borderRadius?: number
   maxWidth?: number
   rotation?: number
+  lineHeight?: number
   shadow?: {
     enabled?: boolean
     color?: string
@@ -45,7 +46,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       text: "Ваш текст здесь",
       x: 50,
       y: 50,
-      fontSize: 32,
+      fontSize: 24,
       fontFamily: "Arial",
       fontWeight: "normal",
       fontStyle: "normal",
@@ -54,11 +55,12 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       color: "#ffffff",
       opacity: 1,
       backgroundColor: "#000000",
-      backgroundOpacity: 0.5,
+      backgroundOpacity: 0.7,
       padding: 12,
       borderRadius: 8,
       maxWidth: 80,
       rotation: 0,
+      lineHeight: 1.4,
       shadow: {
         enabled: false,
         color: "#000000",
@@ -112,12 +114,15 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       color: config.color,
       opacity: config.opacity,
       margin: 0,
-      whiteSpace: "nowrap" as const,
       textShadow: shadowStyle,
       transform: `rotate(${config.rotation}deg)`,
       maxWidth: `${config.maxWidth}%`,
-      wordWrap: "break-word" as const,
-      whiteSpace: "normal" as const,
+      width: 'fit-content',
+      wordWrap: 'break-word' as const,
+      whiteSpace: 'pre-wrap' as const,
+      overflowWrap: 'break-word' as const,
+      lineHeight: config.lineHeight,
+      display: 'inline-block',
     }
   }
 
@@ -127,6 +132,8 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
       opacity: config.backgroundOpacity,
       padding: `${config.padding}px`,
       borderRadius: `${config.borderRadius}px`,
+      display: 'inline-block',
+      maxWidth: `${config.maxWidth}%`,
     }
   }
 
@@ -143,7 +150,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
               text: "Ваш текст здесь",
               x: 50,
               y: 50,
-              fontSize: 32,
+              fontSize: 24,
               fontFamily: "Arial",
               fontWeight: "normal",
               fontStyle: "normal",
@@ -152,11 +159,12 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
               color: "#ffffff",
               opacity: 1,
               backgroundColor: "#000000",
-              backgroundOpacity: 0.5,
+              backgroundOpacity: 0.7,
               padding: 12,
               borderRadius: 8,
               maxWidth: 80,
               rotation: 0,
+              lineHeight: 1.4,
               shadow: {
                 enabled: false,
                 color: "#000000",
@@ -195,9 +203,9 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     ...getBackgroundStyle(),
                   }}
                 >
-                  <p style={getTextStyle()}>
+                  <div style={getTextStyle()}>
                     {config.text}
-                  </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -213,7 +221,6 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
 
         {/* Editor */}
         <div className="space-y-6">
-          {/* Включение/выключение */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -240,17 +247,16 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                   value={config.text}
                   onChange={(e) => handleChange("text", e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={3}
+                  rows={4}
                   placeholder="Введите текст, который будет отображаться на фото..."
                   maxLength={500}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {config.text?.length || 0}/500 символов
+                  {config.text?.length || 0}/500 символов • Текст автоматически переносится
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Шрифт */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Шрифт</label>
                   <select
@@ -266,7 +272,6 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                   </select>
                 </div>
 
-                {/* Размер текста */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Размер текста: {config.fontSize}px
@@ -277,6 +282,37 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     max="72"
                     value={config.fontSize}
                     onChange={(e) => handleChange("fontSize", Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Межстрочный интервал: {config.lineHeight}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="2"
+                    step="0.1"
+                    value={config.lineHeight}
+                    onChange={(e) => handleChange("lineHeight", Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Макс. ширина: {config.maxWidth}%
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    value={config.maxWidth}
+                    onChange={(e) => handleChange("maxWidth", Number(e.target.value))}
                     className="w-full"
                   />
                 </div>
@@ -480,20 +516,6 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     max="100"
                     value={config.y}
                     onChange={(e) => handleChange("y", Number(e.target.value))}
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Макс. ширина: {config.maxWidth}%
-                  </label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={config.maxWidth}
-                    onChange={(e) => handleChange("maxWidth", Number(e.target.value))}
                     className="w-full"
                   />
                 </div>
