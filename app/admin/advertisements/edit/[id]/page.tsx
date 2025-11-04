@@ -27,10 +27,11 @@ function safeJsonParse<T>(value: any, fallback: T): T {
 export default async function EditAdvertisementPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: { id: string }  // УБРАТЬ Promise<>
 }) {
-  const resolvedParams = await params
-  const { id } = resolvedParams
+  const { id } = params  // УБРАТЬ await и resolvedParams
+
+  console.log('Edit page - ID received:', id)
 
   if (!id || !isValidId(id)) {
     console.error("[EditAdvertisementPage] Invalid ID provided:", id)
@@ -39,6 +40,8 @@ export default async function EditAdvertisementPage({
 
   try {
     const supabase = createAdminClient()
+
+    console.log('Fetching advertisement with ID:', id)
 
     const { data: advertisement, error } = await supabase
       .from("advertisements")
@@ -54,6 +57,8 @@ export default async function EditAdvertisementPage({
       })
       return notFound()
     }
+
+    console.log('Advertisement found:', advertisement.title)
 
     // Безопасный парсинг JSON полей с учетом структуры из advertisement-modal
     const parsedAdvertisement = {
