@@ -93,23 +93,34 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
         background_color: formData.background_color,
         text_color: formData.text_color,
         button_color: formData.button_color,
-        text_overlay:
-          typeof formData.text_overlay === "string" ? formData.text_overlay : JSON.stringify(formData.text_overlay),
-        collage_config:
-          typeof formData.collage_config === "string"
+        text_overlay: formData.text_overlay
+          ? typeof formData.text_overlay === "string"
+            ? formData.text_overlay
+            : JSON.stringify(formData.text_overlay)
+          : null,
+        collage_config: formData.collage_config
+          ? typeof formData.collage_config === "string"
             ? formData.collage_config
-            : JSON.stringify(formData.collage_config),
+            : JSON.stringify(formData.collage_config)
+          : null,
         collage_mode: formData.collage_mode,
       }
 
-      const { error } = await supabase.from("advertisements").update(updateData).eq("id", formData.id)
+      console.log("[v0] Updating advertisement:", formData.id, updateData)
 
-      if (error) throw error
+      const { error, data } = await supabase.from("advertisements").update(updateData).eq("id", formData.id).select()
+
+      if (error) {
+        console.error("[v0] Supabase error:", error)
+        throw error
+      }
+
+      console.log("[v0] Update successful:", data)
       alert("Реклама успешно обновлена")
       router.push("/admin/advertisements")
     } catch (error) {
-      console.error("Error updating ad:", error)
-      alert("Ошибка при обновлении рекламы")
+      console.error("[v0] Error updating ad:", error)
+      alert("Ошибка при обновлении рекламы: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsLoading(false)
     }

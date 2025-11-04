@@ -51,6 +51,20 @@ export default function AdvertisementFormClient() {
     }))
   }
 
+  const handleTextOverlayChange = (textOverlay: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      text_overlay: textOverlay,
+    }))
+  }
+
+  const handleCollageChange = (collageConfig: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      collage_config: collageConfig,
+    }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -61,13 +75,19 @@ export default function AdvertisementFormClient() {
 
     try {
       setIsLoading(true)
-      const { error } = await supabase.from("advertisements").insert([formData])
+      const dataToInsert = {
+        ...formData,
+        text_overlay: formData.text_overlay ? JSON.stringify(formData.text_overlay) : null,
+        collage_config: formData.collage_config ? JSON.stringify(formData.collage_config) : null,
+      }
+
+      const { error } = await supabase.from("advertisements").insert([dataToInsert])
 
       if (error) throw error
       alert("Реклама успешно создана")
       router.push("/admin/advertisements")
     } catch (error) {
-      console.error("Error creating ad:", error)
+      console.error("[v0] Error creating ad:", error)
       alert("Ошибка при создании рекламы")
     } finally {
       setIsLoading(false)
@@ -183,15 +203,12 @@ export default function AdvertisementFormClient() {
           <TextOverlayEditor
             imageUrl={formData.image_url}
             textOverlay={formData.text_overlay}
-            onChange={(textOverlay) => setFormData({ ...formData, text_overlay: textOverlay })}
+            onChange={handleTextOverlayChange}
           />
         </TabsContent>
 
         <TabsContent value="collage" className="bg-white rounded-lg shadow p-8">
-          <CollageEditor
-            collageConfig={formData.collage_config}
-            onChange={(collageConfig) => setFormData({ ...formData, collage_config: collageConfig })}
-          />
+          <CollageEditor collageConfig={formData.collage_config} onChange={handleCollageChange} />
         </TabsContent>
 
         <TabsContent value="settings" className="bg-white rounded-lg shadow p-8 space-y-8">
