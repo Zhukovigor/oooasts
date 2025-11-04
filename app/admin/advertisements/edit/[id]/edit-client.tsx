@@ -76,30 +76,33 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
     try {
       setIsLoading(true)
-      const { error } = await supabase
-        .from("advertisements")
-        .update({
-          title: formData.title,
-          description: formData.description,
-          image_url: formData.image_url,
-          button_text: formData.button_text,
-          button_url: formData.button_url,
-          is_active: formData.is_active,
-          start_date: formData.start_date,
-          end_date: formData.end_date,
-          display_duration_seconds: formData.display_duration_seconds,
-          close_delay_seconds: formData.close_delay_seconds,
-          max_shows_per_day: formData.max_shows_per_day,
-          position: formData.position,
-          width: formData.width,
-          background_color: formData.background_color,
-          text_color: formData.text_color,
-          button_color: formData.button_color,
-          text_overlay: formData.text_overlay,
-          collage_config: formData.collage_config,
-          collage_mode: formData.collage_mode,
-        })
-        .eq("id", formData.id)
+      const updateData = {
+        title: formData.title,
+        description: formData.description,
+        image_url: formData.image_url,
+        button_text: formData.button_text,
+        button_url: formData.button_url,
+        is_active: formData.is_active,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        display_duration_seconds: formData.display_duration_seconds,
+        close_delay_seconds: formData.close_delay_seconds,
+        max_shows_per_day: formData.max_shows_per_day,
+        position: formData.position,
+        width: formData.width,
+        background_color: formData.background_color,
+        text_color: formData.text_color,
+        button_color: formData.button_color,
+        text_overlay:
+          typeof formData.text_overlay === "string" ? formData.text_overlay : JSON.stringify(formData.text_overlay),
+        collage_config:
+          typeof formData.collage_config === "string"
+            ? formData.collage_config
+            : JSON.stringify(formData.collage_config),
+        collage_mode: formData.collage_mode,
+      }
+
+      const { error } = await supabase.from("advertisements").update(updateData).eq("id", formData.id)
 
       if (error) throw error
       alert("Реклама успешно обновлена")
