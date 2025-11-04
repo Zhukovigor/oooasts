@@ -219,6 +219,25 @@ export default function AdminSidebar() {
               <Mail className="w-5 h-5" />
               <span className="font-medium">Рассылка</span>
             </Link>
+
+            {/* Advertisements link */}
+            <Link
+              href="/admin/advertisements"
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive("/admin/advertisements") ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => setIsOpen(false)}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 5.882V19.24a1.961 1.961 0 01-2.773 1.753M15.6 3.897L15.933 9M19.5 4.795A3.75 3.75 0 0023.25 8.65M3 12a9 9 0 010-18z"
+                />
+              </svg>
+              <span className="font-medium">Реклама</span>
+            </Link>
           </nav>
 
           {/* Footer */}
