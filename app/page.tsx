@@ -14,6 +14,7 @@ import ExcavatorModels from "@/components/excavator-models"
 import ApplicationForm from "@/components/application-form"
 import HowWeWork from "@/components/how-we-work"
 import ServiceMap from "@/components/service-map"
+import TruckBrandsShowcase from "@/components/truck-brands-showcase"
 
 export default function Page() {
   const missionStatement =
@@ -76,6 +77,9 @@ export default function Page() {
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <HeroSection />
+
+      {/* Truck Brands Showcase Section */}
+      <TruckBrandsShowcase />
 
       {/* Mission Statement Section with Grid Background */}
       <section id="mission" className="relative min-h-screen flex items-center justify-center py-20 bg-white">

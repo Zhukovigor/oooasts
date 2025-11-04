@@ -1,0 +1,171 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { createBrowserClient } from "@supabase/ssr"
+
+interface Advertisement {
+  id: string
+  title: string
+  description: string
+  image_url: string
+  button_text: string
+  button_url: string
+  is_active: boolean
+  start_date: string
+  end_date: string
+  display_duration_seconds: number
+  close_delay_seconds: number
+  max_shows_per_day: number
+  shows_today: number
+  background_color: string
+  text_color: string
+  button_color: string
+  width: string
+}
+
+export default function AdvertisementModal() {
+  const [ad, setAd] = useState<Advertisement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [canClose, setCanClose] = useState(false)
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
+  useEffect(() => {
+    loadAdvertisement()
+    const timer = setInterval(loadAdvertisement, 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const loadAdvertisement = async () => {
+    try {
+      const now = new Date()
+      const { data, error } = await supabase
+        .from("advertisements")
+        .select("*")
+        .eq("is_active", true)
+        .or(
+          `and(start_date.is.null,end_date.is.null),and(start_date.lte.${now.toISOString()},end_date.is.null),and(start_date.is.null,end_date.gte.${now.toISOString()}),and(start_date.lte.${now.toISOString()},end_date.gte.${now.toISOString()})`,
+        )
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (data && data.shows_today < data.max_shows_per_day) {
+        setAd(data)
+        setIsVisible(true)
+        setTimeLeft(data.display_duration_seconds)
+        setCanClose(false)
+
+        await supabase
+          .from("advertisements")
+          .update({
+            shows_today: data.shows_today + 1,
+            total_views: data.total_views + 1,
+            last_shown_at: now.toISOString(),
+          })
+          .eq("id", data.id)
+      }
+    } catch (error) {
+      console.error("Error loading advertisement:", error)
+    }
+  }
+
+  useEffect(() => {
+    if (!isVisible || !ad) return
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        const newTime = prev - 1
+        if (newTime <= ad.close_delay_seconds) {
+          setCanClose(true)
+        }
+        if (newTime <= 0) {
+          setIsVisible(false)
+          return 0
+        }
+        return newTime
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [isVisible, ad])
+
+  const handleClose = async () => {
+    if (!ad) return
+
+    try {
+      await supabase
+        .from("advertisements")
+        .update({ total_clicks: ad.total_clicks + 1 })
+        .eq("id", ad.id)
+    } catch (error) {
+      console.error("Error updating clicks:", error)
+    }
+
+    setIsVisible(false)
+  }
+
+  if (!isVisible || !ad) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div
+        style={{
+          backgroundColor: ad.background_color,
+          color: ad.text_color,
+          width: ad.width,
+          maxWidth: "90vw",
+        }}
+        className="rounded-lg shadow-2xl p-8 relative animate-in fade-in zoom-in-95 duration-300"
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">РЕКЛАМА</h3>
+          <div className="flex items-center gap-4">
+            {canClose ? (
+              <button
+                onClick={handleClose}
+                className="text-3xl font-bold hover:opacity-70 transition-opacity leading-none"
+              >
+                ×
+              </button>
+            ) : (
+              <span className="text-sm font-medium opacity-70 px-2 py-1 rounded">{timeLeft}s</span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {ad.image_url && (
+            <img
+              src={ad.image_url || "/placeholder.svg"}
+              alt={ad.title}
+              className="w-full h-auto rounded-lg object-cover max-h-64"
+            />
+          )}
+
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{ad.title}</h2>
+            {ad.description && <p className="text-base leading-relaxed">{ad.description}</p>}
+          </div>
+
+          {ad.button_url && (
+            <a
+              href={ad.button_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleClose}
+              style={{ backgroundColor: ad.button_color }}
+              className="block w-full py-3 text-center font-semibold rounded-lg text-white hover:opacity-90 transition-opacity"
+            >
+              {ad.button_text}
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

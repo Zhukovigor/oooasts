@@ -1,3 +1,4 @@
+import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
@@ -6,14 +7,16 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Suspense } from "react"
 import Script from "next/script"
 import CookieConsent from "@/components/cookie-consent"
+import AdvertisementModal from "@/components/advertisement-modal"
 import "./globals.css"
 
 const CANONICAL_URL = "https://asts.vercel.app"
 
 export const metadata: Metadata = {
   title: {
-    default: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
-    template: "%s | ООО АСТС - Поставка спецтехники из Китая"
+    default:
+      "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
+    template: "%s | ООО АСТС - Поставка спецтехники из Китая",
   },
   description:
     "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните +7 (919) 042-24-92!",
@@ -30,9 +33,7 @@ export const metadata: Metadata = {
       { url: "/icon.png", type: "image/png", sizes: "32x32" },
       { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
     ],
-    apple: [
-      { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
-    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
   },
   keywords: [
     "купить спецтехнику",
@@ -105,22 +106,23 @@ const organizationSchema = {
   alternateName: "ASTS",
   url: CANONICAL_URL,
   logo: `${CANONICAL_URL}/images/logo.png`,
-  description: "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
+  description:
+    "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
   address: {
     "@type": "PostalAddress",
     addressCountry: "RU",
     addressRegion: "Смоленская область",
     addressLocality: "Рославль",
-    postalCode: "216500"
+    postalCode: "216500",
   },
   contactPoint: {
     "@type": "ContactPoint",
     telephone: "+7-919-042-24-92",
     contactType: "customer service",
     areaServed: "RU",
-    availableLanguage: ["Russian"]
+    availableLanguage: ["Russian"],
   },
-  sameAs: []
+  sameAs: [],
 }
 
 // Structured Data для LocalBusiness
@@ -129,12 +131,13 @@ const localBusinessSchema = {
   "@type": "LocalBusiness",
   name: "ООО АСТС",
   image: `${CANONICAL_URL}/images/logo.png`,
-  description: "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
+  description:
+    "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
   address: {
     "@type": "PostalAddress",
     addressCountry: "RU",
     addressRegion: "Смоленская область",
-    addressLocality: "Рославль"
+    addressLocality: "Рославль",
   },
   telephone: "+7-919-042-24-92",
   priceRange: "$$$",
@@ -142,16 +145,9 @@ const localBusinessSchema = {
   geo: {
     "@type": "GeoCoordinates",
     latitude: "53.9500",
-    longitude: "32.8667"
+    longitude: "32.8667",
   },
-  makesOffer: [
-    "Экскаваторы",
-    "Бульдозеры", 
-    "Автобетононасосы",
-    "Автокраны",
-    "Погрузчики",
-    "Дорожные катки"
-  ]
+  makesOffer: ["Экскаваторы", "Бульдозеры", "Автобетононасосы", "Автокраны", "Погрузчики", "Дорожные катки"],
 }
 
 export default function RootLayout({
@@ -166,7 +162,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://mc.yandex.ru" />
         <link rel="preconnect" href="https://top-fwz1.mail.ru" />
-        
+
         {/* Favicon */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.png" type="image/png" sizes="32x32" />
@@ -193,7 +189,7 @@ export default function RootLayout({
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','GTM-NJHGMTJQ');`
+            })(window,document,'script','dataLayer','GTM-NJHGMTJQ');`,
           }}
         />
 
@@ -212,7 +208,7 @@ export default function RootLayout({
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', 'G-JV4J54L6G6');
-            `
+            `,
           }}
         />
 
@@ -231,7 +227,7 @@ export default function RootLayout({
                 var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
                 if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
               })(document, window, "tmr-code");
-            `
+            `,
           }}
         />
 
@@ -254,7 +250,7 @@ export default function RootLayout({
                 webvisor:true,
                 ecommerce:"dataLayer"
               });
-            `
+            `,
           }}
         />
       </head>
@@ -274,10 +270,10 @@ export default function RootLayout({
         {/* Yandex Metrika (noscript) */}
         <noscript>
           <div>
-            <img 
-              src="https://mc.yandex.ru/watch/104548955" 
-              style={{ position: "absolute", left: "-9999px" }} 
-              alt="Yandex Metrika" 
+            <img
+              src="https://mc.yandex.ru/watch/104548955"
+              style={{ position: "absolute", left: "-9999px" }}
+              alt="Yandex Metrika"
             />
           </div>
         </noscript>
@@ -293,7 +289,7 @@ export default function RootLayout({
           </div>
         </noscript>
 
-        <Suspense 
+        <Suspense
           fallback={
             <div className="min-h-screen flex items-center justify-center">
               <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -301,6 +297,7 @@ export default function RootLayout({
           }
         >
           {children}
+          <AdvertisementModal />
           <Analytics />
           <SpeedInsights />
           <CookieConsent />

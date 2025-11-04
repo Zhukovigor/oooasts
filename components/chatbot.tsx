@@ -98,7 +98,7 @@ export default function Chatbot() {
     }
   }, [showChat, sessionId])
 
-  // Polling для получения новых сообщений (только бот и админ)
+  // Polling для получения новых сообщений (только ��от и админ)
   useEffect(() => {
     if (!showChat || !sessionId) {
       if (pollingIntervalRef.current) {
