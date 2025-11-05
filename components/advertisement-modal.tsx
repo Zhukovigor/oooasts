@@ -162,56 +162,7 @@ export default function AdvertisementModal() {
     }
   }
 
-  // Функция для форматирования текста - УЛУЧШЕННАЯ
-  const formatText = (text: string) => {
-    if (!text) return ""
-    
-    // Убираем лишние пробелы и переносы
-    let formattedText = text.trim()
-    
-    // Заменяем двойные переносы на разделители
-    formattedText = formattedText.replace(/\n\s*\n/g, '\n\n')
-    
-    // Убираем маркдаун-синтаксис если он есть
-    formattedText = formattedText.replace(/^#+\s*/gm, '') // Убираем #
-    formattedText = formattedText.replace(/^---$/gm, '') // Убираем разделители
-    
-    return formattedText
-  }
-
-  // Функция для рендеринга форматированного текста
-  const renderFormattedText = (text: string) => {
-    const formattedText = formatText(text)
-    const lines = formattedText.split('\n')
-    
-    return lines.map((line, index) => {
-      if (line.trim() === '') {
-        return <div key={index} className="h-4" /> // Пустая строка
-      }
-      
-      // Определяем стиль в зависимости от содержания
-      let className = "text-base leading-relaxed"
-      
-      if (line.includes('л.с.') || line.includes('клиренс') || line.includes('камеры')) {
-        // Характеристики - меньший шрифт
-        className = "text-sm leading-relaxed opacity-90"
-      } else if (line.length < 30 && !line.includes('.')) {
-        // Заголовок - крупный жирный
-        className = "text-xl font-bold leading-tight"
-      } else if (line.includes('Dongfeng') || line.includes('HUGE')) {
-        // Подзаголовок - средний жирный
-        className = "text-lg font-semibold leading-tight"
-      }
-      
-      return (
-        <p key={index} className={className}>
-          {line}
-        </p>
-      )
-    })
-  }
-
-  // Функция для получения стилей текста
+  // Функция для получения стилей текста - УЛУЧШЕННАЯ
   const getTextStyle = () => {
     if (!textOverlay) return {}
     
@@ -221,24 +172,27 @@ export default function AdvertisementModal() {
       : "none"
 
     return {
-      fontSize: `${textOverlay.fontSize || 18}px`,
+      fontSize: `${textOverlay.fontSize || 24}px`,
       fontFamily: textOverlay.fontFamily || 'Arial, sans-serif',
       fontWeight: textOverlay.fontWeight || 'normal',
       fontStyle: textOverlay.fontStyle || 'normal',
       textDecoration: textOverlay.textDecoration || 'none',
-      textAlign: (textOverlay.textAlign || 'left') as any,
+      textAlign: (textOverlay.textAlign || 'center') as any,
       color: textOverlay.color || '#ffffff',
       opacity: textOverlay.opacity || 1,
       margin: 0,
       textShadow: shadowStyle,
       transform: `rotate(${textOverlay.rotation || 0}deg)`,
-      maxWidth: `${textOverlay.maxWidth || 90}%`,
+      maxWidth: `${textOverlay.maxWidth || 80}%`,
+      // КРИТИЧЕСКИ ВАЖНЫЕ НАСТРОЙКИ ДЛЯ КРАСИВОГО ТЕКСТА:
       wordWrap: "break-word",
       overflowWrap: "break-word",
-      whiteSpace: "pre-wrap",
-      wordBreak: "normal",
-      lineHeight: 1.4,
-      letterSpacing: '0.01em',
+      whiteSpace: "pre-line", // Сохраняет переносы строк, но не пробелы
+      wordBreak: "normal", // Не разрываем слова без необходимости
+      lineHeight: 1.3, // Оптимальный межстрочный интервал
+      letterSpacing: '0.02em', // Немного увеличиваем межбуквенный интервал
+      textAlign: 'center' as const, // Центрируем текст
+      // Гарантируем читаемость:
       textRendering: 'optimizeLegibility',
       WebkitFontSmoothing: 'antialiased',
       MozOsxFontSmoothing: 'grayscale',
@@ -246,25 +200,55 @@ export default function AdvertisementModal() {
     }
   }
 
-  // Функция для получения стилей фона текста
+  // Функция для получения стилей фона текста - УЛУЧШЕННАЯ
   const getBackgroundStyle = () => {
     if (!textOverlay) return {}
     
     return {
-      backgroundColor: textOverlay.backgroundColor || 'rgba(0, 0, 0, 0.7)',
-      opacity: textOverlay.backgroundOpacity || 0.8,
-      padding: `${textOverlay.padding || 20}px`,
-      borderRadius: `${textOverlay.borderRadius || 12}px`,
+      backgroundColor: textOverlay.backgroundColor || '#000000',
+      opacity: textOverlay.backgroundOpacity || 0.7,
+      padding: `${textOverlay.padding || 16}px ${textOverlay.padding || 20}px`,
+      borderRadius: `${textOverlay.borderRadius || 8}px`,
       width: "auto",
-      maxWidth: "85%",
+      maxWidth: "90%",
+      // Центрируем блок с текстом:
       left: '50%',
       top: '50%',
       transform: 'translate(-50%, -50%)',
-      textAlign: 'left' as const,
+      textAlign: 'center' as const,
       pointerEvents: 'none' as const,
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-      backdropFilter: 'blur(10px)',
+      // Добавляем тень для лучшего отделения от фона:
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
     }
+  }
+
+  // Функция для форматирования текста - разбивает на строки правильно
+  const formatText = (text: string) => {
+    if (!text) return ""
+    
+    // Заменяем двойные пробелы на одинарные
+    let formattedText = text.replace(/\s+/g, ' ')
+    
+    // Добавляем переносы после пунктуации для лучшего вида
+    formattedText = formattedText.replace(/([.!?])\s*/g, '$1\n')
+    
+    // Ограничиваем максимальную длину строки
+    const words = formattedText.split(' ')
+    const lines = []
+    let currentLine = ''
+    
+    for (const word of words) {
+      if ((currentLine + word).length <= 25) { // Максимум 25 символов в строке
+        currentLine += (currentLine ? ' ' : '') + word
+      } else {
+        if (currentLine) lines.push(currentLine)
+        currentLine = word
+      }
+    }
+    
+    if (currentLine) lines.push(currentLine)
+    
+    return lines.join('\n')
   }
 
   if (!isVisible || !ad) return null
@@ -279,29 +263,29 @@ export default function AdvertisementModal() {
     >
       <div
         style={{
-          backgroundColor: ad.background_color || '#1a365d',
-          color: ad.text_color || '#ffffff',
-          width: ad.width || '900px',
-          height: ad.height || '600px',
-          maxWidth: '95vw',
-          maxHeight: '95vh',
+          backgroundColor: ad.background_color || '#ffffff',
+          color: ad.text_color || '#000000',
+          width: ad.width || '800px',
+          height: ad.height || '500px',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
         }}
-        className="rounded-2xl shadow-2xl relative animate-in fade-in zoom-in-95 duration-300 flex flex-col md:flex-row overflow-hidden border-2 border-blue-500/20"
+        className="rounded-xl shadow-2xl relative animate-in fade-in zoom-in-95 duration-300 flex flex-col md:flex-row overflow-hidden"
       >
         {/* Close button / Timer */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           {canClose ? (
             <button
               onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all duration-200 text-lg font-bold backdrop-blur-sm border border-white/30"
-              style={{ color: ad.text_color || '#ffffff' }}
+              className="w-8 h-8 flex items-center justify-center bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full transition-all duration-200 text-lg font-bold backdrop-blur-sm"
+              style={{ color: ad.text_color || '#000000' }}
             >
               ×
             </button>
           ) : (
             <div 
-              className="px-3 py-1.5 rounded-full text-sm font-medium bg-white bg-opacity-20 backdrop-blur-sm border border-white/30"
-              style={{ color: ad.text_color || '#ffffff' }}
+              className="px-3 py-1 rounded-full text-sm font-medium bg-white bg-opacity-20 backdrop-blur-sm"
+              style={{ color: ad.text_color || '#000000' }}
             >
               {timeLeft}s
             </div>
@@ -310,25 +294,25 @@ export default function AdvertisementModal() {
 
         {/* Image Section */}
         {ad.image_url && (
-          <div className="flex-1 relative min-h-[250px] md:min-h-0">
+          <div className="flex-1 relative min-h-[200px] md:min-h-0">
             <img
               src={ad.image_url || "/placeholder.svg"}
               alt={ad.title}
               className="w-full h-full object-cover"
             />
             
-            {/* Текстовый оверлей поверх изображения */}
+            {/* Текстовый оверлей поверх изображения - УЛУЧШЕННЫЙ */}
             {textOverlay?.enabled && textOverlay.text && (
               <div
-                className="absolute inset-0 flex items-center justify-center p-6"
+                className="absolute inset-0 flex items-center justify-center p-4"
               >
                 <div
                   style={getBackgroundStyle()}
-                  className="text-left"
+                  className="text-center"
                 >
-                  <div style={getTextStyle()}>
-                    {renderFormattedText(textOverlay.text)}
-                  </div>
+                  <p style={getTextStyle()}>
+                    {formatText(textOverlay.text)}
+                  </p>
                 </div>
               </div>
             )}
@@ -336,81 +320,50 @@ export default function AdvertisementModal() {
         )}
 
         {/* Content Section */}
-        <div className="flex-1 flex flex-col p-6 md:p-8 bg-gradient-to-br from-blue-900/90 to-blue-800/90">
+        <div className="flex-1 flex flex-col p-6 md:p-8">
           {/* Заголовок рекламы */}
-          <div className="mb-6">
+          <div className="mb-4">
             <span 
-              className="text-xs font-bold px-3 py-1.5 rounded-full inline-block border border-yellow-400/50"
+              className="text-xs font-semibold px-3 py-1 rounded-full inline-block"
               style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: '#fbbf24',
-                backdropFilter: 'blur(10px)'
+                backgroundColor: `${ad.text_color}15`,
+                color: ad.text_color 
               }}
             >
-              🚗 АВТОМОБИЛИ • РЕКЛАМА
+              РЕКЛАМА
             </span>
           </div>
 
           {/* Основной контент */}
-          <div className="flex-1 flex flex-col justify-center space-y-6">
-            {/* Заголовок */}
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold leading-tight mb-3 bg-gradient-to-r from-white to-yellow-200 bg-clip-text text-transparent">
-                {ad.title}
-              </h2>
-              
-              {ad.description && (
-                <div className="space-y-3 text-blue-100">
-                  {renderFormattedText(ad.description)}
-                </div>
-              )}
-            </div>
-
-            {/* Характеристики в виде иконок */}
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-yellow-400">⚡</span>
-                <span>197 л.с.</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-yellow-400">🔍</span>
-                <span>Камеры 360°</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-yellow-400">🛡️</span>
-                <span>Клиренс 20 см</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-yellow-400">🌅</span>
-                <span>Панорамная крыша</span>
-              </div>
-            </div>
+          <div className="flex-1 flex flex-col justify-center space-y-4">
+            <h2 className="text-2xl md:text-3xl font-bold leading-tight">
+              {ad.title}
+            </h2>
+            
+            {ad.description && (
+              <p className="text-base md:text-lg leading-relaxed opacity-90">
+                {ad.description}
+              </p>
+            )}
 
             {/* Кнопка */}
             {ad.button_url && ad.button_text && (
-              <div className="mt-8">
+              <div className="mt-6">
                 <a
                   href={ad.button_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={handleClose}
                   style={{ 
-                    backgroundColor: ad.button_color || '#f59e0b',
-                    color: '#1e293b'
+                    backgroundColor: ad.button_color || '#007bff',
+                    color: '#ffffff'
                   }}
-                  className="inline-block py-4 px-8 text-center font-bold rounded-xl hover:opacity-90 transition-all duration-200 text-lg shadow-2xl hover:shadow-3xl transform hover:scale-105 border-2 border-yellow-400/50"
+                  className="inline-block py-3 px-8 text-center font-semibold rounded-lg hover:opacity-90 transition-all duration-200 text-base shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
-                  {ad.button_text} →
+                  {ad.button_text}
                 </a>
               </div>
             )}
-          </div>
-
-          {/* Футер */}
-          <div className="mt-6 pt-4 border-t border-blue-700/50">
-            <p className="text-xs text-blue-300 text-center">
-              Dongfeng HUGE • Семейный кроссовер • 2024
-            </p>
           </div>
         </div>
       </div>
