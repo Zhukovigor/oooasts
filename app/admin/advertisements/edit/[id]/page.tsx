@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { notFound } from "next/navigation"
-import AdvertisementEditClient from "./edit-client"
 
 export const metadata = {
   title: "Редактировать рекламу | Админ панель",
@@ -16,10 +15,11 @@ function isValidUUID(id: string): boolean {
 
 // Безопасный парсинг JSON
 function safeJsonParse<T>(value: any, fallback: T): T {
-  if (typeof value === 'string' && value.trim() !== '') {
+  if (typeof value === "string" && value.trim() !== "") {
     try {
       return JSON.parse(value) as T
     } catch {
+      console.error("[v0] JSON parse error:", value)
       return fallback
     }
   }
@@ -42,48 +42,34 @@ function AdvertisementEditClientFallback({ advertisement }: { advertisement: any
 export default async function EditAdvertisementPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const { id } = params
+  const { id } = await params
 
-  // Валидация ID
+  console.log("[v0] Edit page loaded with id:", id)
+
   if (!id || !isValidUUID(id)) {
-    console.error("Invalid UUID provided:", id)
+    console.error("[v0] Invalid UUID:", id)
     return notFound()
   }
 
   try {
-    // Создаем клиент Supabase
-    let supabase
-    try {
-      supabase = createAdminClient()
-    } catch (error) {
-      console.error("Failed to create Supabase client:", error)
-      return (
-        <div className="min-h-screen bg-gray-50 py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <h1 className="text-xl font-bold text-red-800">Ошибка подключения</h1>
-              <p className="text-red-700 mt-2">Не удалось подключиться к базе данных. Проверьте настройки Supabase.</p>
-            </div>
-          </div>
-        </div>
-      )
-    }
+    const supabase = createAdminClient()
 
-    // Получаем данные рекламы
-    const { data: advertisement, error } = await supabase
-      .from("advertisements")
-      .select("*")
-      .eq("id", id)
-      .single()
+    const { data: advertisement, error } = await supabase.from("advertisements").select("*").eq("id", id).single()
 
-    if (error || !advertisement) {
-      console.error("Database error or advertisement not found:", { error, id })
+    console.log("[v0] Database query result:", { data: !!advertisement, error })
+
+    if (error) {
+      console.error("[v0] Database error:", error)
       return notFound()
     }
 
-    // Безопасный парсинг JSON полей
+    if (!advertisement) {
+      console.error("[v0] Advertisement not found")
+      return notFound()
+    }
+
     const parsedAdvertisement = {
       ...advertisement,
       text_overlay: safeJsonParse(advertisement.text_overlay, {
@@ -140,12 +126,8 @@ export default async function EditAdvertisementPage({
           <div className="mb-8">
             <div className="md:flex md:items-center md:justify-between">
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-                  Редактировать рекламу
-                </h1>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  Обновите параметры рекламного объявления
-                </p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Редактировать рекламу</h1>
+                <p className="text-gray-600 text-sm sm:text-base">Обновите параметры рекламного объявления</p>
               </div>
               <div className="mt-4 flex md:mt-0 md:ml-4">
                 <span className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
@@ -165,12 +147,12 @@ export default async function EditAdvertisementPage({
               <div>
                 <span className="font-medium text-gray-500">Статус:</span>
                 <p className="mt-1">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    parsedAdvertisement.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {parsedAdvertisement.is_active ? 'Активна' : 'Неактивна'}
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      parsedAdvertisement.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {parsedAdvertisement.is_active ? "Активна" : "Неактивна"}
                   </span>
                 </p>
               </div>
@@ -191,7 +173,7 @@ export default async function EditAdvertisementPage({
       </div>
     )
   } catch (error) {
-    console.error("Unexpected error in edit page:", error)
+    console.error("[v0] Unexpected error:", error)
     return notFound()
   }
 }
