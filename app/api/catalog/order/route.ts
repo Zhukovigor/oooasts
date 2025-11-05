@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
+import { sendEmail } from "@/lib/email-service"
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,6 +33,19 @@ export async function POST(request: NextRequest) {
     if (dbError) {
       console.error("[v0] Database error:", dbError)
       return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
+    }
+
+    if (email) {
+      const emailHtml = `
+        <h2>Спасибо за вашу заявку!</h2>
+        <p><strong>Модель:</strong> ${modelName}</p>
+        <p><strong>Имя:</strong> ${name}</p>
+        <p><strong>Телефон:</strong> ${phone}</p>
+        ${comment ? `<p><strong>Комментарий:</strong> ${comment}</p>` : ""}
+        <p><strong>ID заявки:</strong> ${order.id}</p>
+      `
+
+      await sendEmail(email, "Ваша заявка получена", emailHtml)
     }
 
     // Send to Telegram

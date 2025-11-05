@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { sendEmail } from "@/lib/email-service"
 
 interface LeadData {
   name: string
@@ -36,6 +37,16 @@ export async function submitLead(data: LeadData) {
     }
 
     console.log("[v0] Saved to Supabase successfully")
+
+    const emailHtml = `
+      <h2>Новая заявка с сайта</h2>
+      <p><strong>Имя:</strong> ${name}</p>
+      <p><strong>Телефон:</strong> ${phone}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Сообщение:</strong> ${message || "Не указано"}</p>
+    `
+
+    await sendEmail(email, "Подтверждение получения заявки", emailHtml)
 
     const telegramToken = "6465481792:AAFvJieglOSfVL3YUSJh92_k5USt4RvzrDc"
     const chatIds = ["120705872"]
