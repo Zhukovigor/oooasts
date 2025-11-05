@@ -6,12 +6,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const supabase = createAdminClient()
 
+    const { id, ...updateData } = body
+
+    if (!id) {
+      return NextResponse.json({ error: "ID is required" }, { status: 400 })
+    }
+
     const { data, error } = await supabase
       .from("notification_settings")
       .update({
-        ...body,
+        ...updateData,
         updated_at: new Date().toISOString(),
       })
+      .eq("id", id)
       .select()
       .single()
 
