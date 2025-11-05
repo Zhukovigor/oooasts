@@ -152,7 +152,7 @@ export default function AdvertisementsListClient() {
                         <EyeOff className="w-4 h-4 text-gray-400" />
                       )}
                     </button>
-                    <Link href={`/admin/advertisements/${ad.id}/edit`}>
+                    <Link href={`/admin/advertisements/edit/${ad.id}`}>
                       <button className="p-2 hover:bg-gray-100 rounded transition-colors">
                         <Edit className="w-4 h-4 text-gray-600" />
                       </button>
