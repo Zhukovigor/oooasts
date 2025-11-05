@@ -145,10 +145,8 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
     if (type === "checkbox") {
       processedValue = checked
-    } else if (type === "number") {
+    } else if (type === "number" || type === "range") {
       processedValue = value === "" ? 0 : Number(value)
-    } else if (name === "background_opacity") {
-      processedValue = Math.max(0, Math.min(1, Number.parseFloat(value) || 0.8))
     }
 
     setFormData((prev) => ({
@@ -158,7 +156,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
     // Очищаем ошибку при изменении поля
     if (errors[name]) {
-      setErrors(prev => {
+      setErrors((prev) => {
         const newErrors = { ...prev }
         delete newErrors[name]
         return newErrors
@@ -172,6 +170,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
   }
 
   const handleTextOverlayChange = (textOverlay: TextOverlay) => {
+    console.log("[v0] Text overlay updated:", textOverlay)
     setFormData((prev) => ({
       ...prev,
       text_overlay: textOverlay,
@@ -179,6 +178,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
   }
 
   const handleCollageChange = (collageConfig: CollageConfig) => {
+    console.log("[v0] Collage config updated:", collageConfig)
     setFormData((prev) => ({
       ...prev,
       collage_config: collageConfig,
@@ -220,7 +220,6 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
         updated_at: new Date().toISOString(),
       }
 
-      // Обработка JSON полей
       if (formData.text_overlay && Object.keys(formData.text_overlay).length > 0) {
         updateData.text_overlay = JSON.stringify(formData.text_overlay)
       } else {
@@ -233,34 +232,30 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
         updateData.collage_config = null
       }
 
-      console.log("Updating advertisement:", updateData)
+      console.log("[v0] Update data:", updateData)
 
-      const { data, error } = await supabase
-        .from("advertisements")
-        .update(updateData)
-        .eq("id", formData.id)
-        .select()
+      const { data, error } = await supabase.from("advertisements").update(updateData).eq("id", formData.id).select()
 
       if (error) {
-        console.error("Supabase error:", error)
+        console.error("[v0] Supabase error:", error)
         throw new Error(`Ошибка базы данных: ${error.message}`)
       }
 
       if (!data || data.length === 0) {
-        throw new Error("Реклама не найдена")
+        throw new Error("Реклама не найдена в базе данных")
       }
 
+      console.log("[v0] Advertisement updated:", data)
       setSuccessMessage("Реклама успешно обновлена!")
-      
+
       // Обновляем страницу через 2 секунды
       setTimeout(() => {
         router.push("/admin/advertisements")
         router.refresh()
       }, 2000)
-
     } catch (error: any) {
-      console.error("Error updating advertisement:", error)
-      alert(`Ошибка при обновлении рекламы: ${error.message}`)
+      console.error("[v0] Error updating advertisement:", error.message || error)
+      alert(`Ошибка при обновлении рекламы: ${error.message || "Неизвестная ошибка"}`)
     } finally {
       setIsLoading(false)
     }
@@ -286,7 +281,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
       alert("Статистика сброшена")
       // Обновляем локальные данные
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         shows_today: 0,
         total_views: 0,
@@ -317,7 +312,11 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div className="ml-3">
@@ -348,7 +347,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formData.title}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.title ? 'border-red-500' : 'border-gray-300'
+                    errors.title ? "border-red-500" : "border-gray-300"
                   }`}
                   placeholder="Название рекламы"
                 />
@@ -381,11 +380,11 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   <div className="mt-4">
                     <p className="text-sm text-gray-600 mb-2">Предпросмотр:</p>
                     <img
-                      src={formData.image_url}
+                      src={formData.image_url || "/placeholder.svg"}
                       alt="Preview"
                       className="max-w-xs max-h-48 rounded-lg object-cover border"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
+                        ;(e.target as HTMLImageElement).style.display = "none"
                       }}
                     />
                   </div>
@@ -461,7 +460,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formatDateForInput(formData.end_date)}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.end_date ? 'border-red-500' : 'border-gray-300'
+                    errors.end_date ? "border-red-500" : "border-gray-300"
                   }`}
                 />
                 {errors.end_date && <p className="text-red-500 text-sm mt-1">{errors.end_date}</p>}
@@ -475,7 +474,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formData.display_duration_seconds}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.display_duration_seconds ? 'border-red-500' : 'border-gray-300'
+                    errors.display_duration_seconds ? "border-red-500" : "border-gray-300"
                   }`}
                   min="1"
                 />
@@ -492,7 +491,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                   value={formData.close_delay_seconds}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.close_delay_seconds ? 'border-red-500' : 'border-gray-300'
+                    errors.close_delay_seconds ? "border-red-500" : "border-gray-300"
                   }`}
                   min="0"
                 />
@@ -514,7 +513,7 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
                 value={formData.max_shows_per_day}
                 onChange={handleChange}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.max_shows_per_day ? 'border-red-500' : 'border-gray-300'
+                  errors.max_shows_per_day ? "border-red-500" : "border-gray-300"
                 }`}
                 min="1"
               />
@@ -695,16 +694,12 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
 
       {/* Кнопки действий */}
       <div className="flex gap-3 pt-6 border-t">
-        <Button 
-          type="submit" 
-          disabled={isLoading} 
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
           {isLoading ? "Сохранение..." : "Сохранить рекламу"}
         </Button>
-        <Button 
-          type="button" 
-          variant="outline" 
+        <Button
+          type="button"
+          variant="outline"
           onClick={() => router.push("/admin/advertisements")}
           disabled={isLoading}
         >

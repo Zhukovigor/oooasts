@@ -48,18 +48,12 @@ export default function AdvertisementFormClient() {
 
     setFormData((prev) => ({
       ...prev,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : type === "number"
-            ? Number(value)
-            : name === "background_opacity"
-              ? Number.parseFloat(value)
-              : value,
+      [name]: type === "checkbox" ? checked : type === "number" || type === "range" ? Number(value) : value,
     }))
   }
 
   const handleTextOverlayChange = (textOverlay: any) => {
+    console.log("[v0] Text overlay changed:", textOverlay)
     setFormData((prev) => ({
       ...prev,
       text_overlay: textOverlay,
@@ -67,6 +61,7 @@ export default function AdvertisementFormClient() {
   }
 
   const handleCollageChange = (collageConfig: any) => {
+    console.log("[v0] Collage config changed:", collageConfig)
     setFormData((prev) => ({
       ...prev,
       collage_config: collageConfig,
@@ -83,20 +78,36 @@ export default function AdvertisementFormClient() {
 
     try {
       setIsLoading(true)
+      console.log("[v0] Form data before submit:", formData)
+
       const dataToInsert = {
         ...formData,
-        text_overlay: formData.text_overlay ? JSON.stringify(formData.text_overlay) : null,
-        collage_config: formData.collage_config ? JSON.stringify(formData.collage_config) : null,
+        text_overlay:
+          formData.text_overlay && Object.keys(formData.text_overlay).length > 0
+            ? JSON.stringify(formData.text_overlay)
+            : null,
+        collage_config:
+          formData.collage_config && Object.keys(formData.collage_config).length > 0
+            ? JSON.stringify(formData.collage_config)
+            : null,
       }
 
-      const { error } = await supabase.from("advertisements").insert([dataToInsert])
+      console.log("[v0] Data to insert:", dataToInsert)
 
-      if (error) throw error
+      const { error, data } = await supabase.from("advertisements").insert([dataToInsert]).select()
+
+      if (error) {
+        console.error("[v0] Supabase error:", error)
+        throw error
+      }
+
+      console.log("[v0] Advertisement created:", data)
       alert("Реклама успешно создана")
       router.push("/admin/advertisements")
-    } catch (error) {
-      console.error("[v0] Error creating ad:", error)
-      alert("Ошибка при создании рекламы")
+      router.refresh()
+    } catch (error: any) {
+      console.error("[v0] Error creating ad:", error.message || error)
+      alert(`Ошибка при создании рекламы: ${error.message || "Неизвестная ошибка"}`)
     } finally {
       setIsLoading(false)
     }
