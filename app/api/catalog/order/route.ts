@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
             to: email,
             subject: "Ваша заявка получена",
             html: emailHtml,
-            adminEmail: process.env.ADMIN_EMAIL || "admin@asts.ru",
+            adminEmail: process.env.ADMIN_EMAIL || "Zhukovigor@mail.ru",
           }),
         })
       } catch (emailError) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Send to Telegram
     const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
-    const telegramChatId = process.env.TELEGRAM_CHAT_ID
+    const telegramChatId = process.env.TELEGRAM_CHAT_IDS
 
     if (telegramBotToken && telegramChatId) {
       const message = `
