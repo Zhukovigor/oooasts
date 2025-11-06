@@ -119,27 +119,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     ]
 
-    // Динамические маршруты статей с поддержкой изображений
-    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => {
-      const articleUrl = `${baseUrl}/stati/${article.slug}`
-      const articleData: any = {
-        url: articleUrl,
-        lastModified: new Date(article.updated_at || article.created_at),
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      }
-
-      // Добавляем изображения если есть main_image
-      if (article.main_image) {
-        const imageUrl = article.main_image.startsWith('http') 
-          ? article.main_image 
-          : `${baseUrl}${article.main_image.startsWith('/') ? '' : '/'}${article.main_image}`
-        
-        articleData.images = [{ url: imageUrl }]
-      }
-
-      return articleData
-    })
+    // Динамические маршруты статей - УБИРАЕМ изображения из основного sitemap
+    const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
+      url: `${baseUrl}/stati/${article.slug}`,
+      lastModified: new Date(article.updated_at || article.created_at),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }))
 
     // Маршруты категорий
     const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
@@ -177,10 +163,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       console.log(`- Categories: ${categoryRoutes.length}`)
       console.log(`- Models: ${modelRoutes.length}`)
       console.log(`- Articles: ${articleRoutes.length}`)
-      
-      // Логируем статьи с изображениями
-      const articlesWithImages = articleRoutes.filter(article => article.images)
-      console.log(`- Articles with images: ${articlesWithImages.length}`)
     }
 
     return allRoutes
