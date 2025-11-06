@@ -379,7 +379,7 @@ async function sendTelegramNotification(data: LeadData, leadId: string): Promise
 📧 Email: ${data.email}
 💬 Сообщение: ${data.message || 'Не указано'}
 
-🌐 Источник: website_footer
+🌐 Источник: Заявка с сайта
 🆔 ID заявки: ${leadId}
 ⏰ Время: ${new Date().toLocaleString('ru-RU')}`
         
