@@ -2,46 +2,46 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 
-// Rate limiting store (in production, use Redis)
-const rateLimit = new Map()
+// Хранилище для ограничения запросов (в продакшене использовать Redis)
+const ограничительЗапросов = new Map()
 
-// Input validation schema
-interface EmailRequest {
+// Интерфейс для валидации
+interface EmailЗапрос {
   to: string
   subject: string
   html: string
   adminEmail?: string
 }
 
-export async function POST(request: NextRequest) {
-  const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
+export async function POST(запрос: NextRequest) {
+  const ipКлиента = запрос.ip || запрос.headers.get('x-forwarded-for') || 'неизвестно'
   
-  // Rate limiting check
-  if (isRateLimited(clientIP)) {
+  // Проверка ограничения запросов
+  if (превышенЛимитЗапросов(ipКлиента)) {
     return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
+      { error: "Слишком много запросов. Пожалуйста, попробуйте позже." },
       { status: 429 }
     )
   }
 
   try {
-    const body: EmailRequest = await request.json()
+    const тело: EmailЗапрос = await запрос.json()
 
-    // Validate required fields
-    const validationError = validateEmailRequest(body)
-    if (validationError) {
+    // Валидация обязательных полей
+    const ошибкаВалидации = валидироватьEmailЗапрос(тело)
+    if (ошибкаВалидации) {
       return NextResponse.json(
-        { error: validationError },
+        { error: ошибкаВалидации },
         { status: 400 }
       )
     }
 
-    const { to, subject, html, adminEmail } = body
+    const { to, subject, html, adminEmail } = тело
 
     const supabase = createAdminClient()
 
-    // Get SMTP configuration with error handling
-    const { data: smtpAccount, error: smtpError } = await supabase
+    // Получение SMTP конфигурации
+    const { data: smtpАккаунт, error: ошибкаSmtp } = await supabase
       .from("smtp_accounts")
       .select("*")
       .eq("is_active", true)
@@ -49,114 +49,114 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single()
 
-    if (smtpError || !smtpAccount) {
-      console.error("[Email API] SMTP configuration error:", smtpError?.message)
+    if (ошибкаSmtp || !smtpАккаунт) {
+      console.error("[Email API] Ошибка конфигурации SMTP:", ошибкаSmtp?.message)
       return NextResponse.json(
-        { error: "Email service temporarily unavailable" },
+        { error: "Сервис email временно недоступен" },
         { status: 503 }
       )
     }
 
-    // Validate SMTP configuration
-    const configError = validateSmtpConfig(smtpAccount)
-    if (configError) {
-      console.error("[Email API] Invalid SMTP configuration:", configError)
+    // Валидация SMTP конфигурации
+    const ошибкаКонфигурации = валидироватьSmtpКонфигурацию(smtpАккаунт)
+    if (ошибкаКонфигурации) {
+      console.error("[Email API] Неверная конфигурация SMTP:", ошибкаКонфигурации)
       return NextResponse.json(
-        { error: "Email service configuration error" },
+        { error: "Ошибка конфигурации email сервиса" },
         { status: 500 }
       )
     }
 
-    // Create transporter with better configuration
-    const transporter = nodemailer.createTransport({
-      host: smtpAccount.smtp_host,
-      port: smtpAccount.smtp_port,
-      secure: smtpAccount.smtp_port === 465, // or 587 for STARTTLS
+    // Создание транспортера с улучшенной конфигурацией
+    const транспортер = nodemailer.createTransport({
+      host: smtpАккаунт.smtp_host,
+      port: smtpАккаунт.smtp_port,
+      secure: smtpАккаунт.smtp_port === 465, // или 587 для STARTTLS
       auth: {
-        user: smtpAccount.smtp_user,
-        pass: smtpAccount.smtp_password,
+        user: smtpАккаунт.smtp_user,
+        pass: smtpАккаунт.smtp_password,
       },
-      connectionTimeout: 10000, // 10 seconds
+      connectionTimeout: 10000, // 10 секунд
       greetingTimeout: 10000,
       socketTimeout: 15000,
     })
 
-    // Verify transporter configuration
+    // Проверка конфигурации транспортера
     try {
-      await transporter.verify()
-    } catch (verifyError) {
-      console.error("[Email API] SMTP connection failed:", verifyError)
+      await транспортер.verify()
+    } catch (ошибкаПроверки) {
+      console.error("[Email API] Ошибка подключения SMTP:", ошибкаПроверки)
       return NextResponse.json(
-        { error: "Email service connection failed" },
+        { error: "Не удалось подключиться к email сервису" },
         { status: 502 }
       )
     }
 
-    // Prepare and send user email
-    const userMailOptions = {
-      from: formatFromAddress(smtpAccount.name, smtpAccount.email),
+    // Подготовка и отправка email пользователю
+    const опцииEmailПользователя = {
+      from: форматироватьАдресОтправителя(smtpАккаунт.name, smtpАккаунт.email),
       to: to,
       subject: subject.trim(),
       html: html,
-      replyTo: smtpAccount.email,
+      replyTo: smtpАккаунт.email,
       headers: {
         'X-Mailer': 'Next.js Email API',
-        'X-Application': 'Your-App-Name'
+        'X-Application': 'Ваше-Название-Приложения'
       }
     }
 
-    console.log("[Email API] Sending email to user:", to)
-    const userResult = await transporter.sendMail(userMailOptions)
-    console.log("[Email API] User email sent:", result.messageId)
+    console.log("[Email API] Отправка email пользователю:", to)
+    const результатПользователя = await транспортер.sendMail(опцииEmailПользователя)
+    console.log("[Email API] Email пользователю отправлен:", результатПользователя.messageId)
 
-    // Send admin notification if needed
-    let adminResult = null
-    if (adminEmail && adminEmail !== to && isValidEmail(adminEmail)) {
-      const adminMailOptions = {
-        ...userMailOptions,
+    // Отправка уведомления администратору если нужно
+    let результатАдмина = null
+    if (adminEmail && adminEmail !== to && валидныйEmail(adminEmail)) {
+      const опцииEmailАдмина = {
+        ...опцииEmailПользователя,
         to: adminEmail,
         subject: `[НОВАЯ ЗАЯВКА] ${subject.trim()}`,
       }
 
-      console.log("[Email API] Sending notification to admin:", adminEmail)
-      adminResult = await transporter.sendMail(adminMailOptions)
-      console.log("[Email API] Admin email sent:", adminResult.messageId)
+      console.log("[Email API] Отправка уведомления администратору:", adminEmail)
+      результатАдмина = await транспортер.sendMail(опцииEmailАдмина)
+      console.log("[Email API] Email администратору отправлен:", результатАдмина.messageId)
     }
 
-    // Log email sending for analytics
-    await logEmailEvent(supabase, {
-      to,
-      subject,
-      admin_email: adminEmail,
-      user_message_id: userResult.messageId,
-      admin_message_id: adminResult?.messageId,
-      smtp_account_id: smtpAccount.id,
-      status: 'sent'
+    // Логирование отправки email для аналитики
+    await залогироватьEmailСобытие(supabase, {
+      получатель: to,
+      тема: subject,
+      email_админа: adminEmail,
+      id_сообщения_пользователя: результатПользователя.messageId,
+      id_сообщения_админа: результатАдмина?.messageId,
+      id_smtp_аккаунта: smtpАккаунт.id,
+      статус: 'отправлено'
     })
 
     return NextResponse.json({ 
       success: true,
-      messageId: userResult.messageId,
-      adminMessageId: adminResult?.messageId 
+      messageId: результатПользователя.messageId,
+      adminMessageId: результатАдмина?.messageId 
     })
 
-  } catch (error) {
-    console.error("[Email API] Unexpected error:", error)
+  } catch (ошибка) {
+    console.error("[Email API] Неожиданная ошибка:", ошибка)
     
-    // Log the error
-    await logEmailEvent(supabase, {
-      to: body?.to || 'unknown',
-      subject: body?.subject || 'unknown',
-      admin_email: body?.adminEmail,
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+    // Логирование ошибки
+    await залогироватьEmailСобытие(supabase, {
+      получатель: тело?.to || 'неизвестно',
+      тема: тело?.subject || 'неизвестно',
+      email_админа: тело?.adminEmail,
+      статус: 'ошибка',
+      ошибка: ошибка instanceof Error ? ошибка.message : 'Неизвестная ошибка'
     }).catch(console.error)
 
     return NextResponse.json(
       { 
-        error: "Internal server error",
+        error: "Внутренняя ошибка сервера",
         ...(process.env.NODE_ENV === 'development' && {
-          details: error instanceof Error ? error.message : "Unknown error"
+          details: ошибка instanceof Error ? ошибка.message : "Неизвестная ошибка"
         })
       },
       { status: 500 }
@@ -164,72 +164,72 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper functions
-function validateEmailRequest(body: any): string | null {
-  if (!body.to || !body.subject || !body.html) {
-    return "Missing required fields: to, subject, html"
+// Вспомогательные функции
+function валидироватьEmailЗапрос(тело: any): string | null {
+  if (!тело.to || !тело.subject || !тело.html) {
+    return "Отсутствуют обязательные поля: to, subject, html"
   }
 
-  if (!isValidEmail(body.to)) {
-    return "Invalid recipient email address"
+  if (!валидныйEmail(тело.to)) {
+    return "Неверный email адрес получателя"
   }
 
-  if (body.adminEmail && !isValidEmail(body.adminEmail)) {
-    return "Invalid admin email address"
+  if (тело.adminEmail && !валидныйEmail(тело.adminEmail)) {
+    return "Неверный email адрес администратора"
   }
 
-  if (body.subject.length > 200) {
-    return "Subject too long (max 200 characters)"
+  if (тело.subject.length > 200) {
+    return "Слишком длинная тема (максимум 200 символов)"
   }
 
   return null
 }
 
-function isValidEmail(email: string): boolean {
+function валидныйEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
 }
 
-function validateSmtpConfig(smtpAccount: any): string | null {
-  if (!smtpAccount.smtp_host || !smtpAccount.smtp_port || 
-      !smtpAccount.smtp_user || !smtpAccount.smtp_password) {
-    return "Incomplete SMTP configuration"
+function валидироватьSmtpКонфигурацию(smtpАккаунт: any): string | null {
+  if (!smtpАккаунт.smtp_host || !smtpАккаунт.smtp_port || 
+      !smtpАккаунт.smtp_user || !smtpАккаунт.smtp_password) {
+    return "Неполная SMTP конфигурация"
   }
 
-  if (typeof smtpAccount.smtp_port !== 'number' || smtpAccount.smtp_port <= 0) {
-    return "Invalid SMTP port"
+  if (typeof smtpАккаунт.smtp_port !== 'number' || smtpАккаунт.smtp_port <= 0) {
+    return "Неверный SMTP порт"
   }
 
   return null
 }
 
-function formatFromAddress(name: string, email: string): string {
-  return name ? `${name} <${email}>` : email
+function форматироватьАдресОтправителя(имя: string, email: string): string {
+  return имя ? `${имя} <${email}>` : email
 }
 
-function isRateLimited(identifier: string): boolean {
-  const now = Date.now()
-  const windowMs = 15 * 60 * 1000 // 15 minutes
-  const maxRequests = 10 // maximum 10 requests per window
+function превышенЛимитЗапросов(идентификатор: string): boolean {
+  const сейчас = Date.now()
+  const окноВремени = 15 * 60 * 1000 // 15 минут
+  const максЗапросов = 10 // максимум 10 запросов за окно
   
-  const requests = rateLimit.get(identifier) || []
-  const recentRequests = requests.filter((time: number) => now - time < windowMs)
+  const запросы = ограничительЗапросов.get(идентификатор) || []
+  const недавниеЗапросы = запросы.filter((время: number) => сейчас - время < окноВремени)
   
-  if (recentRequests.length >= maxRequests) {
+  if (недавниеЗапросы.length >= максЗапросов) {
     return true
   }
   
-  recentRequests.push(now)
-  rateLimit.set(identifier, recentRequests)
+  недавниеЗапросы.push(сейчас)
+  ограничительЗапросов.set(идентификатор, недавниеЗапросы)
   
-  // Clean up old entries periodically
-  if (Math.random() < 0.1) { // 10% chance to clean up
-    for (const [key, times] of rateLimit.entries()) {
-      const validTimes = (times as number[]).filter((time: number) => now - time < windowMs)
-      if (validTimes.length === 0) {
-        rateLimit.delete(key)
+  // Периодическая очистка старых записей
+  if (Math.random() < 0.1) { // 10% шанс на очистку
+    for (const [ключ, времена] of ограничительЗапросов.entries()) {
+      const валидныеВремена = (времена as number[]).filter((время: number) => сейчас - время < окноВремени)
+      if (валидныеВремена.length === 0) {
+        ограничительЗапросов.delete(ключ)
       } else {
-        rateLimit.set(key, validTimes)
+        ограничительЗапросов.set(ключ, валидныеВремена)
       }
     }
   }
@@ -237,27 +237,34 @@ function isRateLimited(identifier: string): boolean {
   return false
 }
 
-async function logEmailEvent(
+async function залогироватьEmailСобытие(
   supabase: any, 
-  event: {
-    to: string
-    subject: string
-    admin_email?: string
-    user_message_id?: string
-    admin_message_id?: string
-    smtp_account_id: string
-    status: 'sent' | 'failed'
-    error?: string
+  событие: {
+    получатель: string
+    тема: string
+    email_админа?: string
+    id_сообщения_пользователя?: string
+    id_сообщения_админа?: string
+    id_smtp_аккаунта: string
+    статус: 'отправлено' | 'ошибка'
+    ошибка?: string
   }
 ) {
   try {
     await supabase
       .from("email_logs")
       .insert({
-        ...event,
+        to: событие.получатель,
+        subject: событие.тема,
+        admin_email: событие.email_админа,
+        user_message_id: событие.id_сообщения_пользователя,
+        admin_message_id: событие.id_сообщения_админа,
+        smtp_account_id: событие.id_smtp_аккаунта,
+        status: событие.статус,
+        error: событие.ошибка,
         created_at: new Date().toISOString()
       })
-  } catch (error) {
-    console.error("[Email API] Failed to log email event:", error)
+  } catch (ошибка) {
+    console.error("[Email API] Не удалось записать событие email:", ошибка)
   }
 }
