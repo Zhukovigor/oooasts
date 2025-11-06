@@ -1,11 +1,12 @@
-import { createServerClient } from "@/lib/supabase-server"
-import nodemailer from "nodemailer"
+import { Resend } from "resend"
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
 }
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean>
 export async function sendEmail(
@@ -21,40 +22,19 @@ export async function sendEmail(toOrOptions: string | EmailOptions, subject?: st
   }
 
   try {
-    const supabase = await createServerClient()
-
-    const { data: smtpAccount, error: smtpError } = await supabase
-      .from("smtp_accounts")
-      .select("*")
-      .eq("is_active", true)
-      .single()
-
-    if (smtpError || !smtpAccount) {
-      console.error("[v0] No active SMTP account found:", smtpError)
-      return false
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpAccount.smtp_host,
-      port: smtpAccount.smtp_port,
-      secure: smtpAccount.smtp_port === 465,
-      auth: {
-        user: smtpAccount.smtp_user,
-        pass: smtpAccount.smtp_password,
-      },
-    })
-
-    const mailOptions = {
-      from: `${smtpAccount.from_name || "ООО АСТС"} <${smtpAccount.email}>`,
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "noreply@volgograd-asts.ru",
       to: options.to,
       subject: options.subject,
       html: options.html,
-      replyTo: smtpAccount.email,
+    })
+
+    if (result.error) {
+      console.error("[v0] Error sending email via Resend:", result.error)
+      return false
     }
 
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[v0] Email sent successfully via Nodemailer:", info.messageId)
-
+    console.log("[v0] Email sent successfully via Resend:", result.data?.id)
     return true
   } catch (error) {
     console.error("[v0] Error sending email:", error)
