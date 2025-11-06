@@ -1,5 +1,4 @@
-import nodemailer from "nodemailer"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { getNotificationSettings } from "@/lib/notification-settings"
 
 interface EmailOptions {
   to: string
@@ -12,7 +11,6 @@ export async function sendEmail(
   options: EmailOptions,
 ): Promise<{ success: boolean; messageId?: string; error?: string }>
 export async function sendEmail(toOrOptions: string | EmailOptions, subject?: string, html?: string) {
-  // Handle both function signatures
   let options: EmailOptions
 
   if (typeof toOrOptions === "string") {
@@ -29,48 +27,46 @@ export async function sendEmail(toOrOptions: string | EmailOptions, subject?: st
       return false
     }
 
-    if (!settings.smtp_host || !settings.smtp_username || !settings.smtp_password) {
-      console.error("[v0] SMTP settings are incomplete")
+    if (!settings.email_from_address) {
+      console.error("[v0] Email sender address is not configured")
       return false
     }
 
-    const transporter = nodemailer.createTransport({
-      host: settings.smtp_host,
-      port: settings.smtp_port || 587,
-      secure: (settings.smtp_port || 587) === 465,
-      auth: {
-        user: settings.smtp_username,
-        pass: settings.smtp_password,
-      },
-    })
+    const resendApiKey = process.env.RESEND_API_KEY
 
-    const mailOptions = {
-      from: `${settings.email_from_name || "ООО АСТС"} <${settings.email_from_address}>`,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
+    if (!resendApiKey) {
+      console.error("[v0] RESEND_API_KEY environment variable is not set")
+      return false
     }
 
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[v0] Email sent successfully:", info.messageId)
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: `${settings.email_from_name || "ООО АСТС"} <${settings.email_from_address}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error("[v0] Resend API error:", error)
+      return false
+    }
+
+    const data = await response.json()
+    console.log("[v0] Email sent successfully via Resend:", data.id)
 
     return true
   } catch (error) {
     console.error("[v0] Error sending email:", error)
     return false
   }
-}
-
-export async function getNotificationSettings() {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase.from("notification_settings").select("*").single()
-
-  if (error) {
-    console.error("[v0] Error fetching notification settings:", error)
-    return null
-  }
-
-  return data
 }
 
 export async function sendNotificationEmail(
