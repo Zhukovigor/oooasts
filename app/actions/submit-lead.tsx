@@ -179,7 +179,7 @@ async function sendConfirmationEmail(data: LeadData): Promise<void> {
 async function sendAdminNotifications(data: LeadData, leadId: string): Promise<void> {
   const adminEmail = process.env.ADMIN_EMAIL
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN
-  const telegramChatIds = process.env.TELEGRAM_CHAT_IDS?.split(",") || []
+  const telegramChatIds = process.env.TELEGRAM_CHAT_ID?.split(",") || []
 
   const tasks = []
 
