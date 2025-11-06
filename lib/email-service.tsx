@@ -1,4 +1,5 @@
-import { getNotificationSettings } from "@/lib/notification-settings"
+import { createServerClient } from "@/lib/supabase-server"
+import nodemailer from "nodemailer"
 
 interface EmailOptions {
   to: string
@@ -20,47 +21,39 @@ export async function sendEmail(toOrOptions: string | EmailOptions, subject?: st
   }
 
   try {
-    const settings = await getNotificationSettings()
+    const supabase = await createServerClient()
 
-    if (!settings || !settings.email_enabled) {
-      console.log("[v0] Email notifications are disabled")
+    const { data: smtpAccount, error: smtpError } = await supabase
+      .from("smtp_accounts")
+      .select("*")
+      .eq("is_active", true)
+      .single()
+
+    if (smtpError || !smtpAccount) {
+      console.error("[v0] No active SMTP account found:", smtpError)
       return false
     }
 
-    if (!settings.email_from_address) {
-      console.error("[v0] Email sender address is not configured")
-      return false
-    }
-
-    const resendApiKey = process.env.RESEND_API_KEY
-
-    if (!resendApiKey) {
-      console.error("[v0] RESEND_API_KEY environment variable is not set")
-      return false
-    }
-
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
+    const transporter = nodemailer.createTransport({
+      host: smtpAccount.smtp_host,
+      port: smtpAccount.smtp_port,
+      secure: smtpAccount.smtp_port === 465,
+      auth: {
+        user: smtpAccount.smtp_user,
+        pass: smtpAccount.smtp_password,
       },
-      body: JSON.stringify({
-        from: `${settings.email_from_name || "ООО АСТС"} <${settings.email_from_address}>`,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-      }),
     })
 
-    if (!response.ok) {
-      const error = await response.json()
-      console.error("[v0] Resend API error:", error)
-      return false
+    const mailOptions = {
+      from: `${smtpAccount.from_name || "ООО АСТС"} <${smtpAccount.email}>`,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      replyTo: smtpAccount.email,
     }
 
-    const data = await response.json()
-    console.log("[v0] Email sent successfully via Resend:", data.id)
+    const info = await transporter.sendMail(mailOptions)
+    console.log("[v0] Email sent successfully via Nodemailer:", info.messageId)
 
     return true
   } catch (error) {
