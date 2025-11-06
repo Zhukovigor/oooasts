@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendEmail } from "@/lib/email-service"
 
 export async function submitLeasingRequest(formData: FormData) {
   const name = formData.get("name") as string
@@ -44,7 +43,20 @@ export async function submitLeasingRequest(formData: FormData) {
       <p><strong>Сообщение:</strong> ${message || "Не указано"}</p>
     `
 
-    await sendEmail(email, "Ваша заявка на лизинг получена", emailHtml)
+    try {
+      await fetch("/api/notifications/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: "Ваша заявка на лизинг получена",
+          html: emailHtml,
+          adminEmail: process.env.ADMIN_EMAIL || "admin@asts.ru",
+        }),
+      })
+    } catch (emailError) {
+      console.log("[v0] Email send error:", emailError)
+    }
 
     // Send to Telegram
     const telegramToken = "6465481792:AAFvJieglOSfVL3YUSJh92_k5USt4RvzrDc"

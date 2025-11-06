@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendEmail } from "@/lib/email-service"
 
 interface LeadData {
   name: string
@@ -46,7 +45,21 @@ export async function submitLead(data: LeadData) {
       <p><strong>Сообщение:</strong> ${message || "Не указано"}</p>
     `
 
-    await sendEmail(email, "Подтверждение получения заявки", emailHtml)
+    try {
+      await fetch("/api/notifications/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: "Подтверждение получения заявки",
+          html: emailHtml,
+          adminEmail: process.env.ADMIN_EMAIL || "admin@asts.ru",
+        }),
+      })
+    } catch (emailError) {
+      console.log("[v0] Email send error:", emailError)
+      // Continue even if email fails
+    }
 
     const telegramToken = "6465481792:AAFvJieglOSfVL3YUSJh92_k5USt4RvzrDc"
     const chatIds = ["120705872"]
@@ -79,7 +92,6 @@ export async function submitLead(data: LeadData) {
         }
       } catch (telegramError) {
         console.log("[v0] Telegram fetch error:", telegramError)
-        // Don't fail the whole request if Telegram fails
       }
     }
 

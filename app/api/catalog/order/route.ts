@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
-import { sendEmail } from "@/lib/email-service"
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +44,21 @@ export async function POST(request: NextRequest) {
         <p><strong>ID заявки:</strong> ${order.id}</p>
       `
 
-      await sendEmail(email, "Ваша заявка получена", emailHtml)
+      try {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+        await fetch(`${siteUrl}/api/notifications/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: email,
+            subject: "Ваша заявка получена",
+            html: emailHtml,
+            adminEmail: process.env.ADMIN_EMAIL || "admin@asts.ru",
+          }),
+        })
+      } catch (emailError) {
+        console.error("[v0] Email send error:", emailError)
+      }
     }
 
     // Send to Telegram
@@ -78,7 +91,6 @@ ${comment ? `💬 Комментарий: ${comment}` : ""}
 
         if (telegramResponse.ok) {
           const telegramData = await telegramResponse.json()
-          // Update order with telegram message ID
           await supabase
             .from("catalog_orders")
             .update({

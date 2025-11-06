@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendEmail } from "@/lib/email-service"
 
 export async function submitJobApplication(formData: FormData) {
   const name = formData.get("name") as string
@@ -45,7 +44,20 @@ export async function submitJobApplication(formData: FormData) {
       <p><strong>Дополнительно:</strong> ${message || "Не указано"}</p>
     `
 
-    await sendEmail(email, "Спасибо за ваш отклик на вакансию", emailHtml)
+    try {
+      await fetch("/api/notifications/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: "Спасибо за ваш отклик на вакансию",
+          html: emailHtml,
+          adminEmail: process.env.ADMIN_EMAIL || "admin@asts.ru",
+        }),
+      })
+    } catch (emailError) {
+      console.error("[v0] Email send error:", emailError)
+    }
 
     // Send to Telegram
     const telegramToken = "6465481792:AAFvJieglOSfVL3YUSJh92_k5USt4RvzrDc"
