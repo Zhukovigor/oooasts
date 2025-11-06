@@ -304,56 +304,109 @@ async function sendAdminEmail(data: LeadData, leadId: string): Promise<void> {
 }
 
 // Отправка Telegram уведомления
+// Отправка Telegram уведомления - ИСПРАВЛЕННАЯ ВЕРСИЯ
 async function sendTelegramNotification(data: LeadData, leadId: string): Promise<void> {
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN
   const telegramChatIds = process.env.TELEGRAM_CHAT_IDS?.split(",").map(id => id.trim()).filter(id => id) || []
 
+  console.log("🔍 [TELEGRAM] Configuration check:", {
+    hasToken: !!telegramToken,
+    token: telegramToken ? `${telegramToken.substring(0, 10)}...` : 'none',
+    chatIds: telegramChatIds
+  })
+
   if (!telegramToken) {
-    console.log("⚠️ [TELEGRAM] TELEGRAM_BOT_TOKEN not set")
+    console.error("❌ [TELEGRAM] TELEGRAM_BOT_TOKEN not set")
     return
   }
 
   if (telegramChatIds.length === 0) {
-    console.log("⚠️ [TELEGRAM] TELEGRAM_CHAT_IDS not set")
+    console.error("❌ [TELEGRAM] TELEGRAM_CHAT_IDS not set")
     return
   }
 
-  const telegramMessage = `🔔 *Новая заявка с сайта*
+  // Сообщение в стиле рабочего кода из каталога (HTML форматирование)
+  const message = `🆕 Новая заявка с сайта!
 
-📋 *ID:* ${leadId}
-👤 *Имя:* ${data.name}
-📞 *Телефон:* \`${data.phone}\`
-📧 *Email:* ${data.email}
-💬 *Сообщение:* ${data.message || 'Не указано'}
+👤 <b>Имя:</b> ${data.name}
+📞 <b>Телефон:</b> ${data.phone}
+📧 <b>Email:</b> ${data.email}
+💬 <b>Сообщение:</b> ${data.message || 'Не указано'}
 
-🌐 *Источник:* website_footer
-⏰ *Время:* ${new Date().toLocaleString('ru-RU')}`
+🌐 <b>Источник:</b> website_footer
+🆔 <b>ID заявки:</b> ${leadId}
+⏰ <b>Время:</b> ${new Date().toLocaleString('ru-RU')}`
+
+  let successCount = 0
 
   for (const chatId of telegramChatIds) {
     try {
-      console.log("🔍 [TELEGRAM] Sending to chat:", chatId)
+      console.log(`🔍 [TELEGRAM] Sending to chat ${chatId}...`)
       
       const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: telegramMessage,
-          parse_mode: "Markdown"
+          text: message,
+          parse_mode: "HTML", // ИСПРАВЛЕНО: используем HTML вместо Markdown
         }),
       })
 
       const result = await response.json()
       
-      if (!response.ok) {
-        console.error("❌ [TELEGRAM] API error:", result)
+      console.log(`🔍 [TELEGRAM] Response for ${chatId}:`, {
+        status: response.status,
+        ok: response.ok,
+        result: result
+      })
+
+      if (response.ok) {
+        console.log(`✅ [TELEGRAM] Successfully sent to ${chatId}`)
+        successCount++
       } else {
-        console.log("✅ [TELEGRAM] Notification sent to:", chatId)
+        console.error(`❌ [TELEGRAM] API error for chat ${chatId}:`, {
+          errorCode: result.error_code,
+          description: result.description
+        })
+        
+        // Попробуем без форматирования
+        console.log(`🔍 [TELEGRAM] Retrying without formatting for ${chatId}...`)
+        const simpleMessage = `🆕 Новая заявка с сайта!
+
+👤 Имя: ${data.name}
+📞 Телефон: ${data.phone}
+📧 Email: ${data.email}
+💬 Сообщение: ${data.message || 'Не указано'}
+
+🌐 Источник: website_footer
+🆔 ID заявки: ${leadId}
+⏰ Время: ${new Date().toLocaleString('ru-RU')}`
+        
+        const simpleResponse = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: simpleMessage,
+            // Без parse_mode
+          }),
+        })
+        
+        const simpleResult = await simpleResponse.json()
+        if (simpleResponse.ok) {
+          console.log(`✅ [TELEGRAM] Sent to ${chatId} (without formatting)`)
+          successCount++
+        } else {
+          console.error(`❌ [TELEGRAM] Failed even without formatting:`, simpleResult)
+        }
       }
     } catch (error) {
-      console.error("❌ [TELEGRAM] Failed to send to chat:", chatId, error)
+      console.error(`❌ [TELEGRAM] Network error for chat ${chatId}:`, error)
     }
   }
+
+  console.log(`📊 [TELEGRAM] Sent ${successCount}/${telegramChatIds.length} messages`)
 }
 
 // Вспомогательные функции
