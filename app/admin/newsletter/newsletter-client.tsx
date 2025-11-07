@@ -88,20 +88,20 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
   const detectSeparator = (line: string): string => {
     const separators = {
-      'tab': '\t',
-      'comma': ',',
-      'semicolon': ';'
+      tab: "\t",
+      comma: ",",
+      semicolon: ";",
     }
 
     const counts = {
       tab: (line.match(/\t/g) || []).length,
       comma: (line.match(/,/g) || []).length,
-      semicolon: (line.match(/;/g) || []).length
+      semicolon: (line.match(/;/g) || []).length,
     }
 
-    const maxSeparator = Object.entries(counts).reduce((max, [key, count]) => 
-      count > max.count ? { key, count } : max, 
-      { key: 'comma', count: 0 }
+    const maxSeparator = Object.entries(counts).reduce(
+      (max, [key, count]) => (count > max.count ? { key, count } : max),
+      { key: "comma", count: 0 },
     )
 
     return separators[maxSeparator.key as keyof typeof separators]
@@ -109,15 +109,15 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
   const parseCSVLine = (line: string, separator: string): string[] => {
     const parts: string[] = []
-    let currentPart = ''
+    let currentPart = ""
     let inQuotes = false
-    let quoteChar = ''
+    let quoteChar = ""
 
     for (let i = 0; i < line.length; i++) {
       const char = line[i]
       const nextChar = line[i + 1]
 
-      if ((char === '"' || char === "'" || char === '«' || char === '»') && !inQuotes) {
+      if ((char === '"' || char === "'" || char === "«" || char === "»") && !inQuotes) {
         inQuotes = true
         quoteChar = char
         continue
@@ -129,14 +129,14 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           i++
         } else {
           inQuotes = false
-          quoteChar = ''
+          quoteChar = ""
         }
         continue
       }
 
       if (char === separator && !inQuotes) {
         parts.push(currentPart.trim())
-        currentPart = ''
+        currentPart = ""
         continue
       }
 
@@ -159,7 +159,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     try {
       const text = await importFile.text()
       const lines = text.split("\n").filter((line) => line.trim())
-      
+
       if (lines.length < 2) {
         setImportResult({ success: 0, errors: ["Файл пустой или содержит только заголовки"] })
         return
@@ -170,14 +170,14 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
       const supabase = createBrowserClient()
 
-      let separator = ','
+      let separator = ","
       if (selectedSeparator === "auto") {
         separator = detectSeparator(lines[1])
       } else {
         separator = {
-          tab: '\t',
-          comma: ',',
-          semicolon: ';'
+          tab: "\t",
+          comma: ",",
+          semicolon: ";",
         }[selectedSeparator]
       }
 
@@ -188,21 +188,21 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       let dateIndex = -1
 
       const headers = parseCSVLine(headerLine, separator)
-      
+
       headers.forEach((header, index) => {
         const cleanHeader = header.toLowerCase().trim()
-        if (cleanHeader.includes('email') || cleanHeader.includes('емейл') || cleanHeader.includes('почта')) {
+        if (cleanHeader.includes("email") || cleanHeader.includes("емейл") || cleanHeader.includes("почта")) {
           emailIndex = index
-        } else if (cleanHeader.includes('name') || cleanHeader.includes('имя') || cleanHeader.includes('название')) {
+        } else if (cleanHeader.includes("name") || cleanHeader.includes("имя") || cleanHeader.includes("название")) {
           nameIndex = index
-        } else if (cleanHeader.includes('status') || cleanHeader.includes('статус')) {
+        } else if (cleanHeader.includes("status") || cleanHeader.includes("статус")) {
           statusIndex = index
-        } else if (cleanHeader.includes('date') || cleanHeader.includes('дата')) {
+        } else if (cleanHeader.includes("date") || cleanHeader.includes("дата")) {
           dateIndex = index
         }
       })
 
-      console.log('Detected columns:', { emailIndex, nameIndex, statusIndex, dateIndex })
+      console.log("Detected columns:", { emailIndex, nameIndex, statusIndex, dateIndex })
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim()
@@ -210,12 +210,12 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
         try {
           const parts = parseCSVLine(line, separator)
-          const rawEmail = parts[emailIndex] || ''
-          const rawName = parts[nameIndex] || ''
-          const rawStatus = statusIndex >= 0 ? parts[statusIndex] : ''
+          const rawEmail = parts[emailIndex] || ""
+          const rawName = parts[nameIndex] || ""
+          const rawStatus = statusIndex >= 0 ? parts[statusIndex] : ""
 
-          let email = rawEmail
-            .replace(/[^a-zA-Z0-9@._+-]/g, '')
+          const email = rawEmail
+            .replace(/[^a-zA-Z0-9@._+-]/g, "")
             .toLowerCase()
             .trim()
 
@@ -224,16 +224,18 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             continue
           }
 
-          const name = rawName
-            .replace(/[^\wа-яА-ЯёЁ0-9\s"«»'.,()\-–—]/g, '')
-            .trim()
+          const name = rawName.replace(/[^\wа-яА-ЯёЁ0-9\s"«»'.,()\-–—]/g, "").trim()
 
           let status = "active"
           if (rawStatus) {
             const cleanStatus = rawStatus.toLowerCase().trim()
-            if (cleanStatus.includes('active') || cleanStatus.includes('активен') || cleanStatus.includes('активный')) {
+            if (cleanStatus.includes("active") || cleanStatus.includes("активен") || cleanStatus.includes("активный")) {
               status = "active"
-            } else if (cleanStatus.includes('unsubscribed') || cleanStatus.includes('отписан') || cleanStatus.includes('неактивен')) {
+            } else if (
+              cleanStatus.includes("unsubscribed") ||
+              cleanStatus.includes("отписан") ||
+              cleanStatus.includes("неактивен")
+            ) {
               status = "unsubscribed"
             }
           }
@@ -247,9 +249,9 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           if (existing) {
             const { error: updateError } = await supabase
               .from("newsletter_subscribers")
-              .update({ 
+              .update({
                 name: name || null,
-                status: status
+                status: status,
               })
               .eq("id", existing.id)
 
@@ -271,7 +273,6 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
               successCount++
             }
           }
-
         } catch (error) {
           errors.push(`Строка ${i + 1}: Ошибка при обработке строки`)
           console.error(`Error processing line ${i + 1}:`, error)
@@ -292,7 +293,6 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           setSubscribers(newSubscribers)
         }
       }
-
     } catch (error) {
       console.error("Import error:", error)
       setImportResult({ success: 0, errors: ["Ошибка при чтении файла"] })
@@ -324,7 +324,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     setEditForm({
       email: subscriber.email,
       name: subscriber.name || "",
-      status: subscriber.status
+      status: subscriber.status,
     })
   }
 
@@ -342,7 +342,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       .update({
         email: editForm.email,
         name: editForm.name || null,
-        status: editForm.status
+        status: editForm.status,
       })
       .eq("id", editingSubscriber.id)
 
@@ -353,11 +353,13 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setSubscribers(subscribers.map(s => 
-      s.id === editingSubscriber.id 
-        ? { ...s, email: editForm.email, name: editForm.name || null, status: editForm.status }
-        : s
-    ))
+    setSubscribers(
+      subscribers.map((s) =>
+        s.id === editingSubscriber.id
+          ? { ...s, email: editForm.email, name: editForm.name || null, status: editForm.status }
+          : s,
+      ),
+    )
 
     setEditingSubscriber(null)
     setEditForm({ email: "", name: "", status: "active" })
@@ -370,10 +372,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     const supabase = createBrowserClient()
-    const { error } = await supabase
-      .from("newsletter_subscribers")
-      .delete()
-      .eq("id", subscriber.id)
+    const { error } = await supabase.from("newsletter_subscribers").delete().eq("id", subscriber.id)
 
     if (error) {
       console.error("Error deleting subscriber:", error)
@@ -382,7 +381,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setSubscribers(subscribers.filter(s => s.id !== subscriber.id))
+    setSubscribers(subscribers.filter((s) => s.id !== subscriber.id))
     alert("Подписчик успешно удален")
   }
 
@@ -391,7 +390,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     setEditingCampaign(campaign)
     setCampaignEditForm({
       name: campaign.name,
-      subject: campaign.subject
+      subject: campaign.subject,
     })
   }
 
@@ -408,7 +407,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       .from("email_campaigns")
       .update({
         name: campaignEditForm.name,
-        subject: campaignEditForm.subject
+        subject: campaignEditForm.subject,
       })
       .eq("id", editingCampaign.id)
 
@@ -419,11 +418,11 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setCampaigns(campaigns.map(c => 
-      c.id === editingCampaign.id 
-        ? { ...c, name: campaignEditForm.name, subject: campaignEditForm.subject }
-        : c
-    ))
+    setCampaigns(
+      campaigns.map((c) =>
+        c.id === editingCampaign.id ? { ...c, name: campaignEditForm.name, subject: campaignEditForm.subject } : c,
+      ),
+    )
 
     setEditingCampaign(null)
     setCampaignEditForm({ name: "", subject: "" })
@@ -436,10 +435,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     const supabase = createBrowserClient()
-    const { error } = await supabase
-      .from("email_campaigns")
-      .delete()
-      .eq("id", campaign.id)
+    const { error } = await supabase.from("email_campaigns").delete().eq("id", campaign.id)
 
     if (error) {
       console.error("Error deleting campaign:", error)
@@ -448,7 +444,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setCampaigns(campaigns.filter(c => c.id !== campaign.id))
+    setCampaigns(campaigns.filter((c) => c.id !== campaign.id))
     alert("Кампания успешно удалена")
   }
 
@@ -462,7 +458,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
       .from("email_campaigns")
       .update({
         status: "sending",
-        sent_at: new Date().toISOString()
+        sent_at: new Date().toISOString(),
       })
       .eq("id", campaign.id)
 
@@ -473,11 +469,9 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setCampaigns(campaigns.map(c => 
-      c.id === campaign.id 
-        ? { ...c, status: "sending", sent_at: new Date().toISOString() }
-        : c
-    ))
+    setCampaigns(
+      campaigns.map((c) => (c.id === campaign.id ? { ...c, status: "sending", sent_at: new Date().toISOString() } : c)),
+    )
 
     alert("Кампания запущена")
   }
@@ -491,7 +485,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     const { error } = await supabase
       .from("email_campaigns")
       .update({
-        status: "stopped"
+        status: "stopped",
       })
       .eq("id", campaign.id)
 
@@ -502,11 +496,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
     }
 
     // Обновляем локальное состояние
-    setCampaigns(campaigns.map(c => 
-      c.id === campaign.id 
-        ? { ...c, status: "stopped" }
-        : c
-    ))
+    setCampaigns(campaigns.map((c) => (c.id === campaign.id ? { ...c, status: "stopped" } : c)))
 
     alert("Кампания остановлена")
   }
@@ -572,6 +562,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
           <TabsTrigger value="subscribers">Подписчики</TabsTrigger>
           <TabsTrigger value="templates">Шаблоны</TabsTrigger>
           <TabsTrigger value="campaigns">Кампании</TabsTrigger>
+          <TabsTrigger value="contacts">База контактов</TabsTrigger>
         </TabsList>
 
         <TabsContent value="subscribers" className="space-y-4">
@@ -622,7 +613,9 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              subscriber.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                              subscriber.status === "active"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
                             }`}
                           >
                             {subscriber.status === "active" ? "Активен" : "Отписан"}
@@ -786,10 +779,9 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                           {campaign.sent_count} / {campaign.total_recipients}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {campaign.sent_at 
+                          {campaign.sent_at
                             ? new Date(campaign.sent_at).toLocaleDateString("ru-RU")
-                            : new Date(campaign.created_at).toLocaleDateString("ru-RU")
-                          }
+                            : new Date(campaign.created_at).toLocaleDateString("ru-RU")}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex gap-1">
@@ -843,6 +835,29 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
             </Card>
           )}
         </TabsContent>
+
+        <TabsContent value="contacts" className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">База контактов</h2>
+            <Link href="/admin/newsletter/contacts">
+              <Button>
+                <Users className="w-4 h-4 mr-2" />
+                Управление базами
+              </Button>
+            </Link>
+          </div>
+          <Card className="p-6 text-center">
+            <p className="text-gray-600 mb-4">
+              Создавайте и управляйте отдельными базами контактов для целевых рассылок
+            </p>
+            <Link href="/admin/newsletter/contacts">
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Перейти к базам контактов
+              </Button>
+            </Link>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Модальное окно редактирования подписчика */}
@@ -859,9 +874,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
                   <input
                     type="email"
                     value={editForm.email}
@@ -872,9 +885,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Имя (опционально)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Имя (опционально)</label>
                   <input
                     type="text"
                     value={editForm.name}
@@ -885,9 +896,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Статус
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Статус</label>
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
@@ -902,9 +911,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                   <Button variant="outline" onClick={() => setEditingSubscriber(null)}>
                     Отмена
                   </Button>
-                  <Button onClick={handleUpdateSubscriber}>
-                    Сохранить
-                  </Button>
+                  <Button onClick={handleUpdateSubscriber}>Сохранить</Button>
                 </div>
               </div>
             </div>
@@ -926,9 +933,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Название кампании *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании *</label>
                   <input
                     type="text"
                     value={campaignEditForm.name}
@@ -939,9 +944,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Тема письма *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Тема письма *</label>
                   <input
                     type="text"
                     value={campaignEditForm.subject}
@@ -955,9 +958,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                   <Button variant="outline" onClick={() => setEditingCampaign(null)}>
                     Отмена
                   </Button>
-                  <Button onClick={handleUpdateCampaign}>
-                    Сохранить
-                  </Button>
+                  <Button onClick={handleUpdateCampaign}>Сохранить</Button>
                 </div>
               </div>
             </div>
@@ -978,10 +979,8 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Разделитель в CSV файле:
-                  </label>
-                  <select 
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Разделитель в CSV файле:</label>
+                  <select
                     value={selectedSeparator}
                     onChange={(e) => setSelectedSeparator(e.target.value as SeparatorType)}
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -998,15 +997,22 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                     Загрузите CSV файл. Поддерживаются файлы с колонками на русском или английском.
                   </p>
                   <p className="text-xs text-gray-500 mb-4">
-                    Автоматически определяются колонки: Email, Имя/Name, Статус/Status<br />
-                    Форматы файлов (поддерживаются оба):<br />
+                    Автоматически определяются колонки: Email, Имя/Name, Статус/Status
+                    <br />
+                    Форматы файлов (поддерживаются оба):
+                    <br />
                     <code className="bg-gray-100 p-1 rounded text-xs block mt-1">
-                      // Английские заголовки<br />
-                      Email,Name,Status,Date<br />
-                      test@example.com,Company Name,active,2024-01-01<br />
+                      // Английские заголовки
                       <br />
-                      // Русские заголовки<br />
-                      Email,Имя,Статус,Дата<br />
+                      Email,Name,Status,Date
+                      <br />
+                      test@example.com,Company Name,active,2024-01-01
+                      <br />
+                      <br />
+                      // Русские заголовки
+                      <br />
+                      Email,Имя,Статус,Дата
+                      <br />
                       test@example.com,Название компании,Активен,2024-01-01
                     </code>
                   </p>
@@ -1017,9 +1023,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                     onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
-                  {importFile && (
-                    <p className="text-sm text-green-600 mt-2">Выбран файл: {importFile.name}</p>
-                  )}
+                  {importFile && <p className="text-sm text-green-600 mt-2">Выбран файл: {importFile.name}</p>}
                 </div>
 
                 {importResult && (
@@ -1047,11 +1051,7 @@ export default function NewsletterClient({ initialSubscribers, initialTemplates,
                   <Button variant="outline" onClick={resetImportModal} disabled={importing}>
                     Отмена
                   </Button>
-                  <Button 
-                    onClick={handleImport} 
-                    disabled={!importFile || importing}
-                    className="min-w-24"
-                  >
+                  <Button onClick={handleImport} disabled={!importFile || importing} className="min-w-24">
                     {importing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
