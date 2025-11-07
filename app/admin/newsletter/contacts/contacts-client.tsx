@@ -1,27 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Upload, Download, Trash2, X, Mail } from "lucide-react"
+import { Plus, Upload, Download, Trash2, X, Mail, Loader2 } from "lucide-react"
 import { createBrowserClient } from "@/lib/supabase-client"
-
-interface ContactList {
-  id: string
-  name: string
-  description: string | null
-  created_at: string
-  contact_list_contacts: Array<{ id: string }>
-}
+import type { ContactList, ImportResult } from "@/types/contacts"
 
 interface Props {
   initialLists: ContactList[]
 }
 
 export default function ContactsClient({ initialLists }: Props) {
-  const [lists, setLists] = useState(initialLists)
+  const [lists, setLists] = useState<ContactList[]>(initialLists)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [selectedList, setSelectedList] = useState<ContactList | null>(null)
@@ -29,59 +22,149 @@ export default function ContactsClient({ initialLists }: Props) {
   const [newListDescription, setNewListDescription] = useState("")
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importTab, setImportTab] = useState<"csv" | "form">("csv")
   const [formInput, setFormInput] = useState("")
   const [formImporting, setFormImporting] = useState(false)
   const [csvSeparator, setCsvSeparator] = useState<"auto" | "," | ";" | "\t">("auto")
+  const [loadingStates, setLoadingStates] = useState({
+    creating: false,
+    deleting: false,
+    exporting: false
+  })
 
   const supabase = createBrowserClient()
 
+  // Валидация email
+  const validateEmail = useCallback((email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }, [])
+
+  // Создание базы контактов
   const handleCreateList = async () => {
     if (!newListName.trim()) {
       alert("Введите название базы контактов")
       return
     }
 
-    const { data, error } = await supabase
-      .from("contact_lists")
-      .insert({
-        name: newListName,
-        description: newListDescription || null,
-      })
-      .select()
-      .single()
+    setLoadingStates(prev => ({ ...prev, creating: true }))
 
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("contact_lists")
+        .insert({
+          name: newListName.trim(),
+          description: newListDescription.trim() || null,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Error creating list:", error)
+        alert("Ошибка при создании базы контактов")
+        return
+      }
+
+      setLists(prev => [data, ...prev])
+      setNewListName("")
+      setNewListDescription("")
+      setShowCreateModal(false)
+      alert("База контактов успешно создана")
+    } catch (error) {
       console.error("Error creating list:", error)
       alert("Ошибка при создании базы контактов")
-      return
+    } finally {
+      setLoadingStates(prev => ({ ...prev, creating: false }))
     }
-
-    setLists([data, ...lists])
-    setNewListName("")
-    setNewListDescription("")
-    setShowCreateModal(false)
-    alert("База контактов успешно создана")
   }
 
+  // Удаление базы контактов
   const handleDeleteList = async (listId: string, listName: string) => {
     if (!confirm(`Вы уверены, что хотите удалить базу "${listName}"? Все контакты будут удалены.`)) {
       return
     }
 
-    const { error } = await supabase.from("contact_lists").delete().eq("id", listId)
+    setLoadingStates(prev => ({ ...prev, deleting: true }))
 
-    if (error) {
+    try {
+      const { error } = await supabase.from("contact_lists").delete().eq("id", listId)
+
+      if (error) {
+        console.error("Error deleting list:", error)
+        alert("Ошибка при удалении базы контактов")
+        return
+      }
+
+      setLists(prev => prev.filter((l) => l.id !== listId))
+      alert("База контактов успешно удалена")
+    } catch (error) {
       console.error("Error deleting list:", error)
       alert("Ошибка при удалении базы контактов")
-      return
+    } finally {
+      setLoadingStates(prev => ({ ...prev, deleting: false }))
     }
-
-    setLists(lists.filter((l) => l.id !== listId))
-    alert("База контактов успешно удалена")
   }
 
+  // Парсинг CSV файла
+  const parseCSV = useCallback((text: string, separator: string) => {
+    const lines = text.split("\n").filter((line) => line.trim())
+    if (lines.length < 2) {
+      throw new Error("Файл пустой или содержит только заголовки")
+    }
+
+    // Определяем заголовки
+    const headers = lines[0].split(separator).map(h => h.trim().toLowerCase())
+    
+    const contacts = []
+    const errors: string[] = []
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+
+      try {
+        const values = line.split(separator).map(v => v.trim())
+        
+        // Ищем email в разных колонках
+        let email = ""
+        let name = null
+
+        const emailIndex = headers.findIndex(h => h === 'email' || h === 'e-mail')
+        const nameIndex = headers.findIndex(h => h === 'name' || h === 'имя' || h === 'название')
+
+        if (emailIndex >= 0 && values[emailIndex]) {
+          email = values[emailIndex].toLowerCase()
+        } else if (values[0]) {
+          email = values[0].toLowerCase() // Первая колонка по умолчанию
+        }
+
+        if (nameIndex >= 0 && values[nameIndex]) {
+          name = values[nameIndex]
+        } else if (values[1]) {
+          name = values[1] // Вторая колонка по умолчанию
+        }
+
+        if (!email) {
+          errors.push(`Строка ${i + 1}: Отсутствует email`)
+          continue
+        }
+
+        if (!validateEmail(email)) {
+          errors.push(`Строка ${i + 1}: Неверный формат email "${email}"`)
+          continue
+        }
+
+        contacts.push({ email, name, lineNumber: i + 1 })
+      } catch (error) {
+        errors.push(`Строка ${i + 1}: Ошибка обработки строки`)
+      }
+    }
+
+    return { contacts, errors }
+  }, [validateEmail])
+
+  // Импорт из CSV
   const handleImport = async () => {
     if (!importFile || !selectedList) {
       alert("Выберите файл для импорта")
@@ -94,55 +177,63 @@ export default function ContactsClient({ initialLists }: Props) {
     try {
       const text = await importFile.text()
       let separator = csvSeparator
+      
+      // Автоопределение разделителя
       if (separator === "auto") {
-        separator = text.includes(";") ? ";" : text.includes("\t") ? "\t" : ","
+        if (text.includes(";")) separator = ";"
+        else if (text.includes("\t")) separator = "\t"
+        else separator = ","
       }
 
-      const lines = text.split("\n").filter((line) => line.trim())
+      const { contacts, errors: parseErrors } = parseCSV(text, separator)
 
-      if (lines.length < 2) {
-        setImportResult({ success: 0, errors: ["Файл пустой"] })
+      if (contacts.length === 0 && parseErrors.length === 0) {
+        setImportResult({ success: 0, errors: ["Не найдено валидных контактов для импорта"] })
         return
       }
 
-      const errors: string[] = []
+      const errors = [...parseErrors]
       let successCount = 0
 
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim()
-        if (!line) continue
-
-        try {
-          const parts = line.split(separator).map((p) => p.trim())
-          const email = parts[0]?.toLowerCase()
-          const name = parts[1] || null
-
-          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            errors.push(`Строка ${i + 1}: Неверный email`)
-            continue
-          }
-
-          const { error } = await supabase.from("contact_list_contacts").insert({
+      // Импортируем контакты пачками по 50
+      const batchSize = 50
+      for (let i = 0; i < contacts.length; i += batchSize) {
+        const batch = contacts.slice(i, i + batchSize)
+        
+        const { error } = await supabase.from("contact_list_contacts").insert(
+          batch.map(contact => ({
             list_id: selectedList.id,
-            email,
-            name,
-          })
+            email: contact.email,
+            name: contact.name,
+          }))
+        )
 
-          if (error) {
-            if (error.code === "23505") {
-              errors.push(`Строка ${i + 1}: Email "${email}" уже в базе`)
-            } else {
-              errors.push(`Строка ${i + 1}: Ошибка "${email}"`)
-            }
+        if (error) {
+          if (error.code === "23505") {
+            // Duplicate emails
+            batch.forEach(contact => {
+              errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
+            })
           } else {
-            successCount++
+            batch.forEach(contact => {
+              errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+            })
           }
-        } catch (error) {
-          errors.push(`Строка ${i + 1}: Ошибка обработки`)
+        } else {
+          successCount += batch.length
         }
       }
 
       setImportResult({ success: successCount, errors })
+
+      // Обновляем счетчик контактов при успешном импорте
+      if (successCount > 0) {
+        setLists(prev => prev.map(list => 
+          list.id === selectedList.id 
+            ? { ...list, contacts_count: (list.contacts_count || 0) + successCount }
+            : list
+        ))
+      }
     } catch (error) {
       console.error("Import error:", error)
       setImportResult({ success: 0, errors: ["Ошибка при чтении файла"] })
@@ -151,23 +242,45 @@ export default function ContactsClient({ initialLists }: Props) {
     }
   }
 
+  // Экспорт базы контактов
   const handleExportList = async (list: ContactList) => {
-    const { data, error } = await supabase.from("contact_list_contacts").select("email, name").eq("list_id", list.id)
+    setLoadingStates(prev => ({ ...prev, exporting: true }))
 
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("contact_list_contacts")
+        .select("email, name")
+        .eq("list_id", list.id)
+        .order("created_at", { ascending: true })
+
+      if (error) {
+        alert("Ошибка при экспорте")
+        return
+      }
+
+      const csvContent = [
+        ["Email", "Name"],
+        ...data.map(contact => [contact.email, contact.name || ""])
+      ].map(row => row.join(",")).join("\n")
+
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `contacts_${list.name}_${new Date().toISOString().split("T")[0]}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Export error:", error)
       alert("Ошибка при экспорте")
-      return
+    } finally {
+      setLoadingStates(prev => ({ ...prev, exporting: false }))
     }
-
-    const csv = [["Email", "Название"].join(","), ...data.map((c) => [c.email, c.name || ""].join(","))].join("\n")
-
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
-    link.download = `contacts_${list.name}_${new Date().toISOString().split("T")[0]}.csv`
-    link.click()
   }
 
+  // Импорт через форму
   const handleFormImport = async () => {
     if (!formInput.trim() || !selectedList) {
       alert("Введите контакты для импорта")
@@ -181,59 +294,84 @@ export default function ContactsClient({ initialLists }: Props) {
       const lines = formInput.split("\n").filter((line) => line.trim())
       const errors: string[] = []
       let successCount = 0
+      const contacts = []
 
+      // Парсим введенные данные
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim()
         if (!line) continue
 
-        try {
-          const parts = line.split(",").map((p) => p.trim())
-          const email = parts[0]?.toLowerCase()
-          const name = parts[1] || null
+        const parts = line.split(",").map((p) => p.trim())
+        const email = parts[0]?.toLowerCase()
+        const name = parts[1] || null
 
-          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            errors.push(`Строка ${i + 1}: Неверный email`)
-            continue
-          }
+        if (!email) {
+          errors.push(`Строка ${i + 1}: Отсутствует email`)
+          continue
+        }
 
-          const { error } = await supabase.from("contact_list_contacts").insert({
-            list_id: selectedList.id,
-            email,
-            name,
-          })
+        if (!validateEmail(email)) {
+          errors.push(`Строка ${i + 1}: Неверный формат email "${email}"`)
+          continue
+        }
 
-          if (error) {
-            if (error.code === "23505") {
-              errors.push(`Строка ${i + 1}: Email "${email}" уже в базе`)
-            } else {
-              errors.push(`Строка ${i + 1}: Ошибка "${email}"`)
-            }
+        contacts.push({ email, name, lineNumber: i + 1 })
+      }
+
+      // Импортируем контакты
+      for (const contact of contacts) {
+        const { error } = await supabase.from("contact_list_contacts").insert({
+          list_id: selectedList.id,
+          email: contact.email,
+          name: contact.name,
+        })
+
+        if (error) {
+          if (error.code === "23505") {
+            errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
           } else {
-            successCount++
+            errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
           }
-        } catch (error) {
-          errors.push(`Строка ${i + 1}: Ошибка обработки`)
+        } else {
+          successCount++
         }
       }
 
+      setImportResult({ success: successCount, errors })
+
+      // Обновляем счетчик и очищаем форму при успешном импорте
       if (successCount > 0) {
         setFormInput("")
-        setLists(
-          lists.map((l) =>
-            l.id === selectedList.id
-              ? { ...l, contact_list_contacts: [...(l.contact_list_contacts || []), ...Array(successCount).fill({})] }
-              : l,
-          ),
-        )
+        setLists(prev => prev.map(list => 
+          list.id === selectedList.id 
+            ? { ...list, contacts_count: (list.contacts_count || 0) + successCount }
+            : list
+        ))
       }
-
-      setImportResult({ success: successCount, errors })
     } catch (error) {
       console.error("Form import error:", error)
       setImportResult({ success: 0, errors: ["Ошибка при обработке контактов"] })
     } finally {
       setFormImporting(false)
     }
+  }
+
+  // Закрытие модальных окон
+  const closeModals = () => {
+    setShowCreateModal(false)
+    setShowImportModal(false)
+    setSelectedList(null)
+    setNewListName("")
+    setNewListDescription("")
+    setImportFile(null)
+    setFormInput("")
+    setImportResult(null)
+    setCsvSeparator("auto")
+  }
+
+  // Получение количества контактов
+  const getContactsCount = (list: ContactList) => {
+    return list.contacts_count || list.contact_list_contacts?.length || 0
   }
 
   return (
@@ -243,8 +381,15 @@ export default function ContactsClient({ initialLists }: Props) {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Базы контактов</h1>
           <p className="text-gray-600">Управление отдельными базами контактов для рассылок</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
+        <Button 
+          onClick={() => setShowCreateModal(true)}
+          disabled={loadingStates.creating}
+        >
+          {loadingStates.creating ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4 mr-2" />
+          )}
           Новая база
         </Button>
       </div>
@@ -266,13 +411,15 @@ export default function ContactsClient({ initialLists }: Props) {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="font-bold text-lg">{list.name}</h3>
-                  {list.description && <p className="text-sm text-gray-600 mt-1">{list.description}</p>}
+                  {list.description && (
+                    <p className="text-sm text-gray-600 mt-1">{list.description}</p>
+                  )}
                 </div>
               </div>
 
               <div className="mb-4 p-3 bg-blue-50 rounded">
                 <p className="text-sm text-gray-600">Контактов</p>
-                <p className="text-2xl font-bold text-blue-600">{list.contact_list_contacts?.length || 0}</p>
+                <p className="text-2xl font-bold text-blue-600">{getContactsCount(list)}</p>
               </div>
 
               <div className="flex gap-2">
@@ -288,17 +435,32 @@ export default function ContactsClient({ initialLists }: Props) {
                   <Upload className="w-4 h-4 mr-1" />
                   Импорт
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => handleExportList(list)} className="flex-1">
-                  <Download className="w-4 h-4 mr-1" />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleExportList(list)}
+                  disabled={loadingStates.exporting}
+                  className="flex-1"
+                >
+                  {loadingStates.exporting ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-1" />
+                  )}
                   Экспорт
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleDeleteList(list.id, list.name)}
+                  disabled={loadingStates.deleting}
                   className="text-red-600 hover:bg-red-50"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {loadingStates.deleting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
             </Card>
@@ -306,30 +468,34 @@ export default function ContactsClient({ initialLists }: Props) {
         </div>
       )}
 
+      {/* Модальное окно создания базы */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">Новая база контактов</h2>
-                <Button variant="ghost" size="icon" onClick={() => setShowCreateModal(false)}>
+                <Button variant="ghost" size="icon" onClick={closeModals}>
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <Label>Название базы *</Label>
+                  <Label htmlFor="list-name">Название базы *</Label>
                   <Input
+                    id="list-name"
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
                     placeholder="Например: Экскаваторы"
+                    onKeyPress={(e) => e.key === 'Enter' && handleCreateList()}
                   />
                 </div>
 
                 <div>
-                  <Label>Описание (опционально)</Label>
+                  <Label htmlFor="list-description">Описание (опционально)</Label>
                   <Input
+                    id="list-description"
                     value={newListDescription}
                     onChange={(e) => setNewListDescription(e.target.value)}
                     placeholder="Описание базы контактов"
@@ -337,10 +503,18 @@ export default function ContactsClient({ initialLists }: Props) {
                 </div>
 
                 <div className="flex gap-2 justify-end pt-4">
-                  <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+                  <Button variant="outline" onClick={closeModals}>
                     Отмена
                   </Button>
-                  <Button onClick={handleCreateList}>Создать</Button>
+                  <Button 
+                    onClick={handleCreateList}
+                    disabled={loadingStates.creating || !newListName.trim()}
+                  >
+                    {loadingStates.creating ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    Создать
+                  </Button>
                 </div>
               </div>
             </div>
@@ -348,23 +522,14 @@ export default function ContactsClient({ initialLists }: Props) {
         </div>
       )}
 
+      {/* Модальное окно импорта */}
       {showImportModal && selectedList && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Импорт подписчиков</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setShowImportModal(false)
-                    setImportFile(null)
-                    setFormInput("")
-                    setImportResult(null)
-                    setCsvSeparator("auto")
-                  }}
-                >
+                <h2 className="text-2xl font-bold">Импорт контактов в "{selectedList.name}"</h2>
+                <Button variant="ghost" size="icon" onClick={closeModals}>
                   <X className="w-5 h-5" />
                 </Button>
               </div>
@@ -404,16 +569,16 @@ export default function ContactsClient({ initialLists }: Props) {
                 {importTab === "csv" && (
                   <>
                     <div>
-                      <Label className="text-sm font-semibold">Раздельность в CSV файле:</Label>
+                      <Label className="text-sm font-semibold">Разделитель в CSV файле:</Label>
                       <select
                         value={csvSeparator}
                         onChange={(e) => setCsvSeparator(e.target.value as "auto" | "," | ";" | "\t")}
                         className="w-full mt-2 p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="auto">Автоопределение (рекомендуется)</option>
-                        <option value=",">,запятая</option>
-                        <option value=";">точка с запятой</option>
-                        <option value="\t">Tab</option>
+                        <option value=",">Запятая (,)</option>
+                        <option value=";">Точка с запятой (;)</option>
+                        <option value="\t">Табуляция (Tab)</option>
                       </select>
                     </div>
 
@@ -458,8 +623,8 @@ export default function ContactsClient({ initialLists }: Props) {
                           <div className="p-4 bg-red-50 rounded border border-red-200 max-h-40 overflow-y-auto">
                             <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
                             <ul className="text-xs text-red-700 space-y-1">
-                              {importResult.errors.slice(0, 10).map((e, i) => (
-                                <li key={i}>{e}</li>
+                              {importResult.errors.slice(0, 10).map((error, index) => (
+                                <li key={index}>{error}</li>
                               ))}
                               {importResult.errors.length > 10 && (
                                 <li>...и еще {importResult.errors.length - 10} ошибок</li>
@@ -473,12 +638,7 @@ export default function ContactsClient({ initialLists }: Props) {
                     <div className="flex gap-2 justify-end pt-4">
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          setShowImportModal(false)
-                          setImportFile(null)
-                          setImportResult(null)
-                          setCsvSeparator("auto")
-                        }}
+                        onClick={closeModals}
                         disabled={importing}
                       >
                         Отмена
@@ -488,7 +648,10 @@ export default function ContactsClient({ initialLists }: Props) {
                         disabled={!importFile || importing}
                         className="bg-gray-800 hover:bg-gray-900"
                       >
-                        {importing ? "Импортировать..." : "Импортировать"}
+                        {importing ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : null}
+                        {importing ? "Импорт..." : "Импортировать"}
                       </Button>
                     </div>
                   </>
@@ -498,12 +661,13 @@ export default function ContactsClient({ initialLists }: Props) {
                 {importTab === "form" && (
                   <>
                     <div className="p-4 bg-blue-50 rounded-md border border-blue-200">
-                      <p className="text-sm text-blue-900 font-semibold mb-2">Добавьте несколько телефонных номеров</p>
-                      <p className="text-xs text-blue-800">Подтвердить пример:</p>
+                      <p className="text-sm text-blue-900 font-semibold mb-2">Добавьте контакты в формате CSV</p>
+                      <p className="text-xs text-blue-800">Формат: email, название (опционально)</p>
                       <div className="mt-2 text-xs text-gray-700 font-mono bg-white p-3 rounded border border-blue-200 space-y-1">
                         <p>test@example.com,Компания 1</p>
                         <p>user@test.ru,Компания 2</p>
                         <p>mail@company.com,Компания 3</p>
+                        <p>simple@example.com</p>
                       </div>
                     </div>
 
@@ -512,8 +676,8 @@ export default function ContactsClient({ initialLists }: Props) {
                       <textarea
                         value={formInput}
                         onChange={(e) => setFormInput(e.target.value)}
-                        placeholder={`Формат: email,название\n\nПримеры:\ntest@example.com,Компания 1\nuser@test.ru,Компания 2`}
-                        className="w-full h-48 mt-2 p-3 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={`Формат: email,название\n\nПримеры:\ntest@example.com,Компания 1\nuser@test.ru,Компания 2\nmail@company.com`}
+                        className="w-full h-48 mt-2 p-3 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
                       />
                     </div>
 
@@ -526,8 +690,8 @@ export default function ContactsClient({ initialLists }: Props) {
                           <div className="p-4 bg-red-50 rounded border border-red-200 max-h-40 overflow-y-auto">
                             <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
                             <ul className="text-xs text-red-700 space-y-1">
-                              {importResult.errors.slice(0, 10).map((e, i) => (
-                                <li key={i}>{e}</li>
+                              {importResult.errors.slice(0, 10).map((error, index) => (
+                                <li key={index}>{error}</li>
                               ))}
                               {importResult.errors.length > 10 && (
                                 <li>...и еще {importResult.errors.length - 10} ошибок</li>
@@ -541,11 +705,7 @@ export default function ContactsClient({ initialLists }: Props) {
                     <div className="flex gap-2 justify-end pt-4">
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          setShowImportModal(false)
-                          setFormInput("")
-                          setImportResult(null)
-                        }}
+                        onClick={closeModals}
                         disabled={formImporting}
                       >
                         Отмена
@@ -555,7 +715,10 @@ export default function ContactsClient({ initialLists }: Props) {
                         disabled={!formInput.trim() || formImporting}
                         className="bg-gray-800 hover:bg-gray-900"
                       >
-                        {formImporting ? "Импортировать..." : "Импортировать"}
+                        {formImporting ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : null}
+                        {formImporting ? "Импорт..." : "Импортировать"}
                       </Button>
                     </div>
                   </>
