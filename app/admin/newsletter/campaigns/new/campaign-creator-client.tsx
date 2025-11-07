@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { createBrowserClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { Send, Users, Mail, Download, FileText, Clock, CheckCircle, AlertCircle, Square, Eye } from "lucide-react"
+import { Send, Users, Mail, Download, FileText, Clock, CheckCircle, AlertCircle, Square, Eye, Loader2 } from "lucide-react"
 
 interface Template {
   id: string
@@ -46,7 +46,7 @@ interface CampaignStats {
 
 interface Props {
   templates: Template[]
-  contactLists: Array<{ id: string; name: string }>
+  contactLists: Array<{ id: string; name: string; contacts_count?: number }>
   smtpAccounts: SmtpAccount[]
 }
 
@@ -68,6 +68,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
   const [isSending, setIsSending] = useState(false)
   const [currentCampaignId, setCurrentCampaignId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [loadingSubscribers, setLoadingSubscribers] = useState(false)
 
   const [campaign, setCampaign] = useState({
     name: "",
@@ -76,15 +77,10 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     from_email: smtpAccounts[0]?.email || "",
   })
 
-  useEffect(() => {
-    setCampaignStats((prev) => ({
-      ...prev,
-      total: selectedSubscribers.length,
-      progress: selectedSubscribers.length > 0 ? 0 : 0,
-    }))
-  }, [selectedSubscribers.length])
+  const supabase = createBrowserClient()
 
-  const calculateEstimatedTime = (remaining: number): string => {
+  // Расчет оставшегося времени
+  const calculateEstimatedTime = useCallback((remaining: number): string => {
     const emailsPerMinute = 60 // Предполагаемая скорость отправки
     const minutes = Math.ceil(remaining / emailsPerMinute)
 
@@ -97,9 +93,10 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
     if (remainingMinutes === 0) return `${hours} час${hours > 1 ? "ов" : ""}`
     return `${hours} час${hours > 1 ? "ов" : ""} ${remainingMinutes} минут`
-  }
+  }, [])
 
-  const updateProgress = (sent: number, failed: number) => {
+  // Обновление прогресса отправки
+  const updateProgress = useCallback((sent: number, failed: number) => {
     const total = selectedSubscribers.length
     const processed = sent + failed
     const progress = total > 0 ? (processed / total) * 100 : 0
@@ -112,11 +109,10 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
       progress,
       estimatedTime: calculateEstimatedTime(remaining),
     })
-  }
+  }, [selectedSubscribers.length, calculateEstimatedTime])
 
-  const monitorCampaignProgress = async (campaignId: string) => {
-    const supabase = createBrowserClient()
-
+  // Мониторинг прогресса кампании
+  const monitorCampaignProgress = useCallback(async (campaignId: string) => {
     const interval = setInterval(async () => {
       try {
         const { data: campaignData, error } = await supabase
@@ -137,12 +133,14 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
         updateProgress(sent, failed)
 
-        if (campaignData.status === "sent" || campaignData.status === "failed") {
+        if (campaignData.status === "sent" || campaignData.status === "failed" || campaignData.status === "stopped") {
           clearInterval(interval)
           setIsSending(false)
 
           if (campaignData.status === "sent") {
             alert(`Рассылка завершена! Успешно отправлено: ${sent} писем`)
+          } else if (campaignData.status === "stopped") {
+            alert(`Рассылка остановлена. Отправлено: ${sent}, Ошибок: ${failed}`)
           } else {
             alert(`Рассылка завершена с ошибками. Отправлено: ${sent}, Ошибок: ${failed}`)
           }
@@ -157,8 +155,9 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     }, 2000)
 
     return interval
-  }
+  }, [supabase, updateProgress, router])
 
+  // Выбор всех подписчиков
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked)
     if (checked) {
@@ -168,6 +167,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     }
   }
 
+  // Выбор отдельного подписчика
   const handleSelectSubscriber = (id: string, checked: boolean) => {
     if (checked) {
       setSelectedSubscribers([...selectedSubscribers, id])
@@ -177,17 +177,66 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     }
   }
 
+  // Изменение шаблона
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplate(templateId)
     const template = templates.find((t) => t.id === templateId)
     if (template) {
-      setCampaign({ ...campaign, subject: template.subject })
+      setCampaign(prev => ({ ...prev, subject: template.subject }))
     }
   }
 
+  // Загрузка подписчиков при выборе базы контактов
+  useEffect(() => {
+    const loadSubscribers = async () => {
+      if (!selectedContactList) {
+        setSubscribers([])
+        setSelectedSubscribers([])
+        return
+      }
+
+      setLoadingSubscribers(true)
+      try {
+        const { data, error } = await supabase
+          .from("contact_list_contacts")
+          .select("id, email, name")
+          .eq("list_id", selectedContactList)
+
+        if (error) throw error
+
+        console.log("Loaded contacts from list:", selectedContactList, "Count:", data?.length || 0)
+        setSubscribers(data || [])
+        setSelectedSubscribers([])
+        setSelectAll(false)
+      } catch (error) {
+        console.error("Error loading subscribers:", error)
+        alert("Ошибка при загрузке контактов")
+      } finally {
+        setLoadingSubscribers(false)
+      }
+    }
+
+    loadSubscribers()
+  }, [selectedContactList, supabase])
+
+  // Обновление статистики при изменении выбранных подписчиков
+  useEffect(() => {
+    setCampaignStats(prev => ({
+      ...prev,
+      total: selectedSubscribers.length,
+      progress: 0,
+    }))
+  }, [selectedSubscribers.length])
+
+  // Отправка кампании
   const handleSendCampaign = async () => {
     if (!campaign.name || !selectedTemplate || selectedSubscribers.length === 0) {
       alert("Заполните все поля и выберите получателей")
+      return
+    }
+
+    if (!campaign.subject.trim()) {
+      alert("Введите тему письма")
       return
     }
 
@@ -197,9 +246,9 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
     setLoading(true)
     setIsSending(true)
-    const supabase = createBrowserClient()
-
+    
     try {
+      // Получаем данные шаблона
       const { data: templateData, error: templateError } = await supabase
         .from("email_templates")
         .select("*, attachments")
@@ -208,10 +257,14 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
       if (templateError) throw templateError
 
+      // Создаем кампанию
       const { data: campaignData, error: campaignError } = await supabase
         .from("email_campaigns")
         .insert({
-          ...campaign,
+          name: campaign.name,
+          subject: campaign.subject,
+          from_name: campaign.from_name,
+          from_email: campaign.from_email,
           template_id: selectedTemplate,
           total_recipients: selectedSubscribers.length,
           status: "sending",
@@ -223,6 +276,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
       setCurrentCampaignId(campaignData.id)
 
+      // Запускаем отправку через API
       const response = await fetch("/api/newsletter/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -246,16 +300,26 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
         throw new Error(errorData.error || "Failed to send emails")
       }
 
+      // Начинаем мониторинг прогресса
       monitorCampaignProgress(campaignData.id)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending campaign:", error)
-      alert("Ошибка при отправке рассылки: " + error.message)
+      alert("Ошибка при отправке рассылки: " + (error.message || "Неизвестная ошибка"))
       setIsSending(false)
+      
+      // Обновляем статус кампании на failed в случае ошибки
+      if (currentCampaignId) {
+        await supabase
+          .from("email_campaigns")
+          .update({ status: "failed" })
+          .eq("id", currentCampaignId)
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  // Остановка кампании
   const handleStopCampaign = async () => {
     if (!currentCampaignId) return
 
@@ -263,10 +327,11 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
       return
     }
 
-    const supabase = createBrowserClient()
-
     try {
-      const { error } = await supabase.from("email_campaigns").update({ status: "stopped" }).eq("id", currentCampaignId)
+      const { error } = await supabase
+        .from("email_campaigns")
+        .update({ status: "stopped" })
+        .eq("id", currentCampaignId)
 
       if (error) throw error
 
@@ -279,48 +344,32 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     }
   }
 
+  // Экспорт выбранных подписчиков
   const handleExportSelected = () => {
+    if (selectedSubscribers.length === 0) {
+      alert("Выберите подписчиков для экспорта")
+      return
+    }
+
     const selectedEmails = subscribers.filter((s) => selectedSubscribers.includes(s.id))
-    const csv = [["Email", "Имя"].join(","), ...selectedEmails.map((s) => [s.email, s.name || ""].join(","))].join("\n")
+    const csv = [
+      ["Email", "Имя"].join(","),
+      ...selectedEmails.map((s) => [s.email, s.name || ""].join(","))
+    ].join("\n")
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = `selected_recipients_${new Date().toISOString().split("T")[0]}.csv`
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
   }
 
   const selectedTemplateData = templates.find((t) => t.id === selectedTemplate)
   const attachmentsCount = selectedTemplateData?.attachments?.length || 0
-
-  useEffect(() => {
-    const loadSubscribers = async () => {
-      if (!selectedContactList) {
-        setSubscribers([])
-        setSelectedSubscribers([])
-        return
-      }
-
-      const supabase = createBrowserClient()
-      try {
-        const { data } = await supabase
-          .from("contact_list_contacts")
-          .select("id, email, name")
-          .eq("contact_list_id", selectedContactList)
-
-        console.log("[v0] Loaded contacts from list:", selectedContactList, "Count:", data?.length || 0)
-
-        setSubscribers(data || [])
-        setSelectedSubscribers([])
-        setSelectAll(false)
-      } catch (error) {
-        console.error("Error loading subscribers:", error)
-        console.log("[v0] Error loading contacts:", error)
-      }
-    }
-
-    loadSubscribers()
-  }, [selectedContactList])
+  const selectedContactListData = contactLists.find((list) => list.id === selectedContactList)
 
   return (
     <div className="p-8">
@@ -330,77 +379,88 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Основные настройки */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Настройки кампании</h2>
             <div className="space-y-4">
               <div>
-                <Label>Название кампании *</Label>
+                <Label htmlFor="campaign-name">Название кампании *</Label>
                 <Input
+                  id="campaign-name"
                   value={campaign.name}
-                  onChange={(e) => setCampaign({ ...campaign, name: e.target.value })}
+                  onChange={(e) => setCampaign(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Например: Акция на экскаваторы"
+                  disabled={isSending}
                 />
               </div>
 
               <div>
-                <Label>Выберите базу контактов *</Label>
+                <Label htmlFor="contact-list">Выберите базу контактов *</Label>
                 <select
-                  className="w-full px-3 py-2 border rounded-md"
+                  id="contact-list"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedContactList}
                   onChange={(e) => setSelectedContactList(e.target.value)}
+                  disabled={isSending}
                 >
                   <option value="">Выберите базу контактов</option>
                   {contactLists.map((list) => (
                     <option key={list.id} value={list.id}>
-                      {list.name}
+                      {list.name} ({list.contacts_count || 0} контактов)
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <Label>Выберите шаблон *</Label>
+                <Label htmlFor="template">Выберите шаблон *</Label>
                 <select
-                  className="w-full px-3 py-2 border rounded-md"
+                  id="template"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedTemplate}
                   onChange={(e) => handleTemplateChange(e.target.value)}
+                  disabled={isSending}
                 >
                   <option value="">Выберите шаблон</option>
                   {templates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
-                      {template.attachments &&
-                        template.attachments.length > 0 &&
-                        ` (${template.attachments.length} влож.)`}
+                      {template.attachments && template.attachments.length > 0 && ` (${template.attachments.length} влож.)`}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <Label>Тема письма *</Label>
+                <Label htmlFor="subject">Тема письма *</Label>
                 <Input
+                  id="subject"
                   value={campaign.subject}
-                  onChange={(e) => setCampaign({ ...campaign, subject: e.target.value })}
+                  onChange={(e) => setCampaign(prev => ({ ...prev, subject: e.target.value }))}
                   placeholder="Специальное предложение"
+                  disabled={isSending}
                 />
               </div>
 
               <div>
-                <Label>Имя отправителя</Label>
+                <Label htmlFor="from-name">Имя отправителя</Label>
                 <Input
+                  id="from-name"
                   value={campaign.from_name}
-                  onChange={(e) => setCampaign({ ...campaign, from_name: e.target.value })}
+                  onChange={(e) => setCampaign(prev => ({ ...prev, from_name: e.target.value }))}
+                  disabled={isSending}
                 />
               </div>
 
               <div>
-                <Label>Email отправителя *</Label>
+                <Label htmlFor="from-email">Email отправителя *</Label>
                 <select
-                  className="w-full px-3 py-2 border rounded-md"
+                  id="from-email"
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={campaign.from_email}
-                  onChange={(e) => setCampaign({ ...campaign, from_email: e.target.value })}
+                  onChange={(e) => setCampaign(prev => ({ ...prev, from_email: e.target.value }))}
+                  disabled={isSending}
                 >
                   {smtpAccounts.map((account) => (
                     <option key={account.id} value={account.email}>
@@ -411,14 +471,16 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
               </div>
 
               {selectedTemplate && (
-                <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                   <Label>Информация о шаблоне:</Label>
-                  <div className="mt-2 text-sm text-gray-600">
-                    <p>Шаблон: {templates.find((t) => t.id === selectedTemplate)?.name}</p>
+                  <div className="mt-2 text-sm text-gray-600 space-y-1">
+                    <p><strong>Название:</strong> {templates.find((t) => t.id === selectedTemplate)?.name}</p>
                     {attachmentsCount > 0 ? (
-                      <p className="text-green-600 font-medium">Вложения: {attachmentsCount} файл(ов)</p>
+                      <p className="text-green-600 font-medium">
+                        <strong>Вложения:</strong> {attachmentsCount} файл(ов)
+                      </p>
                     ) : (
-                      <p className="text-gray-500">Вложения отсутствуют</p>
+                      <p className="text-gray-500"><strong>Вложения:</strong> отсутствуют</p>
                     )}
                   </div>
                 </div>
@@ -426,41 +488,69 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
             </div>
           </Card>
 
+          {/* Список получателей */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Получатели</h2>
               <div className="flex items-center gap-2">
                 {selectedSubscribers.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={handleExportSelected}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleExportSelected}
+                    disabled={isSending}
+                  >
                     <Download className="w-4 h-4 mr-2" />
                     Экспорт ({selectedSubscribers.length})
                   </Button>
                 )}
                 <div className="flex items-center gap-2">
-                  <Checkbox id="select-all" checked={selectAll} onCheckedChange={handleSelectAll} />
-                  <Label htmlFor="select-all">Выбрать всех ({subscribers.length})</Label>
+                  <Checkbox
+                    id="select-all"
+                    checked={selectAll}
+                    onCheckedChange={handleSelectAll}
+                    disabled={isSending || subscribers.length === 0}
+                  />
+                  <Label htmlFor="select-all" className="text-sm">
+                    Выбрать всех ({subscribers.length})
+                  </Label>
                 </div>
               </div>
             </div>
 
-            <div className="max-h-[400px] overflow-y-auto space-y-2">
-              {subscribers.map((subscriber) => (
-                <div key={subscriber.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Checkbox
-                    id={`subscriber-${subscriber.id}`}
-                    checked={selectedSubscribers.includes(subscriber.id)}
-                    onCheckedChange={(checked) => handleSelectSubscriber(subscriber.id, checked as boolean)}
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{subscriber.email}</p>
-                    {subscriber.name && <p className="text-xs text-gray-500">{subscriber.name}</p>}
+            {loadingSubscribers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-500 mr-2" />
+                <span>Загрузка контактов...</span>
+              </div>
+            ) : subscribers.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {selectedContactList ? "В выбранной базе нет контактов" : "Выберите базу контактов"}
+              </div>
+            ) : (
+              <div className="max-h-[400px] overflow-y-auto space-y-2">
+                {subscribers.map((subscriber) => (
+                  <div key={subscriber.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <Checkbox
+                      id={`subscriber-${subscriber.id}`}
+                      checked={selectedSubscribers.includes(subscriber.id)}
+                      onCheckedChange={(checked) => handleSelectSubscriber(subscriber.id, checked as boolean)}
+                      disabled={isSending}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{subscriber.email}</p>
+                      {subscriber.name && (
+                        <p className="text-xs text-gray-500 truncate">{subscriber.name}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 
+        {/* Панель сводки и управления */}
         <div className="space-y-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Сводка кампании</h2>
@@ -472,18 +562,18 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                   <span className="text-sm text-blue-600">{Math.round(campaignStats.progress)}%</span>
                 </div>
                 <Progress value={campaignStats.progress} className="mb-3" />
-                <div className="grid grid-cols-3 gap-2 text-xs text-blue-700">
-                  <div>
-                    <CheckCircle className="w-3 h-3 inline mr-1" />
+                <div className="grid grid-cols-2 gap-3 text-xs text-blue-700">
+                  <div className="flex items-center">
+                    <CheckCircle className="w-3 h-3 mr-1" />
                     Отправлено: {campaignStats.sent}
                   </div>
-                  <div>
-                    <AlertCircle className="w-3 h-3 inline mr-1" />
+                  <div className="flex items-center">
+                    <AlertCircle className="w-3 h-3 mr-1" />
                     Ошибок: {campaignStats.failed}
                   </div>
-                  <div>
-                    <Clock className="w-3 h-3 inline mr-1" />
-                    {campaignStats.estimatedTime}
+                  <div className="flex items-center col-span-2">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Осталось: {campaignStats.estimatedTime}
                   </div>
                 </div>
               </div>
@@ -548,16 +638,25 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 {!isSending ? (
                   <Button
                     onClick={handleSendCampaign}
-                    disabled={loading || selectedSubscribers.length === 0 || !selectedTemplate}
+                    disabled={loading || selectedSubscribers.length === 0 || !selectedTemplate || !campaign.name.trim() || !campaign.subject.trim()}
                     className="w-full"
                     size="lg"
                   >
-                    <Send className="w-4 h-4 mr-2" />
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
                     {loading ? "Подготовка..." : "Запустить рассылку"}
                   </Button>
                 ) : (
                   <div className="space-y-2">
-                    <Button onClick={handleStopCampaign} variant="outline" className="w-full bg-transparent" size="lg">
+                    <Button 
+                      onClick={handleStopCampaign} 
+                      variant="outline" 
+                      className="w-full bg-transparent border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" 
+                      size="lg"
+                    >
                       <Square className="w-4 h-4 mr-2" />
                       Остановить рассылку
                     </Button>
@@ -572,6 +671,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                     variant="outline"
                     className="w-full bg-transparent"
                     onClick={() => setShowPreview(!showPreview)}
+                    disabled={isSending}
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     {showPreview ? "Скрыть предпросмотр" : "Предпросмотр письма"}
@@ -581,6 +681,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
             </div>
           </Card>
 
+          {/* Быстрая статистика */}
           <Card className="p-4">
             <h3 className="font-semibold mb-3">Быстрая статистика</h3>
             <div className="space-y-2 text-sm">
@@ -596,7 +697,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 <span className="text-gray-600">Доступных шаблонов:</span>
                 <span className="font-medium">{templates.length}</span>
               </div>
-              {selectedSubscribers.length > 0 && (
+              {selectedSubscribers.length > 0 && subscribers.length > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Охват аудитории:</span>
                   <span className="font-medium text-green-600">
@@ -609,6 +710,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
         </div>
       </div>
 
+      {/* Предпросмотр письма */}
       {showPreview && selectedTemplateData && (
         <div className="mt-6">
           <Card className="p-6">
