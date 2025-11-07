@@ -30,6 +30,9 @@ export default function ContactsClient({ initialLists }: Props) {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
+  const [importTab, setImportTab] = useState<"csv" | "form">("csv")
+  const [formInput, setFormInput] = useState("")
+  const [formImporting, setFormImporting] = useState(false)
 
   const supabase = createBrowserClient()
 
@@ -159,6 +162,74 @@ export default function ContactsClient({ initialLists }: Props) {
     link.click()
   }
 
+  const handleFormImport = async () => {
+    if (!formInput.trim() || !selectedList) {
+      alert("Введите контакты для импорта")
+      return
+    }
+
+    setFormImporting(true)
+    setImportResult(null)
+
+    try {
+      const lines = formInput.split("\n").filter((line) => line.trim())
+      const errors: string[] = []
+      let successCount = 0
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+
+        try {
+          const parts = line.split(",").map((p) => p.trim())
+          const email = parts[0]?.toLowerCase()
+          const name = parts[1] || null
+
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push(`Строка ${i + 1}: Неверный email`)
+            continue
+          }
+
+          const { error } = await supabase.from("contact_list_contacts").insert({
+            list_id: selectedList.id,
+            email,
+            name,
+          })
+
+          if (error) {
+            if (error.code === "23505") {
+              errors.push(`Строка ${i + 1}: Email "${email}" уже в базе`)
+            } else {
+              errors.push(`Строка ${i + 1}: Ошибка "${email}"`)
+            }
+          } else {
+            successCount++
+          }
+        } catch (error) {
+          errors.push(`Строка ${i + 1}: Ошибка обработки`)
+        }
+      }
+
+      if (successCount > 0) {
+        setFormInput("")
+        setLists(
+          lists.map((l) =>
+            l.id === selectedList.id
+              ? { ...l, contact_list_contacts: [...(l.contact_list_contacts || []), ...Array(successCount).fill({})] }
+              : l,
+          ),
+        )
+      }
+
+      setImportResult({ success: successCount, errors })
+    } catch (error) {
+      console.error("Form import error:", error)
+      setImportResult({ success: 0, errors: ["Ошибка при обработке контактов"] })
+    } finally {
+      setFormImporting(false)
+    }
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8 flex justify-between items-center">
@@ -283,6 +354,7 @@ export default function ContactsClient({ initialLists }: Props) {
                   onClick={() => {
                     setShowImportModal(false)
                     setImportFile(null)
+                    setFormInput("")
                     setImportResult(null)
                   }}
                 >
@@ -290,53 +362,139 @@ export default function ContactsClient({ initialLists }: Props) {
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <Label>Загрузите CSV файл</Label>
-                  <p className="text-xs text-gray-500 mb-2">Формат: Email,Название</p>
-                  <input
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
-                  />
-                  {importFile && <p className="text-sm text-green-600 mt-2">✓ {importFile.name}</p>}
-                </div>
+              <div className="flex gap-2 mb-6 border-b">
+                <button
+                  onClick={() => {
+                    setImportTab("csv")
+                    setImportResult(null)
+                  }}
+                  className={`pb-2 px-4 font-semibold transition-colors ${
+                    importTab === "csv"
+                      ? "border-b-2 border-blue-600 text-blue-600"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  Загрузить CSV
+                </button>
+                <button
+                  onClick={() => {
+                    setImportTab("form")
+                    setImportResult(null)
+                  }}
+                  className={`pb-2 px-4 font-semibold transition-colors ${
+                    importTab === "form"
+                      ? "border-b-2 border-blue-600 text-blue-600"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Через форму
+                </button>
+              </div>
 
-                {importResult && (
-                  <div className="space-y-2">
-                    <div className="p-4 bg-green-50 rounded">
-                      <p className="text-green-800 font-semibold">Успешно: {importResult.success}</p>
+              <div className="space-y-4">
+                {/* CSV Import Tab */}
+                {importTab === "csv" && (
+                  <>
+                    <div>
+                      <Label>Загрузите CSV файл</Label>
+                      <p className="text-xs text-gray-500 mb-2">Формат: Email,Название</p>
+                      <input
+                        type="file"
+                        accept=".csv,.txt"
+                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
+                      />
+                      {importFile && <p className="text-sm text-green-600 mt-2">✓ {importFile.name}</p>}
                     </div>
-                    {importResult.errors.length > 0 && (
-                      <div className="p-4 bg-red-50 rounded max-h-40 overflow-y-auto">
-                        <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
-                        <ul className="text-sm text-red-700 space-y-1">
-                          {importResult.errors.map((e, i) => (
-                            <li key={i}>{e}</li>
-                          ))}
-                        </ul>
+
+                    {importResult && (
+                      <div className="space-y-2">
+                        <div className="p-4 bg-green-50 rounded">
+                          <p className="text-green-800 font-semibold">Успешно: {importResult.success}</p>
+                        </div>
+                        {importResult.errors.length > 0 && (
+                          <div className="p-4 bg-red-50 rounded max-h-40 overflow-y-auto">
+                            <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
+                            <ul className="text-sm text-red-700 space-y-1">
+                              {importResult.errors.map((e, i) => (
+                                <li key={i}>{e}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
+
+                    <div className="flex gap-2 justify-end pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowImportModal(false)
+                          setImportFile(null)
+                          setImportResult(null)
+                        }}
+                        disabled={importing}
+                      >
+                        Закрыть
+                      </Button>
+                      <Button onClick={handleImport} disabled={!importFile || importing}>
+                        {importing ? "Импорт..." : "Импортировать"}
+                      </Button>
+                    </div>
+                  </>
                 )}
 
-                <div className="flex gap-2 justify-end pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowImportModal(false)
-                      setImportFile(null)
-                      setImportResult(null)
-                    }}
-                    disabled={importing}
-                  >
-                    Закрыть
-                  </Button>
-                  <Button onClick={handleImport} disabled={!importFile || importing}>
-                    {importing ? "Импорт..." : "Импортировать"}
-                  </Button>
-                </div>
+                {/* Form Import Tab */}
+                {importTab === "form" && (
+                  <>
+                    <div>
+                      <Label>Добавьте контакты</Label>
+                      <p className="text-xs text-gray-500 mb-2">По одному на строку: email,название</p>
+                      <textarea
+                        value={formInput}
+                        onChange={(e) => setFormInput(e.target.value)}
+                        placeholder={`Примеры:\ntest@example.com,Компания 1\nuser@test.ru,Компания 2`}
+                        className="w-full h-40 p-3 border rounded-md text-sm font-mono"
+                      />
+                    </div>
+
+                    {importResult && (
+                      <div className="space-y-2">
+                        <div className="p-4 bg-green-50 rounded">
+                          <p className="text-green-800 font-semibold">Успешно: {importResult.success}</p>
+                        </div>
+                        {importResult.errors.length > 0 && (
+                          <div className="p-4 bg-red-50 rounded max-h-40 overflow-y-auto">
+                            <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
+                            <ul className="text-sm text-red-700 space-y-1">
+                              {importResult.errors.map((e, i) => (
+                                <li key={i}>{e}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 justify-end pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowImportModal(false)
+                          setFormInput("")
+                          setImportResult(null)
+                        }}
+                        disabled={formImporting}
+                      >
+                        Закрыть
+                      </Button>
+                      <Button onClick={handleFormImport} disabled={!formInput.trim() || formImporting}>
+                        {formImporting ? "Импорт..." : "Импортировать"}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </Card>
