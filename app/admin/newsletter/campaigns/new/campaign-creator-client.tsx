@@ -321,28 +321,38 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
   // Остановка кампании
   const handleStopCampaign = async () => {
-    if (!currentCampaignId) return
+  if (!currentCampaignId) return
 
-    if (!confirm("Остановить рассылку?")) {
-      return
-    }
-
-    try {
-      const { error } = await supabase
-        .from("email_campaigns")
-        .update({ status: "stopped" })
-        .eq("id", currentCampaignId)
-
-      if (error) throw error
-
-      setIsSending(false)
-      alert("Рассылка остановлена")
-      router.push("/admin/newsletter")
-    } catch (error) {
-      console.error("Error stopping campaign:", error)
-      alert("Ошибка при остановке рассылки")
-    }
+  if (!confirm("Остановить рассылку?")) {
+    return
   }
+
+  try {
+    const { error } = await supabase
+      .from("email_campaigns")
+      .update({ status: "stopped" })
+      .eq("id", currentCampaignId)
+
+    if (error) {
+      // Если ошибка из-за constraint, пробуем установить другой статус
+      if (error.code === '23514') {
+        await supabase
+          .from("email_campaigns")
+          .update({ status: "failed" })
+          .eq("id", currentCampaignId)
+      } else {
+        throw error
+      }
+    }
+
+    setIsSending(false)
+    alert("Рассылка остановлена")
+    router.push("/admin/newsletter")
+  } catch (error) {
+    console.error("Error stopping campaign:", error)
+    alert("Ошибка при остановке рассылки")
+  }
+}
 
   // Экспорт выбранных подписчиков
   const handleExportSelected = () => {
