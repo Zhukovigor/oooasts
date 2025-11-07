@@ -1,16 +1,34 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Upload, Download, Trash2, X, Mail, Loader2 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Plus, Upload, Download, Trash2, X, Mail, Loader2, Search, AlertCircle, CheckCircle } from "lucide-react"
 import { createBrowserClient } from "@/lib/supabase-client"
 import type { ContactList, ImportResult } from "@/types/contacts"
 
 interface Props {
   initialLists: ContactList[]
+}
+
+// Хук для debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
 }
 
 export default function ContactsClient({ initialLists }: Props) {
@@ -32,8 +50,38 @@ export default function ContactsClient({ initialLists }: Props) {
     deleting: false,
     exporting: false
   })
+  const [searchTerm, setSearchTerm] = useState("")
+  const [importProgress, setImportProgress] = useState(0)
+  const [filteredLists, setFilteredLists] = useState<ContactList[]>(initialLists)
 
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
   const supabase = createBrowserClient()
+
+  // Фильтрация списков по поисковому запросу
+  useEffect(() => {
+    if (!debouncedSearchTerm.trim()) {
+      setFilteredLists(lists)
+    } else {
+      const filtered = lists.filter(list =>
+        list.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        list.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      )
+      setFilteredLists(filtered)
+    }
+  }, [lists, debouncedSearchTerm])
+
+  // Подтверждение закрытия страницы во время импорта
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (importing || formImporting) {
+        e.preventDefault()
+        e.returnValue = "Импорт все еще выполняется. Вы уверены, что хотите уйти?"
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [importing, formImporting])
 
   // Валидация email
   const validateEmail = useCallback((email: string): boolean => {
@@ -41,10 +89,36 @@ export default function ContactsClient({ initialLists }: Props) {
     return emailRegex.test(email)
   }, [])
 
+  // Валидация имени базы контактов
+  const validateListName = (name: string): string | null => {
+    if (!name.trim()) return "Название базы не может быть пустым"
+    if (name.length > 255) return "Название слишком длинное (макс. 255 символов)"
+    if (/[<>]/.test(name)) return "Название содержит запрещенные символы"
+    return null
+  }
+
+  // Обработчик ошибок Supabase
+  const handleSupabaseError = (error: any, context: string): string => {
+    console.error(`Error in ${context}:`, error)
+    
+    if (error.code === '23505') {
+      return 'Запись уже существует'
+    } else if (error.code === '42501') {
+      return 'Недостаточно прав для выполнения операции'
+    } else if (error.message?.includes('JWT')) {
+      return 'Ошибка авторизации. Пожалуйста, войдите снова.'
+    } else if (error.code === '42703') {
+      return 'Ошибка структуры базы данных. Обратитесь к администратору.'
+    } else {
+      return error.message || `Ошибка при ${context}`
+    }
+  }
+
   // Создание базы контактов
   const handleCreateList = async () => {
-    if (!newListName.trim()) {
-      alert("Введите название базы контактов")
+    const nameValidation = validateListName(newListName)
+    if (nameValidation) {
+      alert(nameValidation)
       return
     }
 
@@ -61,8 +135,8 @@ export default function ContactsClient({ initialLists }: Props) {
         .single()
 
       if (error) {
-        console.error("Error creating list:", error)
-        alert("Ошибка при создании базы контактов")
+        const errorMessage = handleSupabaseError(error, "создании базы контактов")
+        alert(errorMessage)
         return
       }
 
@@ -73,7 +147,7 @@ export default function ContactsClient({ initialLists }: Props) {
       alert("База контактов успешно создана")
     } catch (error) {
       console.error("Error creating list:", error)
-      alert("Ошибка при создании базы контактов")
+      alert("Неизвестная ошибка при создании базы контактов")
     } finally {
       setLoadingStates(prev => ({ ...prev, creating: false }))
     }
@@ -91,8 +165,8 @@ export default function ContactsClient({ initialLists }: Props) {
       const { error } = await supabase.from("contact_lists").delete().eq("id", listId)
 
       if (error) {
-        console.error("Error deleting list:", error)
-        alert("Ошибка при удалении базы контактов")
+        const errorMessage = handleSupabaseError(error, "удалении базы контактов")
+        alert(errorMessage)
         return
       }
 
@@ -100,7 +174,7 @@ export default function ContactsClient({ initialLists }: Props) {
       alert("База контактов успешно удалена")
     } catch (error) {
       console.error("Error deleting list:", error)
-      alert("Ошибка при удалении базы контактов")
+      alert("Неизвестная ошибка при удалении базы контактов")
     } finally {
       setLoadingStates(prev => ({ ...prev, deleting: false }))
     }
@@ -121,7 +195,10 @@ export default function ContactsClient({ initialLists }: Props) {
 
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim()
-      if (!line) continue
+      // Пропускаем пустые строки и строки только с разделителями
+      if (!line || line === separator || line.split(separator).every(cell => !cell.trim())) {
+        continue
+      }
 
       try {
         const values = line.split(separator).map(v => v.trim())
@@ -171,8 +248,26 @@ export default function ContactsClient({ initialLists }: Props) {
       return
     }
 
+    // Проверка размера файла (10MB)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024
+    if (importFile.size > MAX_FILE_SIZE) {
+      alert("Файл слишком большой. Максимальный размер: 10MB")
+      return
+    }
+
+    // Проверка типа файла
+    if (importFile.type && !['text/csv', 'text/plain', 'application/vnd.ms-excel'].includes(importFile.type)) {
+      alert("Пожалуйста, выберите CSV файл")
+      return
+    }
+
+    // Проверка лимита контактов
+    const MAX_CONTACTS_PER_LIST = 100000
+    const currentCount = getContactsCount(selectedList)
+
     setImporting(true)
     setImportResult(null)
+    setImportProgress(0)
 
     try {
       const text = await importFile.text()
@@ -192,16 +287,30 @@ export default function ContactsClient({ initialLists }: Props) {
         return
       }
 
+      // Проверка общего лимита
+      if (currentCount + contacts.length > MAX_CONTACTS_PER_LIST) {
+        alert(`Превышен лимит контактов. Максимум: ${MAX_CONTACTS_PER_LIST}. Текущее количество: ${currentCount}`)
+        return
+      }
+
       const errors = [...parseErrors]
       let successCount = 0
+      const successfulEmails = new Set<string>()
 
       // Импортируем контакты пачками по 50
       const batchSize = 50
       for (let i = 0; i < contacts.length; i += batchSize) {
         const batch = contacts.slice(i, i + batchSize)
+        const progress = ((i + batchSize) / contacts.length) * 100
+        setImportProgress(Math.min(progress, 100))
+        
+        // Фильтруем дубликаты в текущей пачке
+        const uniqueBatch = batch.filter(contact => !successfulEmails.has(contact.email))
+        
+        if (uniqueBatch.length === 0) continue
         
         const { error } = await supabase.from("contact_list_contacts").insert(
-          batch.map(contact => ({
+          uniqueBatch.map(contact => ({
             list_id: selectedList.id,
             email: contact.email,
             name: contact.name,
@@ -210,21 +319,43 @@ export default function ContactsClient({ initialLists }: Props) {
 
         if (error) {
           if (error.code === "23505") {
-            // Duplicate emails
-            batch.forEach(contact => {
-              errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
-            })
+            // Обрабатываем дубликаты индивидуально
+            for (const contact of uniqueBatch) {
+              try {
+                const { error: singleError } = await supabase
+                  .from("contact_list_contacts")
+                  .insert({
+                    list_id: selectedList.id,
+                    email: contact.email,
+                    name: contact.name,
+                  })
+
+                if (singleError && singleError.code === "23505") {
+                  errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
+                } else if (!singleError) {
+                  successCount++
+                  successfulEmails.add(contact.email)
+                }
+              } catch (singleError) {
+                errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+              }
+            }
           } else {
             batch.forEach(contact => {
-              errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+              errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}" - ${error.message}`)
             })
           }
         } else {
-          successCount += batch.length
+          successCount += uniqueBatch.length
+          uniqueBatch.forEach(contact => successfulEmails.add(contact.email))
         }
+
+        // Небольшая задержка для избежания перегрузки
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
 
       setImportResult({ success: successCount, errors })
+      setImportProgress(100)
 
       // Обновляем счетчик контактов при успешном импорте
       if (successCount > 0) {
@@ -236,9 +367,13 @@ export default function ContactsClient({ initialLists }: Props) {
       }
     } catch (error) {
       console.error("Import error:", error)
-      setImportResult({ success: 0, errors: ["Ошибка при чтении файла"] })
+      setImportResult({ 
+        success: 0, 
+        errors: [`Ошибка при чтении файла: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`] 
+      })
     } finally {
       setImporting(false)
+      setImportProgress(0)
     }
   }
 
@@ -254,7 +389,13 @@ export default function ContactsClient({ initialLists }: Props) {
         .order("created_at", { ascending: true })
 
       if (error) {
-        alert("Ошибка при экспорте")
+        const errorMessage = handleSupabaseError(error, "экспорте контактов")
+        alert(errorMessage)
+        return
+      }
+
+      if (!data || data.length === 0) {
+        alert("В выбранной базе нет контактов для экспорта")
         return
       }
 
@@ -274,7 +415,7 @@ export default function ContactsClient({ initialLists }: Props) {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Export error:", error)
-      alert("Ошибка при экспорте")
+      alert("Неизвестная ошибка при экспорте")
     } finally {
       setLoadingStates(prev => ({ ...prev, exporting: false }))
     }
@@ -284,6 +425,16 @@ export default function ContactsClient({ initialLists }: Props) {
   const handleFormImport = async () => {
     if (!formInput.trim() || !selectedList) {
       alert("Введите контакты для импорта")
+      return
+    }
+
+    // Проверка лимита контактов
+    const MAX_CONTACTS_PER_LIST = 100000
+    const currentCount = getContactsCount(selectedList)
+    const lines = formInput.split("\n").filter((line) => line.trim())
+    
+    if (currentCount + lines.length > MAX_CONTACTS_PER_LIST) {
+      alert(`Превышен лимит контактов. Максимум: ${MAX_CONTACTS_PER_LIST}. Текущее количество: ${currentCount}`)
       return
     }
 
@@ -318,23 +469,50 @@ export default function ContactsClient({ initialLists }: Props) {
         contacts.push({ email, name, lineNumber: i + 1 })
       }
 
-      // Импортируем контакты
-      for (const contact of contacts) {
-        const { error } = await supabase.from("contact_list_contacts").insert({
-          list_id: selectedList.id,
-          email: contact.email,
-          name: contact.name,
-        })
+      // Импортируем контакты пачками
+      const batchSize = 50
+      for (let i = 0; i < contacts.length; i += batchSize) {
+        const batch = contacts.slice(i, i + batchSize)
+        
+        const { error } = await supabase.from("contact_list_contacts").insert(
+          batch.map(contact => ({
+            list_id: selectedList.id,
+            email: contact.email,
+            name: contact.name,
+          }))
+        )
 
         if (error) {
           if (error.code === "23505") {
-            errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
+            // Обрабатываем дубликаты индивидуально
+            for (const contact of batch) {
+              try {
+                const { error: singleError } = await supabase.from("contact_list_contacts").insert({
+                  list_id: selectedList.id,
+                  email: contact.email,
+                  name: contact.name,
+                })
+
+                if (singleError && singleError.code === "23505") {
+                  errors.push(`Строка ${contact.lineNumber}: Email "${contact.email}" уже существует в базе`)
+                } else if (!singleError) {
+                  successCount++
+                }
+              } catch (singleError) {
+                errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+              }
+            }
           } else {
-            errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+            batch.forEach(contact => {
+              errors.push(`Строка ${contact.lineNumber}: Ошибка импорта "${contact.email}"`)
+            })
           }
         } else {
-          successCount++
+          successCount += batch.length
         }
+
+        // Небольшая задержка для избежания перегрузки
+        await new Promise(resolve => setTimeout(resolve, 50))
       }
 
       setImportResult({ success: successCount, errors })
@@ -358,6 +536,12 @@ export default function ContactsClient({ initialLists }: Props) {
 
   // Закрытие модальных окон
   const closeModals = () => {
+    if (importing || formImporting) {
+      if (!confirm("Импорт все еще выполняется. Вы уверены, что хотите закрыть?")) {
+        return
+      }
+    }
+    
     setShowCreateModal(false)
     setShowImportModal(false)
     setSelectedList(null)
@@ -367,6 +551,7 @@ export default function ContactsClient({ initialLists }: Props) {
     setFormInput("")
     setImportResult(null)
     setCsvSeparator("auto")
+    setImportProgress(0)
   }
 
   // Получение количества контактов
@@ -394,25 +579,50 @@ export default function ContactsClient({ initialLists }: Props) {
         </Button>
       </div>
 
-      {lists.length === 0 ? (
+      {/* Поиск */}
+      <div className="mb-6 max-w-md">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            type="text"
+            placeholder="Поиск по названию или описанию..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {filteredLists.length === 0 ? (
         <Card className="p-8 text-center">
           <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет баз контактов</h3>
-          <p className="text-gray-600 mb-4">Создайте новую базу контактов для рассылки</p>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Создать базу
-          </Button>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {lists.length === 0 ? "Нет баз контактов" : "Базы не найдены"}
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {lists.length === 0 
+              ? "Создайте новую базу контактов для рассылки" 
+              : "Попробуйте изменить поисковый запрос"
+            }
+          </p>
+          {lists.length === 0 && (
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Создать базу
+            </Button>
+          )}
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {lists.map((list) => (
+          {filteredLists.map((list) => (
             <Card key={list.id} className="p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-lg">{list.name}</h3>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg truncate" title={list.name}>{list.name}</h3>
                   {list.description && (
-                    <p className="text-sm text-gray-600 mt-1">{list.description}</p>
+                    <p className="text-sm text-gray-600 mt-1 truncate" title={list.description}>
+                      {list.description}
+                    </p>
                   )}
                 </div>
               </div>
@@ -431,6 +641,7 @@ export default function ContactsClient({ initialLists }: Props) {
                     setShowImportModal(true)
                   }}
                   className="flex-1"
+                  aria-label={`Импорт контактов в базу ${list.name}`}
                 >
                   <Upload className="w-4 h-4 mr-1" />
                   Импорт
@@ -439,8 +650,9 @@ export default function ContactsClient({ initialLists }: Props) {
                   variant="outline" 
                   size="sm" 
                   onClick={() => handleExportList(list)}
-                  disabled={loadingStates.exporting}
+                  disabled={loadingStates.exporting || getContactsCount(list) === 0}
                   className="flex-1"
+                  aria-label={`Экспорт контактов из базы ${list.name}`}
                 >
                   {loadingStates.exporting ? (
                     <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -455,6 +667,7 @@ export default function ContactsClient({ initialLists }: Props) {
                   onClick={() => handleDeleteList(list.id, list.name)}
                   disabled={loadingStates.deleting}
                   className="text-red-600 hover:bg-red-50"
+                  aria-label={`Удалить базу контактов ${list.name}`}
                 >
                   {loadingStates.deleting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -475,7 +688,7 @@ export default function ContactsClient({ initialLists }: Props) {
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">Новая база контактов</h2>
-                <Button variant="ghost" size="icon" onClick={closeModals}>
+                <Button variant="ghost" size="icon" onClick={closeModals} aria-label="Закрыть">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
@@ -529,7 +742,7 @@ export default function ContactsClient({ initialLists }: Props) {
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Импорт контактов в "{selectedList.name}"</h2>
-                <Button variant="ghost" size="icon" onClick={closeModals}>
+                <Button variant="ghost" size="icon" onClick={closeModals} aria-label="Закрыть">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
@@ -568,12 +781,23 @@ export default function ContactsClient({ initialLists }: Props) {
                 {/* CSV Import Tab */}
                 {importTab === "csv" && (
                   <>
+                    {importing && importProgress > 0 && (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-blue-800">Импорт контактов</span>
+                          <span className="text-sm text-blue-600">{Math.round(importProgress)}%</span>
+                        </div>
+                        <Progress value={importProgress} className="h-2" />
+                      </div>
+                    )}
+
                     <div>
                       <Label className="text-sm font-semibold">Разделитель в CSV файле:</Label>
                       <select
                         value={csvSeparator}
                         onChange={(e) => setCsvSeparator(e.target.value as "auto" | "," | ";" | "\t")}
                         className="w-full mt-2 p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={importing}
                       >
                         <option value="auto">Автоопределение (рекомендуется)</option>
                         <option value=",">Запятая (,)</option>
@@ -599,29 +823,45 @@ export default function ContactsClient({ initialLists }: Props) {
                     <div>
                       <Label className="text-sm font-semibold">Выберите файл:</Label>
                       <div className="mt-2 flex items-center gap-2">
-                        <label className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md cursor-pointer text-center font-medium text-sm transition">
+                        <label className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md cursor-pointer text-center font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
                           Выберите файл
                           <input
                             type="file"
                             accept=".csv,.txt"
                             onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                             className="hidden"
+                            disabled={importing}
                           />
                         </label>
                         <span className="text-sm text-gray-600 flex-1">
                           {importFile ? `✓ ${importFile.name}` : "Файл не выбран"}
                         </span>
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">Максимальный размер: 10MB</p>
                     </div>
 
                     {importResult && (
                       <div className="space-y-2">
-                        <div className="p-4 bg-green-50 rounded border border-green-200">
-                          <p className="text-green-800 font-semibold">Успешно добавлено: {importResult.success}</p>
+                        <div className={`p-4 rounded border ${
+                          importResult.success > 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {importResult.success > 0 ? (
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <AlertCircle className="w-5 h-5 text-yellow-600" />
+                            )}
+                            <p className="font-semibold text-green-800">
+                              Успешно добавлено: {importResult.success}
+                            </p>
+                          </div>
                         </div>
                         {importResult.errors.length > 0 && (
                           <div className="p-4 bg-red-50 rounded border border-red-200 max-h-40 overflow-y-auto">
-                            <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertCircle className="w-4 h-4 text-red-600" />
+                              <p className="text-red-800 font-semibold">Ошибки: {importResult.errors.length}</p>
+                            </div>
                             <ul className="text-xs text-red-700 space-y-1">
                               {importResult.errors.slice(0, 10).map((error, index) => (
                                 <li key={index}>{error}</li>
@@ -678,17 +918,32 @@ export default function ContactsClient({ initialLists }: Props) {
                         onChange={(e) => setFormInput(e.target.value)}
                         placeholder={`Формат: email,название\n\nПримеры:\ntest@example.com,Компания 1\nuser@test.ru,Компания 2\nmail@company.com`}
                         className="w-full h-48 mt-2 p-3 border rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                        disabled={formImporting}
                       />
                     </div>
 
                     {importResult && (
                       <div className="space-y-2">
-                        <div className="p-4 bg-green-50 rounded border border-green-200">
-                          <p className="text-green-800 font-semibold">Успешно добавлено: {importResult.success}</p>
+                        <div className={`p-4 rounded border ${
+                          importResult.success > 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {importResult.success > 0 ? (
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <AlertCircle className="w-5 h-5 text-yellow-600" />
+                            )}
+                            <p className="font-semibold text-green-800">
+                              Успешно добавлено: {importResult.success}
+                            </p>
+                          </div>
                         </div>
                         {importResult.errors.length > 0 && (
                           <div className="p-4 bg-red-50 rounded border border-red-200 max-h-40 overflow-y-auto">
-                            <p className="text-red-800 font-semibold mb-2">Ошибки: {importResult.errors.length}</p>
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertCircle className="w-4 h-4 text-red-600" />
+                              <p className="text-red-800 font-semibold">Ошибки: {importResult.errors.length}</p>
+                            </div>
                             <ul className="text-xs text-red-700 space-y-1">
                               {importResult.errors.slice(0, 10).map((error, index) => (
                                 <li key={index}>{error}</li>
