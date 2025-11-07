@@ -308,11 +308,14 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
           .select("id, email, name")
           .eq("contact_list_id", selectedContactList)
 
+        console.log("[v0] Loaded contacts from list:", selectedContactList, "Count:", data?.length || 0)
+
         setSubscribers(data || [])
         setSelectedSubscribers([])
         setSelectAll(false)
       } catch (error) {
         console.error("Error loading subscribers:", error)
+        console.log("[v0] Error loading contacts:", error)
       }
     }
 
