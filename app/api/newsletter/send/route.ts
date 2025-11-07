@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
       if (templateError || !templateResult) {
         console.error("[v0] Template not found:", templateError)
         
-        // Обновляем статус кампании на failed
         await supabase
           .from("email_campaigns")
           .update({
@@ -92,9 +91,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[v0] Starting campaign:", campaignId)
-    console.log("[v0] Subscribers to send:", subscriberIds.length)
 
-    // Получаем SMTP аккаунт (используем вашу существующую логику)
+    // Получаем SMTP аккаунт
     const { data: smtpAccount, error: smtpError } = await supabase
       .from("smtp_accounts")
       .select("*")
@@ -138,35 +136,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[v0] Found ${subscribers.length} subscribers`)
 
-    // Создаем начальные логи кампании
-    const campaignLogs = subscribers.map(subscriber => ({
-      campaign_id: campaignId,
-      subscriber_id: subscriber.id,
-      email: subscriber.email,
-      status: 'pending',
-      sent_at: null,
-      error_message: null
-    }))
-
-    const { error: logsError } = await supabase
-      .from("email_campaign_logs")
-      .insert(campaignLogs)
-
-    if (logsError) {
-      console.error("[v0] Error creating campaign logs:", logsError)
-      
-      await supabase
-        .from("email_campaigns")
-        .update({
-          status: "failed",
-          error_message: "Failed to create campaign logs"
-        })
-        .eq("id", campaignId)
-        
-      return NextResponse.json({ error: "Failed to create campaign logs" }, { status: 500 })
-    }
-
-    // Создаем транспортер (используем вашу существующую логику)
+    // Создаем транспортер
     const transporter = nodemailer.createTransport({
       host: smtpAccount.smtp_host,
       port: smtpAccount.smtp_port,
@@ -272,7 +242,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Фоновая обработка отправки писем (адаптированная версия вашей логики для массовой отправки)
+// Фоновая обработка отправки писем
 async function processEmailSending(
   campaignId: string,
   subscribers: any[],
@@ -295,24 +265,12 @@ async function processEmailSending(
       },
     })
 
-    const batchSize = 5 // Отправляем по 5 писем за раз
-    const delayBetweenBatches = 2000 // 2 секунды между батчами
+    const batchSize = 5
+    const delayBetweenBatches = 2000
 
     for (let i = 0; i < subscribers.length; i += batchSize) {
       const batch = subscribers.slice(i, i + batchSize)
       const batchPromises = []
-
-      // Проверяем не остановлена ли кампания
-      const { data: currentCampaign } = await supabase
-        .from("email_campaigns")
-        .select("status")
-        .eq("id", campaignId)
-        .single()
-
-      if (currentCampaign?.status === 'failed') {
-        console.log("[v0] Campaign marked as failed (stopped), aborting sending...")
-        break
-      }
 
       for (const subscriber of batch) {
         batchPromises.push(
@@ -324,7 +282,6 @@ async function processEmailSending(
               const personalizedHtml = personalizeContent(template.html_content, subscriber)
               const personalizedSubject = personalizeContent(template.subject, subscriber)
 
-              // Используем вашу существующую логику отправки
               const mailOptions = {
                 from: `${template.from_name || smtpAccount.name} <${smtpAccount.email}>`,
                 to: subscriber.email,
@@ -338,29 +295,41 @@ async function processEmailSending(
 
               console.log(`[v0] Email sent successfully to: ${subscriber.email}`)
 
-              // Обновляем лог
-              await supabase
-                .from("email_campaign_logs")
-                .update({
-                  status: "sent",
-                  sent_at: new Date().toISOString()
-                })
-                .eq("campaign_id", campaignId)
-                .eq("subscriber_id", subscriber.id)
+              // Создаем лог для отправленного письма
+              try {
+                await supabase
+                  .from("email_campaign_logs")
+                  .insert({
+                    campaign_id: campaignId,
+                    subscriber_id: subscriber.id,
+                    email: subscriber.email,
+                    status: "sent",
+                    sent_at: new Date().toISOString()
+                  })
+              } catch (logError) {
+                console.error(`[v0] Error creating log for ${subscriber.email}:`, logError)
+                // Продолжаем даже если не удалось создать лог
+              }
 
               sentCount++
 
             } catch (error) {
               console.error(`[v0] Failed to send to ${subscriber.email}:`, error)
 
-              await supabase
-                .from("email_campaign_logs")
-                .update({
-                  status: "failed",
-                  error_message: error instanceof Error ? error.message.substring(0, 500) : "Unknown error"
-                })
-                .eq("campaign_id", campaignId)
-                .eq("subscriber_id", subscriber.id)
+              // Создаем лог для неудачного письма
+              try {
+                await supabase
+                  .from("email_campaign_logs")
+                  .insert({
+                    campaign_id: campaignId,
+                    subscriber_id: subscriber.id,
+                    email: subscriber.email,
+                    status: "failed",
+                    error_message: error instanceof Error ? error.message.substring(0, 500) : "Unknown error"
+                  })
+              } catch (logError) {
+                console.error(`[v0] Error creating failed log for ${subscriber.email}:`, logError)
+              }
 
               failedCount++
             }
@@ -372,15 +341,19 @@ async function processEmailSending(
       await Promise.allSettled(batchPromises)
 
       // Обновляем прогресс кампании
-      await supabase
-        .from("email_campaigns")
-        .update({
-          sent_count: sentCount,
-          failed_count: failedCount
-        })
-        .eq("id", campaignId)
+      try {
+        await supabase
+          .from("email_campaigns")
+          .update({
+            sent_count: sentCount,
+            failed_count: failedCount
+          })
+          .eq("id", campaignId)
+      } catch (updateError) {
+        console.error("[v0] Error updating campaign progress:", updateError)
+      }
 
-      // Задержка между батчами чтобы не перегружать SMTP сервер
+      // Задержка между батчами
       if (i + batchSize < subscribers.length) {
         console.log(`[v0] Waiting ${delayBetweenBatches}ms before next batch...`)
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches))
@@ -392,34 +365,41 @@ async function processEmailSending(
     if (failedCount === subscribers.length) {
       finalStatus = "failed"
     } else if (failedCount > 0) {
-      finalStatus = "sent" // Даже с ошибками считаем отправленной
+      finalStatus = "sent"
     }
 
     // Финальное обновление кампании
-    await supabase
-      .from("email_campaigns")
-      .update({
-        status: finalStatus,
-        sent_count: sentCount,
-        failed_count: failedCount,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", campaignId)
+    try {
+      await supabase
+        .from("email_campaigns")
+        .update({
+          status: finalStatus,
+          sent_count: sentCount,
+          failed_count: failedCount,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId)
+    } catch (updateError) {
+      console.error("[v0] Error finalizing campaign:", updateError)
+    }
 
     console.log(`[v0] Campaign ${campaignId} completed: ${sentCount} sent, ${failedCount} failed, status: ${finalStatus}`)
 
   } catch (error) {
     console.error(`[v0] Error in background email processing for campaign ${campaignId}:`, error)
     
-    // В случае ошибки всегда устанавливаем completed_at
-    await supabase
-      .from("email_campaigns")
-      .update({
-        status: "failed",
-        completed_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : "Background processing error"
-      })
-      .eq("id", campaignId)
+    try {
+      await supabase
+        .from("email_campaigns")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error_message: error instanceof Error ? error.message : "Background processing error"
+        })
+        .eq("id", campaignId)
+    } catch (updateError) {
+      console.error("[v0] Error updating failed campaign:", updateError)
+    }
   }
 }
 
