@@ -3,8 +3,8 @@ import { createServerClient } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 
-// Разрешенные статусы кампании
-const ALLOWED_CAMPAIGN_STATUSES = ['draft', 'sending', 'sent', 'failed', 'stopped', 'partial'] as const
+// Используем только разрешенные статусы из constraint
+const ALLOWED_CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'failed'] as const
 
 export async function POST(request: Request) {
   let campaignId: string | null = null
@@ -35,36 +35,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 })
     }
 
-    // Проверяем валидность текущего статуса
-    if (!ALLOWED_CAMPAIGN_STATUSES.includes(campaign.status as any)) {
-      console.error("[v0] Invalid campaign status:", campaign.status)
-      return NextResponse.json({ error: "Invalid campaign status" }, { status: 400 })
+    // Проверяем статус кампании
+    if (campaign.status === 'sent' || campaign.status === 'sending') {
+      return NextResponse.json({ error: "Campaign already sent or in progress" }, { status: 400 })
     }
 
-    // Проверяем статус кампании - разрешаем переотправку только из определенных статусов
-    if (campaign.status === 'sent' || campaign.status === 'sending') {
-      console.log(`[v0] Campaign ${campaignId} already in status: ${campaign.status}`)
-      
-      // Если кампания в процессе отправки, проверяем можно ли продолжить
-      if (campaign.status === 'sending') {
-        const { data: logs } = await supabase
-          .from("email_campaign_logs")
-          .select("status")
-          .eq("campaign_id", campaignId)
-        
-        const sentCount = logs?.filter(log => log.status === 'sent').length || 0
-        
-        // Если уже есть отправленные письма, не разрешаем перезапуск
-        if (sentCount > 0) {
-          return NextResponse.json({ 
-            error: `Campaign already in progress (${sentCount} sent). Please wait for completion or stop it first.` 
-          }, { status: 400 })
-        }
-      } else {
-        return NextResponse.json({ 
-          error: "Campaign already sent. Create a new campaign to send again." 
-        }, { status: 400 })
-      }
+    // Обновляем статус кампании на "отправляется" - используем правильные имена колонок
+    const { error: updateError } = await supabase
+      .from("email_campaigns")
+      .update({
+        status: "sending",
+        started_at: new Date().toISOString(),
+        sent_count: 0,
+        failed_count: 0,
+        completed_at: null,
+        error_message: null
+      })
+      .eq("id", campaignId)
+
+    if (updateError) {
+      console.error("[v0] Error updating campaign status:", updateError)
+      return NextResponse.json({ 
+        error: `Failed to update campaign: ${updateError.message}` 
+      }, { status: 500 })
     }
 
     // Получаем или используем данные шаблона
@@ -96,32 +89,12 @@ export async function POST(request: Request) {
     console.log("[v0] Template attachments:", attachments.length)
 
     // Очищаем старые логи кампании если это перезапуск
-    if (['failed', 'stopped', 'draft'].includes(campaign.status)) {
+    if (['failed', 'draft'].includes(campaign.status)) {
       console.log("[v0] Cleaning up old campaign logs...")
       await supabase
         .from("email_campaign_logs")
         .delete()
         .eq("campaign_id", campaignId)
-    }
-
-    // Обновляем статус кампании на "отправляется"
-    const { error: updateError } = await supabase
-      .from("email_campaigns")
-      .update({
-        status: "sending",
-        started_at: new Date().toISOString(),
-        sent_count: 0,
-        failed_count: 0,
-        completed_at: null,
-        error_message: null
-      })
-      .eq("id", campaignId)
-
-    if (updateError) {
-      console.error("[v0] Error updating campaign status:", updateError)
-      return NextResponse.json({ 
-        error: `Failed to update campaign: ${updateError.message}` 
-      }, { status: 500 })
     }
 
     // Fetch SMTP account
@@ -337,15 +310,15 @@ async function processEmailSending(
       const batch = subscribers.slice(i, i + batchSize)
       const batchPromises = []
 
-      // Проверяем не остановлена ли кампания
+      // Проверяем не остановлена ли кампания (используем 'failed' вместо 'stopped')
       const { data: currentCampaign } = await supabase
         .from("email_campaigns")
         .select("status")
         .eq("id", campaignId)
         .single()
 
-      if (currentCampaign?.status === 'stopped') {
-        console.log("[v0] Campaign stopped, aborting sending...")
+      if (currentCampaign?.status === 'failed') {
+        console.log("[v0] Campaign marked as failed (stopped), aborting sending...")
         break
       }
 
@@ -421,32 +394,34 @@ async function processEmailSending(
       }
     }
 
-    // Финальный статус кампании
-    let finalStatus = "sent"
+    // Финальный статус кампании - используем только разрешенные статусы
+    let finalStatus: typeof ALLOWED_CAMPAIGN_STATUSES[number] = "sent"
     if (failedCount === subscribers.length) {
       finalStatus = "failed"
     } else if (failedCount > 0) {
-      finalStatus = "partial"
+      // Если есть ошибки, но не все письма провалились, все равно используем 'sent'
+      finalStatus = "sent"
     }
 
-    // Проверяем не остановлена ли кампания
+    // Проверяем не был ли кампания отмечена как failed (остановлена)
     const { data: finalCampaign } = await supabase
       .from("email_campaigns")
       .select("status")
       .eq("id", campaignId)
       .single()
 
-    // Если кампания была остановлена, сохраняем этот статус
-    if (finalCampaign?.status === 'stopped') {
-      finalStatus = 'stopped'
+    // Если кампания была отмечена как failed (остановлена), сохраняем этот статус
+    if (finalCampaign?.status === 'failed') {
+      finalStatus = 'failed'
     }
 
+    // Финальное обновление кампании
     await supabase
       .from("email_campaigns")
       .update({
+        status: finalStatus,
         sent_count: sentCount,
         failed_count: failedCount,
-        status: finalStatus,
         completed_at: new Date().toISOString(),
       })
       .eq("id", campaignId)

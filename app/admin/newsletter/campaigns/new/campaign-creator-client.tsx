@@ -259,18 +259,19 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
       // Создаем кампанию
       const { data: campaignData, error: campaignError } = await supabase
-        .from("email_campaigns")
-        .insert({
-          name: campaign.name,
-          subject: campaign.subject,
-          from_name: campaign.from_name,
-          from_email: campaign.from_email,
-          template_id: selectedTemplate,
-          total_recipients: selectedSubscribers.length,
-          status: "sending",
-        })
-        .select()
-        .single()
+  .from("email_campaigns")
+  .insert({
+    name: campaign.name,
+    subject: campaign.subject,
+    from_name: campaign.from_name,
+    from_email: campaign.from_email,
+    template_id: selectedTemplate,
+    total_recipients: selectedSubscribers.length,
+    status: "draft", // Начинаем с draft
+    // Не включаем started_at, completed_at и т.д. - они заполнятся автоматически
+  })
+  .select()
+  .single()
 
       if (campaignError) throw campaignError
 
