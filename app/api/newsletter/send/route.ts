@@ -254,13 +254,15 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Starting email sending process...")
 
     // Немедленно возвращаем ответ что кампания запущена
-    setTimeout(async () => {
-      try {
-        await processEmailSending(campaignId!, subscribers, template, smtpAccount, emailAttachments, supabase)
-      } catch (error) {
-        console.error("[v0] Error in background processing:", error)
-      }
-    }, 100)
+    const processSendingPromise = processEmailSending(
+      campaignId!,
+      subscribers,
+      template,
+      smtpAccount,
+      emailAttachments,
+      supabase,
+    )
+    await Promise.allSettled([processSendingPromise])
 
     return NextResponse.json({
       success: true,
