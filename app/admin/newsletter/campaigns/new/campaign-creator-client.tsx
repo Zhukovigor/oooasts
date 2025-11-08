@@ -9,7 +9,19 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { createBrowserClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
-import { Send, Users, Mail, Download, FileText, Clock, CheckCircle, AlertCircle, Square, Eye, Loader2 } from "lucide-react"
+import {
+  Send,
+  Users,
+  Mail,
+  Download,
+  FileText,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Square,
+  Eye,
+  Loader2,
+} from "lucide-react"
 
 interface Template {
   id: string
@@ -96,66 +108,107 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
   }, [])
 
   // Обновление прогресса отправки
-  const updateProgress = useCallback((sent: number, failed: number) => {
-    const total = selectedSubscribers.length
-    const processed = sent + failed
-    const progress = total > 0 ? (processed / total) * 100 : 0
-    const remaining = total - processed
+  const updateProgress = useCallback(
+    (sent: number, failed: number) => {
+      const total = selectedSubscribers.length
+      const processed = sent + failed
+      const progress = total > 0 ? (processed / total) * 100 : 0
+      const remaining = total - processed
 
-    setCampaignStats({
-      total,
-      sent,
-      failed,
-      progress,
-      estimatedTime: calculateEstimatedTime(remaining),
-    })
-  }, [selectedSubscribers.length, calculateEstimatedTime])
+      setCampaignStats({
+        total,
+        sent,
+        failed,
+        progress,
+        estimatedTime: calculateEstimatedTime(remaining),
+      })
+    },
+    [selectedSubscribers.length, calculateEstimatedTime],
+  )
 
   // Мониторинг прогресса кампании
-  const monitorCampaignProgress = useCallback(async (campaignId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const { data: campaignData, error } = await supabase
-          .from("email_campaigns")
-          .select("sent_count, status")
-          .eq("id", campaignId)
-          .single()
+  const monitorCampaignProgress = useCallback(
+    (campaignId: string) => {
+      // Subscribe to real-time updates of campaign logs
+      const subscription = supabase
+        .from(`email_campaign_logs:campaign_id=eq.${campaignId}`)
+        .on("INSERT", (payload) => {
+          // When new log is inserted, update stats immediately
+          const newLog = payload.new as any
+          setCampaignStats((prev) => {
+            const newSent = newLog.status === "sent" ? prev.sent + 1 : prev.sent
+            const newFailed = newLog.status === "failed" ? prev.failed + 1 : prev.failed
+            const processed = newSent + newFailed
+            const progress = prev.total > 0 ? (processed / prev.total) * 100 : 0
+            const remaining = prev.total - processed
 
-        if (error) throw error
+            console.log("[v0] Email sent! Sent:", newSent, "Failed:", newFailed, "Remaining:", remaining)
 
-        const { data: logsData } = await supabase
-          .from("email_campaign_logs")
-          .select("status")
-          .eq("campaign_id", campaignId)
-
-        const sent = logsData?.filter((log) => log.status === "sent").length || 0
-        const failed = logsData?.filter((log) => log.status === "failed").length || 0
-
-        updateProgress(sent, failed)
-
-        if (campaignData.status === "sent" || campaignData.status === "failed" || campaignData.status === "stopped") {
-          clearInterval(interval)
-          setIsSending(false)
-
-          if (campaignData.status === "sent") {
-            alert(`Рассылка завершена! Успешно отправлено: ${sent} писем`)
-          } else if (campaignData.status === "stopped") {
-            alert(`Рассылка остановлена. Отправлено: ${sent}, Ошибок: ${failed}`)
-          } else {
-            alert(`Рассылка завершена с ошибками. Отправлено: ${sent}, Ошибок: ${failed}`)
+            return {
+              ...prev,
+              sent: newSent,
+              failed: newFailed,
+              progress,
+              estimatedTime: calculateEstimatedTime(remaining),
+            }
+          })
+        })
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            console.log("[v0] Real-time subscription started for campaign:", campaignId)
           }
+        })
 
-          router.push("/admin/newsletter")
+      // Also poll periodically to check if campaign finished
+      const pollingInterval = setInterval(async () => {
+        try {
+          const { data: campaignData, error } = await supabase
+            .from("email_campaigns")
+            .select("status")
+            .eq("id", campaignId)
+            .single()
+
+          if (error) throw error
+
+          if (campaignData.status === "sent" || campaignData.status === "failed" || campaignData.status === "stopped") {
+            clearInterval(pollingInterval)
+
+            // Get final stats
+            const { data: logsData } = await supabase
+              .from("email_campaign_logs")
+              .select("status")
+              .eq("campaign_id", campaignId)
+
+            const sent = logsData?.filter((log) => log.status === "sent").length || 0
+            const failed = logsData?.filter((log) => log.status === "failed").length || 0
+
+            setIsSending(false)
+
+            if (campaignData.status === "sent") {
+              alert(`Рассылка завершена! Успешно отправлено: ${sent} писем`)
+            } else if (campaignData.status === "stopped") {
+              alert(`Рассылка остановлена. Отправлено: ${sent}, Ошибок: ${failed}`)
+            } else {
+              alert(`Рассылка завершена с ошибками. Отправлено: ${sent}, Ошибок: ${failed}`)
+            }
+
+            // Cleanup subscription
+            supabase.removeSubscription(subscription)
+
+            router.push("/admin/newsletter")
+          }
+        } catch (error) {
+          console.error("[v0] Error checking campaign status:", error)
         }
-      } catch (error) {
-        console.error("Error monitoring campaign:", error)
-        clearInterval(interval)
-        setIsSending(false)
-      }
-    }, 2000)
+      }, 5000) // Poll every 5 seconds for status check
 
-    return interval
-  }, [supabase, updateProgress, router])
+      return () => {
+        clearInterval(pollingInterval)
+        supabase.removeSubscription(subscription)
+      }
+    },
+    [supabase, calculateEstimatedTime, router],
+  )
 
   // Выбор всех подписчиков
   const handleSelectAll = (checked: boolean) => {
@@ -182,7 +235,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     setSelectedTemplate(templateId)
     const template = templates.find((t) => t.id === templateId)
     if (template) {
-      setCampaign(prev => ({ ...prev, subject: template.subject }))
+      setCampaign((prev) => ({ ...prev, subject: template.subject }))
     }
   }
 
@@ -221,7 +274,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
   // Обновление статистики при изменении выбранных подписчиков
   useEffect(() => {
-    setCampaignStats(prev => ({
+    setCampaignStats((prev) => ({
       ...prev,
       total: selectedSubscribers.length,
       progress: 0,
@@ -246,7 +299,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
     setLoading(true)
     setIsSending(true)
-    
+
     try {
       // Получаем данные шаблона
       const { data: templateData, error: templateError } = await supabase
@@ -259,19 +312,19 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
       // Создаем кампанию
       const { data: campaignData, error: campaignError } = await supabase
-  .from("email_campaigns")
-  .insert({
-    name: campaign.name,
-    subject: campaign.subject,
-    from_name: campaign.from_name,
-    from_email: campaign.from_email,
-    template_id: selectedTemplate,
-    total_recipients: selectedSubscribers.length,
-    status: "draft", // Начинаем с draft
-    // Не включаем started_at, completed_at и т.д. - они заполнятся автоматически
-  })
-  .select()
-  .single()
+        .from("email_campaigns")
+        .insert({
+          name: campaign.name,
+          subject: campaign.subject,
+          from_name: campaign.from_name,
+          from_email: campaign.from_email,
+          template_id: selectedTemplate,
+          total_recipients: selectedSubscribers.length,
+          status: "draft", // Начинаем с draft
+          // Не включаем started_at, completed_at и т.д. - они заполнятся автоматически
+        })
+        .select()
+        .single()
 
       if (campaignError) throw campaignError
 
@@ -302,18 +355,19 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
       }
 
       // Начинаем мониторинг прогресса
-      monitorCampaignProgress(campaignData.id)
+      const cleanup = monitorCampaignProgress(campaignData.id)
+
+      return () => {
+        cleanup()
+      }
     } catch (error: any) {
       console.error("Error sending campaign:", error)
       alert("Ошибка при отправке рассылки: " + (error.message || "Неизвестная ошибка"))
       setIsSending(false)
-      
+
       // Обновляем статус кампании на failed в случае ошибки
       if (currentCampaignId) {
-        await supabase
-          .from("email_campaigns")
-          .update({ status: "failed" })
-          .eq("id", currentCampaignId)
+        await supabase.from("email_campaigns").update({ status: "failed" }).eq("id", currentCampaignId)
       }
     } finally {
       setLoading(false)
@@ -322,38 +376,32 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
 
   // Остановка кампании
   const handleStopCampaign = async () => {
-  if (!currentCampaignId) return
+    if (!currentCampaignId) return
 
-  if (!confirm("Остановить рассылку?")) {
-    return
-  }
-
-  try {
-    const { error } = await supabase
-      .from("email_campaigns")
-      .update({ status: "stopped" })
-      .eq("id", currentCampaignId)
-
-    if (error) {
-      // Если ошибка из-за constraint, пробуем установить другой статус
-      if (error.code === '23514') {
-        await supabase
-          .from("email_campaigns")
-          .update({ status: "failed" })
-          .eq("id", currentCampaignId)
-      } else {
-        throw error
-      }
+    if (!confirm("Остановить рассылку?")) {
+      return
     }
 
-    setIsSending(false)
-    alert("Рассылка остановлена")
-    router.push("/admin/newsletter")
-  } catch (error) {
-    console.error("Error stopping campaign:", error)
-    alert("Ошибка при остановке рассылки")
+    try {
+      const { error } = await supabase.from("email_campaigns").update({ status: "stopped" }).eq("id", currentCampaignId)
+
+      if (error) {
+        // Если ошибка из-за constraint, пробуем установить другой статус
+        if (error.code === "23514") {
+          await supabase.from("email_campaigns").update({ status: "failed" }).eq("id", currentCampaignId)
+        } else {
+          throw error
+        }
+      }
+
+      setIsSending(false)
+      alert("Рассылка остановлена")
+      router.push("/admin/newsletter")
+    } catch (error) {
+      console.error("Error stopping campaign:", error)
+      alert("Ошибка при остановке рассылки")
+    }
   }
-}
 
   // Экспорт выбранных подписчиков
   const handleExportSelected = () => {
@@ -363,10 +411,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
     }
 
     const selectedEmails = subscribers.filter((s) => selectedSubscribers.includes(s.id))
-    const csv = [
-      ["Email", "Имя"].join(","),
-      ...selectedEmails.map((s) => [s.email, s.name || ""].join(","))
-    ].join("\n")
+    const csv = [["Email", "Имя"].join(","), ...selectedEmails.map((s) => [s.email, s.name || ""].join(","))].join("\n")
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -400,7 +445,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 <Input
                   id="campaign-name"
                   value={campaign.name}
-                  onChange={(e) => setCampaign(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setCampaign((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Например: Акция на экскаваторы"
                   disabled={isSending}
                 />
@@ -437,7 +482,9 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                   {templates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
-                      {template.attachments && template.attachments.length > 0 && ` (${template.attachments.length} влож.)`}
+                      {template.attachments &&
+                        template.attachments.length > 0 &&
+                        ` (${template.attachments.length} влож.)`}
                     </option>
                   ))}
                 </select>
@@ -448,7 +495,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 <Input
                   id="subject"
                   value={campaign.subject}
-                  onChange={(e) => setCampaign(prev => ({ ...prev, subject: e.target.value }))}
+                  onChange={(e) => setCampaign((prev) => ({ ...prev, subject: e.target.value }))}
                   placeholder="Специальное предложение"
                   disabled={isSending}
                 />
@@ -459,7 +506,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 <Input
                   id="from-name"
                   value={campaign.from_name}
-                  onChange={(e) => setCampaign(prev => ({ ...prev, from_name: e.target.value }))}
+                  onChange={(e) => setCampaign((prev) => ({ ...prev, from_name: e.target.value }))}
                   disabled={isSending}
                 />
               </div>
@@ -470,7 +517,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                   id="from-email"
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={campaign.from_email}
-                  onChange={(e) => setCampaign(prev => ({ ...prev, from_email: e.target.value }))}
+                  onChange={(e) => setCampaign((prev) => ({ ...prev, from_email: e.target.value }))}
                   disabled={isSending}
                 >
                   {smtpAccounts.map((account) => (
@@ -485,13 +532,17 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                   <Label>Информация о шаблоне:</Label>
                   <div className="mt-2 text-sm text-gray-600 space-y-1">
-                    <p><strong>Название:</strong> {templates.find((t) => t.id === selectedTemplate)?.name}</p>
+                    <p>
+                      <strong>Название:</strong> {templates.find((t) => t.id === selectedTemplate)?.name}
+                    </p>
                     {attachmentsCount > 0 ? (
                       <p className="text-green-600 font-medium">
                         <strong>Вложения:</strong> {attachmentsCount} файл(ов)
                       </p>
                     ) : (
-                      <p className="text-gray-500"><strong>Вложения:</strong> отсутствуют</p>
+                      <p className="text-gray-500">
+                        <strong>Вложения:</strong> отсутствуют
+                      </p>
                     )}
                   </div>
                 </div>
@@ -505,12 +556,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
               <h2 className="text-xl font-semibold">Получатели</h2>
               <div className="flex items-center gap-2">
                 {selectedSubscribers.length > 0 && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleExportSelected}
-                    disabled={isSending}
-                  >
+                  <Button variant="outline" size="sm" onClick={handleExportSelected} disabled={isSending}>
                     <Download className="w-4 h-4 mr-2" />
                     Экспорт ({selectedSubscribers.length})
                   </Button>
@@ -541,7 +587,10 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
             ) : (
               <div className="max-h-[400px] overflow-y-auto space-y-2">
                 {subscribers.map((subscriber) => (
-                  <div key={subscriber.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div
+                    key={subscriber.id}
+                    className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
                     <Checkbox
                       id={`subscriber-${subscriber.id}`}
                       checked={selectedSubscribers.includes(subscriber.id)}
@@ -550,9 +599,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{subscriber.email}</p>
-                      {subscriber.name && (
-                        <p className="text-xs text-gray-500 truncate">{subscriber.name}</p>
-                      )}
+                      {subscriber.name && <p className="text-xs text-gray-500 truncate">{subscriber.name}</p>}
                     </div>
                   </div>
                 ))}
@@ -649,23 +696,25 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
                 {!isSending ? (
                   <Button
                     onClick={handleSendCampaign}
-                    disabled={loading || selectedSubscribers.length === 0 || !selectedTemplate || !campaign.name.trim() || !campaign.subject.trim()}
+                    disabled={
+                      loading ||
+                      selectedSubscribers.length === 0 ||
+                      !selectedTemplate ||
+                      !campaign.name.trim() ||
+                      !campaign.subject.trim()
+                    }
                     className="w-full"
                     size="lg"
                   >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4 mr-2" />
-                    )}
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                     {loading ? "Подготовка..." : "Запустить рассылку"}
                   </Button>
                 ) : (
                   <div className="space-y-2">
-                    <Button 
-                      onClick={handleStopCampaign} 
-                      variant="outline" 
-                      className="w-full bg-transparent border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" 
+                    <Button
+                      onClick={handleStopCampaign}
+                      variant="outline"
+                      className="w-full bg-transparent border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                       size="lg"
                     >
                       <Square className="w-4 h-4 mr-2" />
