@@ -127,7 +127,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "SMTP account not found" }, { status: 404 })
     }
 
-    // Получаем подписчиков
     const { data: subscribers, error: subscribersError } = await supabase
       .from("contact_list_contacts")
       .select("id, email, name")
@@ -149,16 +148,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`[v0] Found ${subscribers.length} subscribers`)
 
-    // Создаем начальные логи кампании с обработкой ошибок
     try {
       const campaignLogs = subscribers.map((subscriber) => ({
         campaign_id: campaignId,
-        subscriber_id: subscriber.id,
+        contact_id: subscriber.id,
         email: subscriber.email,
         status: "pending",
         sent_at: null,
         error_message: null,
       }))
+
+      // Сначала удаляем старые логи если они существуют
+      await supabase.from("email_campaign_logs").delete().eq("campaign_id", campaignId)
 
       const { error: logsError } = await supabase.from("email_campaign_logs").insert(campaignLogs)
 
@@ -166,6 +167,8 @@ export async function POST(request: NextRequest) {
         console.error("[v0] Error creating campaign logs:", logsError)
         throw new Error(`Failed to create campaign logs: ${logsError.message}`)
       }
+
+      console.log("[v0] Campaign logs created successfully")
     } catch (error) {
       console.error("[v0] Error in campaign logs setup:", error)
 
@@ -478,7 +481,6 @@ async function sendEmailWithRetry(
 
       console.log(`[v0] Email sent successfully to: ${subscriber.email}`)
 
-      // Обновляем лог
       await supabase
         .from("email_campaign_logs")
         .update({
@@ -486,7 +488,7 @@ async function sendEmailWithRetry(
           sent_at: new Date().toISOString(),
         })
         .eq("campaign_id", campaignId)
-        .eq("subscriber_id", subscriber.id)
+        .eq("contact_id", subscriber.id)
 
       return { success: true }
     } catch (error) {
@@ -498,7 +500,6 @@ async function sendEmailWithRetry(
         continue
       }
 
-      // Все попытки исчерпаны - отмечаем как неудачное
       await supabase
         .from("email_campaign_logs")
         .update({
@@ -506,7 +507,7 @@ async function sendEmailWithRetry(
           error_message: error instanceof Error ? error.message.substring(0, 500) : "Unknown error",
         })
         .eq("campaign_id", campaignId)
-        .eq("subscriber_id", subscriber.id)
+        .eq("contact_id", subscriber.id)
 
       return { success: false }
     }
