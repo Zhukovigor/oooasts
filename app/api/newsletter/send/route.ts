@@ -10,7 +10,7 @@ const MAX_RETRIES = 2 // Максимальное количество повт�
 
 export async function POST(request: NextRequest) {
   let campaignId: string | null = null
-  
+
   try {
     const { campaignId: requestCampaignId, templateId, subscriberIds, fromEmail, templateData } = await request.json()
     campaignId = requestCampaignId
@@ -19,15 +19,12 @@ export async function POST(request: NextRequest) {
     if (!campaignId || !subscriberIds || !fromEmail) {
       return NextResponse.json(
         { error: "Missing required fields: campaignId, subscriberIds, fromEmail" },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (!Array.isArray(subscriberIds) || subscriberIds.length === 0) {
-      return NextResponse.json(
-        { error: "subscriberIds must be a non-empty array" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "subscriberIds must be a non-empty array" }, { status: 400 })
     }
 
     const supabase = createAdminClient()
@@ -45,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Проверяем статус кампании
-    if (campaign.status === 'sent' || campaign.status === 'sending') {
+    if (campaign.status === "sent" || campaign.status === "sending") {
       return NextResponse.json({ error: "Campaign already sent or in progress" }, { status: 400 })
     }
 
@@ -58,21 +55,24 @@ export async function POST(request: NextRequest) {
         sent_count: 0,
         failed_count: 0,
         completed_at: null,
-        error_message: null
+        error_message: null,
       })
       .eq("id", campaignId)
 
     if (updateError) {
       console.error("[v0] Error updating campaign status:", updateError)
-      return NextResponse.json({ 
-        error: `Failed to update campaign: ${updateError.message}` 
-      }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: `Failed to update campaign: ${updateError.message}`,
+        },
+        { status: 500 },
+      )
     }
 
     // Получаем или используем данные шаблона
     let template
     let attachments = []
-    
+
     if (templateData) {
       template = templateData
       attachments = templateData.attachments || []
@@ -85,15 +85,15 @@ export async function POST(request: NextRequest) {
 
       if (templateError || !templateResult) {
         console.error("[v0] Template not found:", templateError)
-        
+
         await supabase
           .from("email_campaigns")
           .update({
             status: "failed",
-            error_message: "Template not found"
+            error_message: "Template not found",
           })
           .eq("id", campaignId)
-          
+
         return NextResponse.json({ error: "Template not found" }, { status: 404 })
       }
       template = templateResult
@@ -115,15 +115,15 @@ export async function POST(request: NextRequest) {
 
     if (smtpError || !smtpAccount) {
       console.error("[v0] SMTP account not found:", smtpError)
-      
+
       await supabase
         .from("email_campaigns")
         .update({
           status: "failed",
-          error_message: "SMTP account not found"
+          error_message: "SMTP account not found",
         })
         .eq("id", campaignId)
-        
+
       return NextResponse.json({ error: "SMTP account not found" }, { status: 404 })
     }
 
@@ -135,15 +135,15 @@ export async function POST(request: NextRequest) {
 
     if (subscribersError || !subscribers || subscribers.length === 0) {
       console.error("[v0] No subscribers found:", subscribersError)
-      
+
       await supabase
         .from("email_campaigns")
         .update({
           status: "failed",
-          error_message: "No subscribers found"
+          error_message: "No subscribers found",
         })
         .eq("id", campaignId)
-        
+
       return NextResponse.json({ error: "No subscribers found" }, { status: 404 })
     }
 
@@ -151,18 +151,16 @@ export async function POST(request: NextRequest) {
 
     // Создаем начальные логи кампании с обработкой ошибок
     try {
-      const campaignLogs = subscribers.map(subscriber => ({
+      const campaignLogs = subscribers.map((subscriber) => ({
         campaign_id: campaignId,
         subscriber_id: subscriber.id,
         email: subscriber.email,
-        status: 'pending',
+        status: "pending",
         sent_at: null,
-        error_message: null
+        error_message: null,
       }))
 
-      const { error: logsError } = await supabase
-        .from("email_campaign_logs")
-        .insert(campaignLogs)
+      const { error: logsError } = await supabase.from("email_campaign_logs").insert(campaignLogs)
 
       if (logsError) {
         console.error("[v0] Error creating campaign logs:", logsError)
@@ -170,18 +168,21 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error("[v0] Error in campaign logs setup:", error)
-      
+
       await supabase
         .from("email_campaigns")
         .update({
           status: "failed",
-          error_message: error instanceof Error ? error.message : "Failed to setup campaign logs"
+          error_message: error instanceof Error ? error.message : "Failed to setup campaign logs",
         })
         .eq("id", campaignId)
-        
-      return NextResponse.json({ 
-        error: "Failed to setup campaign logs" 
-      }, { status: 500 })
+
+      return NextResponse.json(
+        {
+          error: "Failed to setup campaign logs",
+        },
+        { status: 500 },
+      )
     }
 
     // Создаем транспортер с улучшенными настройками
@@ -204,41 +205,41 @@ export async function POST(request: NextRequest) {
       console.log("[v0] SMTP connection verified successfully")
     } catch (error) {
       console.error("[v0] SMTP connection failed:", error)
-      
+
       await supabase
         .from("email_campaigns")
         .update({
           status: "failed",
-          error_message: "SMTP connection failed"
+          error_message: "SMTP connection failed",
         })
         .eq("id", campaignId)
-        
+
       return NextResponse.json({ error: "SMTP connection failed" }, { status: 500 })
     }
 
     // Подготавливаем вложения
-    let emailAttachments = []
+    const emailAttachments = []
     if (attachments && attachments.length > 0) {
       console.log("[v0] Preparing attachments:", attachments.length)
-      
+
       for (const attachment of attachments) {
         try {
           console.log("[v0] Downloading attachment:", attachment.name)
-          
+
           const response = await fetch(attachment.url)
           if (!response.ok) {
             throw new Error(`Failed to download: ${response.statusText}`)
           }
-          
+
           const arrayBuffer = await response.arrayBuffer()
           const buffer = Buffer.from(arrayBuffer)
-          
+
           emailAttachments.push({
             filename: attachment.name,
             content: buffer,
-            contentType: attachment.type
+            contentType: attachment.type,
           })
-          
+
           console.log("[v0] Attachment prepared:", attachment.name)
         } catch (error) {
           console.error("[v0] Error preparing attachment:", attachment.name, error)
@@ -252,29 +253,21 @@ export async function POST(request: NextRequest) {
     // Немедленно возвращаем ответ что кампания запущена
     setTimeout(async () => {
       try {
-        await processEmailSending(
-          campaignId!,
-          subscribers,
-          template,
-          smtpAccount,
-          emailAttachments,
-          supabase
-        )
+        await processEmailSending(campaignId!, subscribers, template, smtpAccount, emailAttachments, supabase)
       } catch (error) {
         console.error("[v0] Error in background processing:", error)
       }
     }, 100)
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: "Campaign started successfully",
       totalSubscribers: subscribers.length,
-      campaignId
+      campaignId,
     })
-
   } catch (error) {
     console.error("[v0] Error in newsletter send:", error)
-    
+
     if (campaignId) {
       try {
         const supabase = createAdminClient()
@@ -283,17 +276,20 @@ export async function POST(request: NextRequest) {
           .update({
             status: "failed",
             completed_at: new Date().toISOString(),
-            error_message: error instanceof Error ? error.message : "Unknown error"
+            error_message: error instanceof Error ? error.message : "Unknown error",
           })
           .eq("id", campaignId)
       } catch (updateError) {
         console.error("[v0] Error updating campaign status:", updateError)
       }
     }
-    
-    return NextResponse.json({ 
-      error: "Failed to send campaign: " + (error instanceof Error ? error.message : "Unknown error")
-    }, { status: 500 })
+
+    return NextResponse.json(
+      {
+        error: "Failed to send campaign: " + (error instanceof Error ? error.message : "Unknown error"),
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -304,7 +300,7 @@ async function processEmailSending(
   template: any,
   smtpAccount: any,
   emailAttachments: any[],
-  supabase: any
+  supabase: any,
 ) {
   let sentCount = 0
   let failedCount = 0
@@ -325,7 +321,7 @@ async function processEmailSending(
 
     for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
       const batch = subscribers.slice(i, i + BATCH_SIZE)
-      
+
       // Проверяем не остановлена ли кампания
       const { data: currentCampaign } = await supabase
         .from("email_campaigns")
@@ -333,7 +329,7 @@ async function processEmailSending(
         .eq("id", campaignId)
         .single()
 
-      if (currentCampaign?.status === 'failed') {
+      if (currentCampaign?.status === "failed") {
         console.log("[v0] Campaign marked as failed (stopped), aborting sending...")
         break
       }
@@ -345,7 +341,7 @@ async function processEmailSending(
         smtpAccount,
         emailAttachments,
         transporter,
-        supabase
+        supabase,
       )
 
       sentCount += batchResults.sentCount
@@ -357,7 +353,7 @@ async function processEmailSending(
           .from("email_campaigns")
           .update({
             sent_count: sentCount,
-            failed_count: failedCount
+            failed_count: failedCount,
           })
           .eq("id", campaignId)
       } catch (updateError) {
@@ -367,7 +363,7 @@ async function processEmailSending(
       // Задержка между батчами
       if (i + BATCH_SIZE < subscribers.length) {
         console.log(`[v0] Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`)
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES))
+        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES))
       }
     }
 
@@ -390,17 +386,18 @@ async function processEmailSending(
       })
       .eq("id", campaignId)
 
-    console.log(`[v0] Campaign ${campaignId} completed: ${sentCount} sent, ${failedCount} failed, status: ${finalStatus}`)
-
+    console.log(
+      `[v0] Campaign ${campaignId} completed: ${sentCount} sent, ${failedCount} failed, status: ${finalStatus}`,
+    )
   } catch (error) {
     console.error(`[v0] Error in background email processing for campaign ${campaignId}:`, error)
-    
+
     await supabase
       .from("email_campaigns")
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : "Background processing error"
+        error_message: error instanceof Error ? error.message : "Background processing error",
       })
       .eq("id", campaignId)
   }
@@ -414,12 +411,12 @@ async function processBatch(
   smtpAccount: any,
   emailAttachments: any[],
   transporter: any,
-  supabase: any
+  supabase: any,
 ): Promise<{ sentCount: number; failedCount: number }> {
   let sentCount = 0
   let failedCount = 0
 
-  const batchPromises = batch.map(subscriber =>
+  const batchPromises = batch.map((subscriber) =>
     sendEmailWithRetry(
       subscriber,
       campaignId,
@@ -428,14 +425,14 @@ async function processBatch(
       emailAttachments,
       transporter,
       supabase,
-      MAX_RETRIES
-    )
+      MAX_RETRIES,
+    ),
   )
 
   const results = await Promise.allSettled(batchPromises)
 
-  results.forEach(result => {
-    if (result.status === 'fulfilled') {
+  results.forEach((result) => {
+    if (result.status === "fulfilled") {
       if (result.value.success) {
         sentCount++
       } else {
@@ -458,7 +455,7 @@ async function sendEmailWithRetry(
   emailAttachments: any[],
   transporter: any,
   supabase: any,
-  retries: number
+  retries: number,
 ): Promise<{ success: boolean }> {
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
     try {
@@ -486,19 +483,18 @@ async function sendEmailWithRetry(
         .from("email_campaign_logs")
         .update({
           status: "sent",
-          sent_at: new Date().toISOString()
+          sent_at: new Date().toISOString(),
         })
         .eq("campaign_id", campaignId)
         .eq("subscriber_id", subscriber.id)
 
       return { success: true }
-
     } catch (error) {
       console.error(`[v0] Failed to send to ${subscriber.email} (attempt ${attempt}):`, error)
 
       if (attempt <= retries) {
         // Ждем перед повторной попыткой
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
         continue
       }
 
@@ -507,7 +503,7 @@ async function sendEmailWithRetry(
         .from("email_campaign_logs")
         .update({
           status: "failed",
-          error_message: error instanceof Error ? error.message.substring(0, 500) : "Unknown error"
+          error_message: error instanceof Error ? error.message.substring(0, 500) : "Unknown error",
         })
         .eq("campaign_id", campaignId)
         .eq("subscriber_id", subscriber.id)
@@ -522,17 +518,17 @@ async function sendEmailWithRetry(
 // Функция для персонализации контента
 function personalizeContent(content: string, subscriber: any): string {
   if (!content) return content
-  
+
   let personalized = content
-  
-  personalized = personalized.replace(/{{name}}/gi, subscriber.name || '')
-  personalized = personalized.replace(/{{email}}/gi, subscriber.email || '')
-  personalized = personalized.replace(/{{first_name}}/gi, getFirstName(subscriber.name) || '')
-  
+
+  personalized = personalized.replace(/{{name}}/gi, subscriber.name || "")
+  personalized = personalized.replace(/{{email}}/gi, subscriber.email || "")
+  personalized = personalized.replace(/{{first_name}}/gi, getFirstName(subscriber.name) || "")
+
   return personalized
 }
 
 function getFirstName(fullName: string | null): string {
-  if (!fullName) return ''
-  return fullName.split(' ')[0] || ''
+  if (!fullName) return ""
+  return fullName.split(" ")[0] || ""
 }

@@ -27,10 +27,25 @@ export default async function NewCampaignPage() {
     })
   })
 
+  // Подсчитываем контакты для каждой базы
+  const contactListsWithCounts = await Promise.all(
+    (contactListsResult.data || []).map(async (list) => {
+      const { count } = await supabase
+        .from("contact_list_contacts")
+        .select("*", { count: "exact", head: true })
+        .eq("list_id", list.id)
+
+      return {
+        ...list,
+        contacts_count: count || 0,
+      }
+    }),
+  )
+
   return (
     <CampaignCreatorClient
       templates={templatesResult.data || []}
-      contactLists={contactListsResult.data || []}
+      contactLists={contactListsWithCounts}
       smtpAccounts={smtpResult.data || []}
     />
   )
