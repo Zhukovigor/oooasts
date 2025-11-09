@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, X } from "lucide-react"
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette } from "lucide-react"
 
 interface TextOverlay {
   enabled?: boolean
@@ -91,14 +91,23 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
   }, [])
 
   const fonts = [
-    "Arial", "Georgia", "Times New Roman", "Verdana", 
-    "Courier New", "Comic Sans MS", "Impact", "Trebuchet MS",
-    "Helvetica", "Tahoma", "Palatino", "Garamond"
+    "Arial",
+    "Georgia",
+    "Times New Roman",
+    "Verdana",
+    "Courier New",
+    "Comic Sans MS",
+    "Impact",
+    "Trebuchet MS",
+    "Helvetica",
+    "Tahoma",
+    "Palatino",
+    "Garamond",
   ]
 
   const getTextStyle = () => {
     const shadow = config.shadow
-    const shadowStyle = shadow?.enabled 
+    const shadowStyle = shadow?.enabled
       ? `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${shadow.color}`
       : "none"
 
@@ -128,13 +137,27 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
     return {
       backgroundColor: config.backgroundColor,
       opacity: config.backgroundOpacity,
-      padding: `${config.padding}px`,
+      padding: `${config.padding}px ${config.padding * 1.5}px`,
       borderRadius: `${config.borderRadius}px`,
-      // Убедимся, что фон тоже адаптируется к содержимому
       width: "fit-content",
-      maxWidth: "100%",
+      maxWidth: "90%",
+      minWidth: "auto",
+      whiteSpace: "nowrap",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
     }
   }
+
+  const predefinedPositions = [
+    { label: "Верхний левый", x: 15, y: 15 },
+    { label: "Верхний центр", x: 50, y: 15 },
+    { label: "Верхний правый", x: 85, y: 15 },
+    { label: "Центр левый", x: 15, y: 50 },
+    { label: "Центр", x: 50, y: 50 },
+    { label: "Центр правый", x: 85, y: 50 },
+    { label: "Нижний левый", x: 15, y: 85 },
+    { label: "Нижний центр", x: 50, y: 85 },
+    { label: "Нижний правый", x: 85, y: 85 },
+  ]
 
   return (
     <div className="space-y-6">
@@ -182,13 +205,16 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
         <div className="flex flex-col gap-4">
           <label className="block text-sm font-medium text-gray-700">Предпросмотр текста на фото</label>
           {imageUrl ? (
-            <div className="relative bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300" style={{ aspectRatio: "16/9" }}>
-              <img 
-                src={imageUrl} 
-                alt="Preview" 
+            <div
+              className="relative bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300"
+              style={{ aspectRatio: "16/9" }}
+            >
+              <img
+                src={imageUrl || "/placeholder.svg"}
+                alt="Preview"
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none'
+                  ;(e.target as HTMLImageElement).style.display = "none"
                 }}
               />
               {config.enabled && (
@@ -201,9 +227,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     ...getBackgroundStyle(),
                   }}
                 >
-                  <p style={getTextStyle()}>
-                    {config.text}
-                  </p>
+                  <p style={getTextStyle()}>{config.text}</p>
                 </div>
               )}
             </div>
@@ -255,9 +279,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     wordWrap: "break-word",
                   }}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {config.text?.length || 0}/500 символов
-                </p>
+                <p className="text-xs text-gray-500 mt-1">{config.text?.length || 0}/500 символов</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -317,7 +339,9 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                     type="button"
                     variant={config.textDecoration === "underline" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => handleChange("textDecoration", config.textDecoration === "underline" ? "none" : "underline")}
+                    onClick={() =>
+                      handleChange("textDecoration", config.textDecoration === "underline" ? "none" : "underline")
+                    }
                   >
                     <Underline className="w-4 h-4" />
                   </Button>
@@ -436,9 +460,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
 
                 <div className="grid grid-cols-2 gap-4 mt-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Отступы: {config.padding}px
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Отступы: {config.padding}px</label>
                     <input
                       type="range"
                       min="0"
@@ -467,10 +489,31 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
 
               {/* Позиция и тень */}
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Быстрые позиции</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {predefinedPositions.map((pos) => (
+                      <button
+                        key={pos.label}
+                        type="button"
+                        onClick={() => {
+                          handleChange("x", pos.x)
+                          handleChange("y", pos.y)
+                        }}
+                        className={`px-2 py-1 text-xs rounded border transition-colors ${
+                          config.x === pos.x && config.y === pos.y
+                            ? "bg-blue-500 text-white border-blue-600"
+                            : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                        }`}
+                      >
+                        {pos.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Позиция X: {config.x}%
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Позиция X: {config.x}%</label>
                   <input
                     type="range"
                     min="0"
@@ -482,9 +525,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Позиция Y: {config.y}%
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Позиция Y: {config.y}%</label>
                   <input
                     type="range"
                     min="0"
@@ -510,9 +551,7 @@ export default function TextOverlayEditor({ imageUrl, textOverlay, onChange }: T
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Поворот: {config.rotation}°
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Поворот: {config.rotation}°</label>
                   <input
                     type="range"
                     min="-180"
