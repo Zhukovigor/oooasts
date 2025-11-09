@@ -50,37 +50,38 @@ interface HeroSlide {
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "name": "ООО АСТС",
-  "alternateName": "ASTS",
-  "url": "https://asts.vercel.app",
-  "logo": "https://asts.vercel.app/images/logo.png",
-  "description": "ООО АСТС - поставщик спецтехники от ведущих производителей. Продажа, лизинг и обслуживание строительной техники.",
-  "address": {
+  name: "ООО АСТС",
+  alternateName: "ASTS",
+  url: "https://asts.vercel.app",
+  logo: "https://asts.vercel.app/images/logo.png",
+  description:
+    "ООО АСТС - поставщик спецтехники от ведущих производителей. Продажа, лизинг и обслуживание строительной техники.",
+  address: {
     "@type": "PostalAddress",
-    "addressCountry": ["RU", "CN"]
+    addressCountry: ["RU", "CN"],
   },
-  "contactPoint": {
+  contactPoint: {
     "@type": "ContactPoint",
-    "telephone": "+7-919-042-24-92",
-    "contactType": "customer service",
-    "areaServed": ["RU", "CN"],
-    "availableLanguage": ["Russian", "Chinese"]
+    telephone: "+7-919-042-24-92",
+    contactType: "customer service",
+    areaServed: ["RU", "CN"],
+    availableLanguage: ["Russian", "Chinese"],
   },
-  "sameAs": [],
-  "areaServed": ["Россия", "Китай"]
+  sameAs: [],
+  areaServed: ["Россия", "Китай"],
 }
 
 // Schema.org для веб-сайта
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": "ООО АСТС - Спецтехника",
-  "url": "https://asts.vercel.app",
-  "potentialAction": {
+  name: "ООО АСТС - Спецтехника",
+  url: "https://asts.vercel.app",
+  potentialAction: {
     "@type": "SearchAction",
-    "target": "https://asts.vercel.app/search?q={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
+    target: "https://asts.vercel.app/search?q={search_term_string}",
+    "query-input": "required name=search_term_string",
+  },
 }
 
 export default function HeroSection() {
@@ -243,72 +244,66 @@ export default function HeroSection() {
     }
   }
 
-  const currentSlideData = slides.length > 0 ? slides[currentSlide] : {
-    id: "default",
-    title: "КУПИТЬ СПЕЦТЕХНИКУ",
-    subtitle: "Широкий выбор техники от ведущих производителей",
-    image_url: "/images/design-mode/maps.jpg",
-    image_alt: "Спецтехника - ООО АСТС",
-    button_text: "ОСТАВИТЬ ЗАЯВКУ",
-    button_link: "#application",
-    button_visible: true,
-    button_color: "#2563eb",
-    button_text_color: "#ffffff",
-    title_font_size: "5xl",
-    title_font_weight: "bold",
-    title_color: "#ffffff",
-    title_alignment: "left",
-    subtitle_font_size: "xl",
-    subtitle_font_weight: "medium",
-    subtitle_color: "#ffffff",
-    content_position: "center",
-    content_alignment: "left",
-    overlay_opacity: 0.4,
-    overlay_color: "#000000",
-    sort_order: 0,
-    is_active: true,
-    auto_rotate_seconds: 15,
-  }
+  const currentSlideData =
+    slides.length > 0
+      ? slides[currentSlide]
+      : {
+          id: "default",
+          title: "КУПИТЬ СПЕЦТЕХНИКУ",
+          subtitle: "Широкий выбор техники от ведущих производителей",
+          image_url: "/images/design-mode/maps.jpg",
+          image_alt: "Спецтехника - ООО АСТС",
+          button_text: "ОСТАВИТЬ ЗАЯВКУ",
+          button_link: "#application",
+          button_visible: true,
+          button_color: "#2563eb",
+          button_text_color: "#ffffff",
+          title_font_size: "5xl",
+          title_font_weight: "bold",
+          title_color: "#ffffff",
+          title_alignment: "left",
+          subtitle_font_size: "xl",
+          subtitle_font_weight: "medium",
+          subtitle_color: "#ffffff",
+          content_position: "center",
+          content_alignment: "left",
+          overlay_opacity: 0.4,
+          overlay_color: "#000000",
+          sort_order: 0,
+          is_active: true,
+          auto_rotate_seconds: 15,
+        }
 
   // Микроразметка для слайдера
   const sliderSchema = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    "name": "Слайды спецтехники",
-    "numberOfItems": slides.length,
-    "itemListElement": slides.map((slide, index) => ({
+    name: "Слайды спецтехники",
+    numberOfItems: slides.length,
+    itemListElement: slides.map((slide, index) => ({
       "@type": "ListItem",
-      "position": index + 1,
-      "item": {
+      position: index + 1,
+      item: {
         "@type": "CreativeWork",
-        "name": slide.title,
-        "description": slide.subtitle,
-        "image": slide.image_url
-      }
-    }))
+        name: slide.title,
+        description: slide.subtitle,
+        image: slide.image_url,
+      },
+    })),
   }
 
   return (
     <>
       {/* Schema.org микроразметка */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
       {slides.length > 0 && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(sliderSchema) }}
-        />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(sliderSchema) }} />
       )}
 
-      <header 
-        id="hero" 
-        className="relative h-screen w-full overflow-hidden bg-black"
+      <header
+        id="hero"
+        className="relative w-full overflow-hidden bg-black min-h-screen md:h-screen"
         itemScope
         itemType="https://schema.org/WPHeader"
         role="banner"
@@ -330,8 +325,8 @@ export default function HeroSection() {
         </div>
 
         {/* Top Info Bar with contact information */}
-        <div 
-          className="relative z-20 bg-gray-100 border-b border-gray-200"
+        <div
+          className="relative z-20 bg-gray-100 border-b border-gray-200 hidden sm:block"
           itemScope
           itemType="https://schema.org/ContactPoint"
         >
@@ -339,7 +334,9 @@ export default function HeroSection() {
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 text-gray-700 px-2.5">
                 <MapPin size={16} />
-                <span className="font-medium" itemProp="areaServed">КИТАЙ · РОССИЯ</span>
+                <span className="font-medium" itemProp="areaServed">
+                  КИТАЙ · РОССИЯ
+                </span>
               </div>
               <div className="hidden md:flex items-center gap-2 text-gray-700">
                 <Clock size={16} />
@@ -364,13 +361,13 @@ export default function HeroSection() {
         </div>
 
         {/* Main Navigation */}
-        <nav 
+        <nav
           className="relative z-20 bg-white border-b border-gray-200"
           aria-label="Основная навигация"
           itemScope
           itemType="https://schema.org/SiteNavigationElement"
         >
-          <div className="container mx-auto px-6 py-4">
+          <div className="container mx-auto px-4 sm:px-6 py-2 sm:py-4">
             <div className="flex items-center justify-between">
               {/* Left: Hamburger + Logo */}
               <div className="flex items-center gap-4">
@@ -384,8 +381,8 @@ export default function HeroSection() {
                   {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>
 
-                <Link 
-                  href="/" 
+                <Link
+                  href="/"
                   className="flex items-center gap-3"
                   itemProp="url"
                   aria-label="Перейти на главную страницу"
@@ -413,7 +410,7 @@ export default function HeroSection() {
 
               {/* Center: USP Badge + Navigation */}
               <div className="hidden lg:flex items-center gap-8">
-                <div 
+                <div
                   className="bg-blue-600 text-white px-4 py-2 text-sm font-bold whitespace-nowrap rounded-sm"
                   role="complementary"
                   aria-label="Уникальное торговое предложение"
@@ -428,7 +425,7 @@ export default function HeroSection() {
                         const isOpen = mounted && openSubmenu === item.name
                         return (
                           <li key={item.name} className="relative group">
-                            <button 
+                            <button
                               className="text-gray-900 hover:text-blue-600 transition-colors font-medium flex items-center gap-1 py-2"
                               onClick={() => handleSubmenuToggle(item.name)}
                               aria-expanded={isOpen}
@@ -442,7 +439,7 @@ export default function HeroSection() {
                             </button>
 
                             {isOpen && (
-                              <ul 
+                              <ul
                                 className="absolute top-full left-0 w-56 bg-white rounded-lg shadow-xl overflow-hidden z-50"
                                 role="menu"
                                 aria-label={`Подменю ${item.name}`}
@@ -502,8 +499,8 @@ export default function HeroSection() {
                     <Phone size={20} className="text-blue-600" />
                     +7 (919) 042-24-92
                   </a>
-                  <a 
-                    href="tel:+79107219400" 
+                  <a
+                    href="tel:+79107219400"
                     className="text-gray-600 text-sm hover:text-blue-600 transition-colors"
                     itemProp="telephone"
                   >
@@ -524,8 +521,8 @@ export default function HeroSection() {
         </nav>
 
         {/* Bottom Category Navigation */}
-        <nav 
-          className="relative z-20 bg-white border-b border-gray-200 hidden md:block"
+        <nav
+          className="relative z-20 bg-white border-b border-gray-200 hidden lg:block"
           aria-label="Категории спецтехники"
           itemScope
           itemType="https://schema.org/SiteNavigationElement"
@@ -552,7 +549,7 @@ export default function HeroSection() {
                         </button>
 
                         {isOpen && (
-                          <ul 
+                          <ul
                             className="absolute top-full left-0 w-56 bg-white rounded-lg shadow-xl overflow-hidden z-50"
                             role="menu"
                             aria-label={`Подменю ${item.name}`}
@@ -590,28 +587,19 @@ export default function HeroSection() {
               </ul>
 
               <div className="flex items-center space-x-4">
-                <button 
-                  className="relative text-gray-900 hover:text-blue-600 transition-colors"
-                  aria-label="Избранно��"
-                >
+                <button className="relative text-gray-900 hover:text-blue-600 transition-colors" aria-label="Избранное">
                   <Heart size={20} />
                   <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     0
                   </span>
                 </button>
-                <button 
-                  className="relative text-gray-900 hover:text-blue-600 transition-colors"
-                  aria-label="Корзина"
-                >
+                <button className="relative text-gray-900 hover:text-blue-600 transition-colors" aria-label="Корзина">
                   <ShoppingCart size={20} />
                   <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     0
                   </span>
                 </button>
-                <button 
-                  className="text-gray-900 hover:text-blue-600 transition-colors"
-                  aria-label="Поиск"
-                >
+                <button className="text-gray-900 hover:text-blue-600 transition-colors" aria-label="Поиск">
                   <Search size={20} />
                 </button>
               </div>
@@ -621,7 +609,7 @@ export default function HeroSection() {
 
         {/* Mobile Navigation Menu */}
         {mounted && isMenuOpen && (
-          <nav 
+          <nav
             id="mobile-menu"
             className="absolute top-0 left-0 w-full h-full bg-black/90 z-30 md:hidden overflow-y-auto"
             aria-label="Мобильное меню"
@@ -666,25 +654,23 @@ export default function HeroSection() {
                   )
                 }
 
-                return (
-                  item.href.startsWith("#") ? (
-                    <button
-                      key={item.name}
-                      onClick={() => scrollToSection(item.href)}
-                      className="text-white text-2xl font-bold tracking-wider hover:text-gray-300 transition-colors duration-300"
-                    >
-                      {item.name}
-                    </button>
-                  ) : (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      onClick={() => setIsMenuOpen(false)}
-                      className="text-white text-2xl font-bold tracking-wider hover:text-gray-300 transition-colors duration-300"
-                    >
-                      {item.name}
-                    </Link>
-                  )
+                return item.href.startsWith("#") ? (
+                  <button
+                    key={item.name}
+                    onClick={() => scrollToSection(item.href)}
+                    className="text-white text-2xl font-bold tracking-wider hover:text-gray-300 transition-colors duration-300"
+                  >
+                    {item.name}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="text-white text-2xl font-bold tracking-wider hover:text-gray-300 transition-colors duration-300"
+                  >
+                    {item.name}
+                  </Link>
                 )
               })}
             </div>
@@ -692,25 +678,25 @@ export default function HeroSection() {
         )}
 
         {/* Hero Content */}
-        <main 
-          className={`relative z-10 flex h-full ${
+        <main
+          className={`relative z-10 flex min-h-[calc(100vh-200px)] sm:h-[calc(100vh-240px)] ${
             currentSlideData.content_position === "top"
-              ? "items-start"
+              ? "items-start pt-12 sm:pt-20"
               : currentSlideData.content_position === "bottom"
-                ? "items-end"
+                ? "items-end pb-12 sm:pb-20"
                 : "items-center"
-          } px-6 my-4 py-96 ${
+          } px-4 sm:px-6 ${
             currentSlideData.content_alignment === "center"
               ? "justify-center"
               : currentSlideData.content_alignment === "right"
-                ? "justify-end"
-                : "justify-start"
+                ? "justify-end pr-4 sm:pr-12"
+                : "justify-start pl-4 sm:pl-12"
           }`}
           role="main"
           aria-label="Основной контент"
         >
           <div
-            className={`max-w-4xl ${
+            className={`max-w-2xl sm:max-w-3xl lg:max-w-4xl w-full ${
               currentSlideData.content_alignment === "center"
                 ? "text-center"
                 : currentSlideData.content_alignment === "right"
@@ -718,9 +704,27 @@ export default function HeroSection() {
                   : "text-left"
             }`}
           >
+            {/* Use inline styles for dynamic sizing instead of Tailwind classes */}
             <h1
-              className={`text-${currentSlideData.title_font_size} font-${currentSlideData.title_font_weight} tracking-wider mb-4 leading-none transition-opacity duration-500 md:text-7xl lg:text-8xl`}
-              style={{ color: currentSlideData.title_color }}
+              className="font-black tracking-wider mb-3 sm:mb-4 leading-tight sm:leading-none transition-opacity duration-500"
+              style={{
+                fontSize: `clamp(1.875rem, 5vw, ${
+                  currentSlideData.title_font_size === "7xl"
+                    ? "3.5rem"
+                    : currentSlideData.title_font_size === "6xl"
+                      ? "3rem"
+                      : currentSlideData.title_font_size === "5xl"
+                        ? "2.5rem"
+                        : "2rem"
+                })`,
+                color: currentSlideData.title_color,
+                fontWeight:
+                  currentSlideData.title_font_weight === "bold"
+                    ? 700
+                    : currentSlideData.title_font_weight === "extrabold"
+                      ? 900
+                      : 800,
+              }}
               itemProp="headline"
             >
               {currentSlideData.title}
@@ -728,8 +732,23 @@ export default function HeroSection() {
 
             {currentSlideData.subtitle && (
               <p
-                className={`text-${currentSlideData.subtitle_font_size} md:text-2xl font-${currentSlideData.subtitle_font_weight} tracking-wide mb-8 transition-opacity duration-500`}
-                style={{ color: currentSlideData.subtitle_color }}
+                className="tracking-wide mb-6 sm:mb-8 transition-opacity duration-500 text-base sm:text-xl"
+                style={{
+                  fontSize: `clamp(0.875rem, 3vw, ${
+                    currentSlideData.subtitle_font_size === "2xl"
+                      ? "1.5rem"
+                      : currentSlideData.subtitle_font_size === "xl"
+                        ? "1.25rem"
+                        : "1rem"
+                  })`,
+                  color: currentSlideData.subtitle_color,
+                  fontWeight:
+                    currentSlideData.subtitle_font_weight === "bold"
+                      ? 700
+                      : currentSlideData.subtitle_font_weight === "medium"
+                        ? 500
+                        : 400,
+                }}
                 itemProp="description"
               >
                 {currentSlideData.subtitle}
@@ -739,8 +758,8 @@ export default function HeroSection() {
             {currentSlideData.button_visible && (
               <div itemScope itemType="https://schema.org/ContactPoint">
                 <LiquidButton
-                  size="xxl"
-                  className="font-semibold text-lg tracking-wide"
+                  size="lg"
+                  className="font-semibold tracking-wide text-sm sm:text-base md:text-lg"
                   style={{
                     backgroundColor: currentSlideData.button_color,
                     color: currentSlideData.button_text_color,
@@ -755,27 +774,27 @@ export default function HeroSection() {
           </div>
         </main>
 
-        {/* Slider Navigation - only show if we have multiple slides */}
+        {/* Slider Navigation - Responsive positioning */}
         {slides.length > 1 && (
-          <nav 
-            className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20"
+          <nav
+            className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 z-20"
             aria-label="Навигация по слайдам"
           >
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               <button
                 onClick={prevSlide}
-                className="text-white hover:text-gray-300 transition-colors p-2"
+                className="text-white hover:text-gray-300 transition-colors p-1.5 sm:p-2"
                 aria-label="Предыдущий слайд"
               >
-                <ChevronLeft size={24} />
+                <ChevronLeft size={20} className="sm:w-6 sm:h-6" />
               </button>
 
-              <div className="flex space-x-2" role="tablist" aria-label="Слайды">
+              <div className="flex space-x-1 sm:space-x-2" role="tablist" aria-label="Слайды">
                 {slides.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentSlide(index)}
-                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
                       currentSlide === index ? "bg-white" : "bg-white/40 hover:bg-white/60"
                     }`}
                     role="tab"
@@ -787,27 +806,27 @@ export default function HeroSection() {
 
               <button
                 onClick={nextSlide}
-                className="text-white hover:text-gray-300 transition-colors p-2"
+                className="text-white hover:text-gray-300 transition-colors p-1.5 sm:p-2"
                 aria-label="Следующий слайд"
               >
-                <ChevronRight size={24} />
+                <ChevronRight size={20} className="sm:w-6 sm:h-6" />
               </button>
             </div>
           </nav>
         )}
 
-        {/* Side Navigation Indicators - only show if we have multiple slides */}
+        {/* Side Navigation Indicators - Hide on tablet, show only on large screens */}
         {slides.length > 1 && (
-          <nav 
-            className="absolute right-8 top-1/2 transform -translate-y-1/2 z-20 hidden md:block"
+          <nav
+            className="absolute right-4 sm:right-6 lg:right-8 top-1/2 transform -translate-y-1/2 z-20 hidden lg:block"
             aria-label="Вертикальная навигация по слайдам"
           >
-            <div className="flex flex-col space-y-3" role="tablist">
+            <div className="flex flex-col space-x-3" role="tablist">
               {slides.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentSlide(index)}
-                  className={`w-1 h-8 transition-all duration-300 ${
+                  className={`w-0.5 sm:w-1 h-6 sm:h-8 transition-all duration-300 ${
                     currentSlide === index ? "bg-white" : "bg-white/40 hover:bg-white/60"
                   }`}
                   role="tab"
