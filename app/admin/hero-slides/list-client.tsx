@@ -89,12 +89,22 @@ export default function HeroSlidesListClient({ initialSlides }: { initialSlides:
     if (!confirm("Вы уверены, что хотите удалить этот слайд?")) return
 
     setLoading(true)
-    const { error } = await supabase.from("hero_slides").delete().eq("id", id)
+    try {
+      const { error } = await supabase.from("hero_slides").delete().eq("id", id)
 
-    if (error) {
-      alert("Ошибка при удалении: " + error.message)
+      if (error) {
+        console.error("[v0] Delete error:", error)
+        alert("Ошибка при удалении: " + error.message)
+      } else {
+        await refreshSlides()
+        alert("Слайд успешно удален")
+      }
+    } catch (err) {
+      console.error("[v0] Delete exception:", err)
+      alert("Ошибка при удалении слайда: " + String(err))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const formatFileSize = (bytes: number | null): string => {
