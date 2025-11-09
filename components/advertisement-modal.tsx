@@ -186,12 +186,12 @@ export default function AdvertisementModal() {
       textShadow: shadowStyle,
       transform: `rotate(${textOverlay.rotation || 0}deg)`,
       maxWidth: `${textOverlay.maxWidth || 80}%`,
+      whiteSpace: "normal",
       wordWrap: "break-word",
       overflowWrap: "break-word",
-      whiteSpace: "pre-line",
-      wordBreak: "normal",
-      lineHeight: 1.4,
-      letterSpacing: "0.02em",
+      wordBreak: "keep-all",
+      lineHeight: 1.3,
+      letterSpacing: "0.01em",
       textRendering: "optimizeLegibility",
       WebkitFontSmoothing: "antialiased",
       MozOsxFontSmoothing: "grayscale",
@@ -206,42 +206,45 @@ export default function AdvertisementModal() {
     return {
       backgroundColor: textOverlay.backgroundColor || "#000000",
       opacity: textOverlay.backgroundOpacity || 0.7,
-      padding: `${textOverlay.padding || 16}px ${(textOverlay.padding || 20) * 1.5}px`,
-      borderRadius: `${textOverlay.borderRadius || 8}px`,
-      width: "fit-content",
-      maxWidth: "85%",
-      minWidth: "200px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+      padding: `${textOverlay.padding || 12}px ${(textOverlay.padding || 16) * 1.8}px`,
+      borderRadius: `${textOverlay.borderRadius || 4}px`,
+      width: "auto",
+      maxWidth: "90%",
+      minWidth: "280px",
+      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
       pointerEvents: "none" as const,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
     }
   }
 
   // Функция для форматирования текста - разбивает на строки правильно
   const formatText = (text: string) => {
-    if (!text) return ""
+    if (!text) return text
 
-    // Заменяем двойные пробелы на одинарные
-    let formattedText = text.replace(/\s+/g, " ")
+    // Заменяем множественные пробелы на одинарные
+    const result = text.replace(/\s+/g, " ").trim()
 
-    // Добавляем переносы после пунктуации для лучшего вида
-    formattedText = formattedText.replace(/([.!?])\s*/g, "$1\n")
-
-    // Ограничиваем максимальную длину строки
-    const words = formattedText.split(" ")
+    // Разбиваем текст на строки для лучшего размещения (макс 20 символов)
+    const words = result.split(" ")
     const lines = []
     let currentLine = ""
 
     for (const word of words) {
-      if ((currentLine + word).length <= 25) {
-        // Максимум 25 символов в строке
-        currentLine += (currentLine ? " " : "") + word
+      if (!currentLine) {
+        currentLine = word
+      } else if ((currentLine + " " + word).length <= 20) {
+        currentLine += " " + word
       } else {
-        if (currentLine) lines.push(currentLine)
+        lines.push(currentLine)
         currentLine = word
       }
     }
 
-    if (currentLine) lines.push(currentLine)
+    if (currentLine) {
+      lines.push(currentLine)
+    }
 
     return lines.join("\n")
   }
@@ -290,7 +293,7 @@ export default function AdvertisementModal() {
         {/* Image Section */}
         {ad.image_url && (
           <div className="flex-1 relative min-h-[200px] md:min-h-0">
-            <img src={ad.image_url || "/placeholder.svg"} alt={ad.title} className="w-full h-full object-cover" />
+            <img src={ad.image_url || "/placeholder.svg"} alt={ad.title} className="w-full h-full object-cover my-0 rounded-xl" />
 
             {/* Текстовый оверлей поверх изображения - УЛУЧШЕННЫЙ */}
             {textOverlay?.enabled && textOverlay.text && (
@@ -305,7 +308,7 @@ export default function AdvertisementModal() {
                   }}
                 >
                   <div style={getBackgroundStyle()}>
-                    <p style={getTextStyle()}>{textOverlay.text}</p>
+                    <p style={getTextStyle()}>{formatText(textOverlay.text)}</p>
                   </div>
                 </div>
               </div>
