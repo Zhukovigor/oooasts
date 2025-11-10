@@ -29,11 +29,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/icon.png", type: "image/png", sizes: "32x32" },
-      { url: "/apple-icon.png", type: "image/png", sizes: "180x180" },
     ],
     apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: "/favicon.ico",
   },
   keywords: [
     "купить спецтехнику",
@@ -65,10 +65,11 @@ export const metadata: Metadata = {
       "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните!",
     images: [
       {
-        url: `${CANONICAL_URL}/images/og-image.jpg`,
+        url: `${CANONICAL_URL}/images/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "ООО АСТС - Поставка спецтехники из Китая",
+        alt: "ООО АСТС - Поставка спецтехники из Китая: экскаваторы, бетононасосы",
+        type: "image/png",
       },
     ],
   },
@@ -77,7 +78,8 @@ export const metadata: Metadata = {
     title: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
     description:
       "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните!",
-    images: [`${CANONICAL_URL}/images/og-image.jpg`],
+    images: [`${CANONICAL_URL}/images/og-image.png`],
+    creator: "@asts_ru",
   },
   robots: {
     index: true,
@@ -162,11 +164,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://mc.yandex.ru" />
         <link rel="preconnect" href="https://top-fwz1.mail.ru" />
-
-        {/* Favicon */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/icon.png" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/apple-icon.png" />
 
         {/* Structured Data */}
         <script
