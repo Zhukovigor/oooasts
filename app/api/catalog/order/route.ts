@@ -118,8 +118,18 @@ export async function POST(request: NextRequest) {
     if (telegramBotToken) {
       const chatIds = getTelegramChatIds()
 
-      for (const chatId of chatIds) {
-        const message = `
+      console.log("[v0] Telegram config check:", {
+        hasBotToken: !!telegramBotToken,
+        botTokenLength: telegramBotToken?.length || 0,
+        chatIdsCount: chatIds.length,
+        chatIds: chatIds,
+      })
+
+      if (chatIds.length === 0) {
+        console.warn("[v0] No Telegram chat IDs configured - skipping telegram notification")
+      } else {
+        for (const chatId of chatIds) {
+          const message = `
 🆕 Новая заявка из каталога!
 
 📦 Модель: ${modelName}
@@ -130,35 +140,46 @@ ${comment ? `💬 Комментарий: ${comment}` : ""}
 🌡 Качество: ${leadScoring.temperature.toUpperCase()} (${leadScoring.totalScore}/100)
 
 🆔 ID заявки: ${order.id}
-        `.trim()
+          `.trim()
 
-        try {
-          const telegramResponse = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: message,
-              parse_mode: "HTML",
-            }),
-          })
+          try {
+            console.log("[v0] Sending telegram message to chat:", chatId)
+            const telegramResponse = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: message,
+                parse_mode: "HTML",
+              }),
+            })
 
-          if (telegramResponse.ok) {
             const telegramData = await telegramResponse.json()
-            await supabase
-              .from("catalog_orders")
-              .update({
-                telegram_sent: true,
-                telegram_message_id: telegramData.result.message_id.toString(),
-              })
-              .eq("id", order.id)
-          } else {
-            console.error("[v0] Telegram API error:", await telegramResponse.text())
+            console.log("[v0] Telegram response:", {
+              ok: telegramResponse.ok,
+              status: telegramResponse.status,
+              data: telegramData,
+            })
+
+            if (telegramResponse.ok) {
+              console.log("[v0] Telegram message sent successfully to", chatId)
+              await supabase
+                .from("catalog_orders")
+                .update({
+                  telegram_sent: true,
+                  telegram_message_id: telegramData.result.message_id.toString(),
+                })
+                .eq("id", order.id)
+            } else {
+              console.error("[v0] Telegram API error:", telegramData)
+            }
+          } catch (telegramError) {
+            console.error("[v0] Telegram send error:", telegramError)
           }
-        } catch (telegramError) {
-          console.error("[v0] Telegram send error:", telegramError)
         }
       }
+    } else {
+      console.warn("[v0] Telegram bot token not configured - skipping telegram notifications")
     }
 
     return NextResponse.json({
