@@ -100,7 +100,6 @@ export const metadata: Metadata = {
   },
   category: "construction equipment",
   manifest: "/manifest.json",
-  themeColor: "#1e40af",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -205,6 +204,90 @@ const websiteSchema = {
   },
 }
 
+// Client Component для аналитики
+function AnalyticsScripts() {
+  return (
+    <>
+      {/* Google Tag Manager */}
+      <Script
+        id="google-tag-manager"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-NJHGMTJQ');`,
+        }}
+      />
+
+      {/* Google Analytics (gtag.js) */}
+      <Script
+        id="google-analytics"
+        strategy="afterInteractive"
+        src="https://www.googletagmanager.com/gtag/js?id=G-JV4J54L6G6"
+      />
+      <Script
+        id="google-analytics-config"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-JV4J54L6G6', {
+              page_title: document.title,
+              page_location: window.location.href,
+            });
+          `,
+        }}
+      />
+
+      {/* Top.Mail.Ru */}
+      <Script
+        id="top-mail-ru"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            var _tmr = window._tmr || (window._tmr = []);
+            _tmr.push({id: "3708181", type: "pageView", start: (new Date()).getTime()});
+            (function (d, w, id) {
+              if (d.getElementById(id)) return;
+              var ts = d.createElement("script"); ts.type = "text/javascript"; ts.async = true; ts.id = id;
+              ts.src = "https://top-fwz1.mail.ru/js/code.js";
+              var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
+              if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
+            })(document, window, "tmr-code");
+          `,
+        }}
+      />
+
+      {/* Yandex Metrika */}
+      <Script
+        id="yandex-metrika"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function(m,e,t,r,i,k,a){
+              m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+              m[i].l=1*new Date();
+              for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+              k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+            })(window, document,'script','https://mc.yandex.ru/metrika/tag.js','ym');
+            ym(104548955, 'init', {
+              clickmap:true,
+              trackLinks:true,
+              accurateTrackBounce:true,
+              webvisor:true,
+              ecommerce:"dataLayer"
+            });
+          `,
+        }}
+      />
+    </>
+  )
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -221,7 +304,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
 
         {/* Basic Meta Tags */}
-        <meta name="theme-color" content="#1e40af" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -247,116 +329,6 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
           key="website-schema"
-        />
-
-        {/* Google Tag Manager */}
-        <Script
-          id="google-tag-manager"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','GTM-NJHGMTJQ');`,
-          }}
-        />
-
-        {/* Google Analytics (gtag.js) */}
-        <Script
-          id="google-analytics"
-          strategy="afterInteractive"
-          src="https://www.googletagmanager.com/gtag/js?id=G-JV4J54L6G6"
-          onLoad={() => {
-            console.log('Google Analytics loaded successfully')
-          }}
-        />
-        <Script
-          id="google-analytics-config"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-JV4J54L6G6', {
-                page_title: document.title,
-                page_location: window.location.href,
-              });
-            `,
-          }}
-        />
-
-        {/* Top.Mail.Ru */}
-        <Script
-          id="top-mail-ru"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              var _tmr = window._tmr || (window._tmr = []);
-              _tmr.push({id: "3708181", type: "pageView", start: (new Date()).getTime()});
-              (function (d, w, id) {
-                if (d.getElementById(id)) return;
-                var ts = d.createElement("script"); ts.type = "text/javascript"; ts.async = true; ts.id = id;
-                ts.src = "https://top-fwz1.mail.ru/js/code.js";
-                var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
-                if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
-              })(document, window, "tmr-code");
-            `,
-          }}
-        />
-
-        {/* Yandex Metrika */}
-        <Script
-          id="yandex-metrika"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function(m,e,t,r,i,k,a){
-                m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-                m[i].l=1*new Date();
-                for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-                k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-              })(window, document,'script','https://mc.yandex.ru/metrika/tag.js','ym');
-              ym(104548955, 'init', {
-                clickmap:true,
-                trackLinks:true,
-                accurateTrackBounce:true,
-                webvisor:true,
-                ecommerce:"dataLayer"
-              });
-            `,
-          }}
-        />
-
-        {/* Performance Monitoring */}
-        <Script
-          id="performance-monitoring"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Мониторинг производительности
-              if ('performance' in window) {
-                window.addEventListener('load', function() {
-                  setTimeout(function() {
-                    const navigation = performance.getEntriesByType('navigation')[0];
-                    const paint = performance.getEntriesByType('paint');
-                    
-                    if (navigation) {
-                      const loadTime = navigation.loadEventEnd - navigation.navigationStart;
-                      console.log('Page load time:', loadTime + 'ms');
-                    }
-                    
-                    if (paint && paint.length > 0) {
-                      paint.forEach(entry => {
-                        console.log(entry.name + ': ' + entry.startTime + 'ms');
-                      });
-                    }
-                  }, 0);
-                });
-              }
-            `,
-          }}
         />
       </head>
 
@@ -409,6 +381,7 @@ export default function RootLayout({
           <Analytics />
           <SpeedInsights />
           <CookieConsent />
+          <AnalyticsScripts />
         </Suspense>
       </body>
     </html>
