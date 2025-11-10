@@ -14,12 +14,10 @@ const CANONICAL_URL = "https://asts.vercel.app"
 
 export const metadata: Metadata = {
   title: {
-    default:
-      "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
-    template: "%s | ООО АСТС - Поставка спецтехники из Китая",
+    default: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
+    template: "%s | ООО АСТС",
   },
-  description:
-    "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните +7 (919) 042-24-92!",
+  description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. ☎ +7 (919) 042-24-92",
   metadataBase: new URL(CANONICAL_URL),
   alternates: {
     canonical: "/",
@@ -43,9 +41,13 @@ export const metadata: Metadata = {
     "экскаватор komatsu",
     "купить автобетононасос",
     "автобетононасос sany",
-    "автобетононасос zoomlion",
+    "автобетононасоз zoomlion",
     "лизинг спецтехники",
     "ооо астс",
+    "строительная техника",
+    "китайская спецтехника",
+    "экскаваторы бу",
+    "бетононасосы бу",
   ],
   authors: [{ name: "ООО АСТС" }],
   creator: "ООО АСТС",
@@ -53,31 +55,31 @@ export const metadata: Metadata = {
   formatDetection: {
     email: false,
     address: false,
-    telephone: false,
+    telephone: true,
   },
   openGraph: {
     type: "website",
     locale: "ru_RU",
     url: CANONICAL_URL,
     siteName: "ООО АСТС - Поставка спецтехники из Китая",
-    title: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
-    description:
-      "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните!",
+    title: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
+    description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. Звоните!",
     images: [
       {
         url: `${CANONICAL_URL}/images/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "ООО АСТС - Поставка спецтехники из Китая: экскаваторы, бетононасосы",
+        alt: "ООО АСТС - Спецтехника из Китая: экскаваторы, бетононасосы, строительная техника",
         type: "image/png",
       },
     ],
+    emails: ["info@asts.ru"],
+    phoneNumbers: ["+79190422492"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Купить спецтехнику из Китая | Поставка экскаваторов Komatsu, автобетононасосов SANY и Zoomlion | ООО АСТС",
-    description:
-      "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у. Полное документальное сопровождение, доставка по РФ. Выгодные цены. Звоните!",
+    title: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
+    description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ.",
     images: [`${CANONICAL_URL}/images/og-image.png`],
     creator: "@asts_ru",
   },
@@ -97,6 +99,13 @@ export const metadata: Metadata = {
     yandex: "04df37bb570ff95c",
   },
   category: "construction equipment",
+  manifest: "/manifest.json",
+  themeColor: "#1e40af",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ООО АСТС",
+  },
     generator: 'v0.app'
 }
 
@@ -108,10 +117,10 @@ const organizationSchema = {
   alternateName: "ASTS",
   url: CANONICAL_URL,
   logo: `${CANONICAL_URL}/images/logo.png`,
-  description:
-    "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
+  description: "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
   address: {
     "@type": "PostalAddress",
+    streetAddress: "ул. Пролетарская, 123",
     addressCountry: "RU",
     addressRegion: "Смоленская область",
     addressLocality: "Рославль",
@@ -123,8 +132,12 @@ const organizationSchema = {
     contactType: "customer service",
     areaServed: "RU",
     availableLanguage: ["Russian"],
+    email: "info@asts.ru",
   },
-  sameAs: [],
+  sameAs: [
+    "https://vk.com/asts",
+    "https://t.me/asts_ru",
+  ],
 }
 
 // Structured Data для LocalBusiness
@@ -133,15 +146,17 @@ const localBusinessSchema = {
   "@type": "LocalBusiness",
   name: "ООО АСТС",
   image: `${CANONICAL_URL}/images/logo.png`,
-  description:
-    "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
+  description: "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
   address: {
     "@type": "PostalAddress",
+    streetAddress: "ул. Пролетарская, 123",
     addressCountry: "RU",
     addressRegion: "Смоленская область",
     addressLocality: "Рославль",
+    postalCode: "216500",
   },
   telephone: "+7-919-042-24-92",
+  email: "info@asts.ru",
   priceRange: "$$$",
   openingHours: ["Mo-Fr 08:00-21:00", "Sa 09:00-18:00"],
   geo: {
@@ -149,7 +164,45 @@ const localBusinessSchema = {
     latitude: "53.9500",
     longitude: "32.8667",
   },
-  makesOffer: ["Экскаваторы", "Бульдозеры", "Автобетононасосы", "Автокраны", "Погрузчики", "Дорожные катки"],
+  makesOffer: [
+    "Экскаваторы",
+    "Бульдозеры", 
+    "Автобетононасосы",
+    "Автокраны",
+    "Погрузчики",
+    "Дорожные катки",
+    "Самосвалы",
+    "Автобетоносмесители"
+  ],
+  areaServed: "RU",
+}
+
+// Breadcrumb structured data
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Главная",
+      item: CANONICAL_URL,
+    },
+  ],
+}
+
+// Website structured data
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "ООО АСТС - Поставка спецтехники из Китая",
+  url: CANONICAL_URL,
+  description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: `${CANONICAL_URL}/search?q={search_term_string}`,
+    "query-input": "required name=search_term_string",
+  },
 }
 
 export default function RootLayout({
@@ -164,6 +217,15 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="preconnect" href="https://mc.yandex.ru" />
         <link rel="preconnect" href="https://top-fwz1.mail.ru" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
+        {/* Basic Meta Tags */}
+        <meta name="theme-color" content="#1e40af" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="ООО АСТС" />
 
         {/* Structured Data */}
         <script
@@ -175,6 +237,16 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
           key="localbusiness-schema"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+          key="breadcrumb-schema"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+          key="website-schema"
         />
 
         {/* Google Tag Manager */}
@@ -195,6 +267,9 @@ export default function RootLayout({
           id="google-analytics"
           strategy="afterInteractive"
           src="https://www.googletagmanager.com/gtag/js?id=G-JV4J54L6G6"
+          onLoad={() => {
+            console.log('Google Analytics loaded successfully')
+          }}
         />
         <Script
           id="google-analytics-config"
@@ -204,7 +279,10 @@ export default function RootLayout({
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-JV4J54L6G6');
+              gtag('config', 'G-JV4J54L6G6', {
+                page_title: document.title,
+                page_location: window.location.href,
+              });
             `,
           }}
         />
@@ -250,6 +328,36 @@ export default function RootLayout({
             `,
           }}
         />
+
+        {/* Performance Monitoring */}
+        <Script
+          id="performance-monitoring"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Мониторинг производительности
+              if ('performance' in window) {
+                window.addEventListener('load', function() {
+                  setTimeout(function() {
+                    const navigation = performance.getEntriesByType('navigation')[0];
+                    const paint = performance.getEntriesByType('paint');
+                    
+                    if (navigation) {
+                      const loadTime = navigation.loadEventEnd - navigation.navigationStart;
+                      console.log('Page load time:', loadTime + 'ms');
+                    }
+                    
+                    if (paint && paint.length > 0) {
+                      paint.forEach(entry => {
+                        console.log(entry.name + ': ' + entry.startTime + 'ms');
+                      });
+                    }
+                  }, 0);
+                });
+              }
+            `,
+          }}
+        />
       </head>
 
       <body className={`font-sans antialiased ${GeistSans.variable} ${GeistMono.variable}`}>
@@ -288,8 +396,11 @@ export default function RootLayout({
 
         <Suspense
           fallback={
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Загрузка ООО АСТС...</p>
+              </div>
             </div>
           }
         >
