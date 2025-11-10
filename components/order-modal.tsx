@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { X, Check } from "lucide-react"
 import Image from "next/image"
+import { handleFormConversion } from "@/app/config/retargeting"
 
 type OrderModalProps = {
   model: {
@@ -43,6 +44,14 @@ export function OrderModal({ model }: OrderModalProps) {
       })
 
       if (response.ok) {
+        const orderData = await response.json()
+        await handleFormConversion({
+          leadTemperature: orderData.leadTemperature || "warm",
+          formType: "order",
+          leadScore: orderData.leadScore,
+          abTestVariant: sessionStorage.getItem("ab_test_variant_order_modal"),
+        })
+
         setIsSuccess(true)
         setFormData({ name: "", phone: "", email: "", comment: "" })
         setConsent(false)

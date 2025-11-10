@@ -8,6 +8,7 @@ import { Suspense } from "react"
 import Script from "next/script"
 import CookieConsent from "@/components/cookie-consent"
 import AdvertisementModal from "@/components/advertisement-modal"
+import { RetargetingProvider } from "@/app/components/retargeting-provider"
 import "./globals.css"
 
 const CANONICAL_URL = "https://asts.vercel.app"
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
     default: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
     template: "%s | ООО АСТС",
   },
-  description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. ☎ +7 (919) 042-24-92",
+  description:
+    "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. ☎ +7 (919) 042-24-92",
   metadataBase: new URL(CANONICAL_URL),
   alternates: {
     canonical: "/",
@@ -63,7 +65,8 @@ export const metadata: Metadata = {
     url: CANONICAL_URL,
     siteName: "ООО АСТС - Поставка спецтехники из Китая",
     title: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
-    description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. Звоните!",
+    description:
+      "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ. Звоните!",
     images: [
       {
         url: `${CANONICAL_URL}/images/og-image.png`,
@@ -79,7 +82,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Спецтехника из Китая | Экскаваторы Komatsu, бетононасосы SANY | ООО АСТС",
-    description: "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ.",
+    description:
+      "Поставка строительной спецтехники из Китая: экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у с документами. Доставка по РФ.",
     images: [`${CANONICAL_URL}/images/og-image.png`],
     creator: "@asts_ru",
   },
@@ -116,7 +120,8 @@ const organizationSchema = {
   alternateName: "ASTS",
   url: CANONICAL_URL,
   logo: `${CANONICAL_URL}/images/logo.png`,
-  description: "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
+  description:
+    "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
   address: {
     "@type": "PostalAddress",
     streetAddress: "пер. 1-й Пионерский, 38",
@@ -133,10 +138,7 @@ const organizationSchema = {
     availableLanguage: ["Russian"],
     email: "info@asts.ru",
   },
-  sameAs: [
-    "https://vk.com/asts",
-    "https://t.me/asts_ru",
-  ],
+  sameAs: ["https://vk.com/asts", "https://t.me/asts_ru"],
 }
 
 // Structured Data для LocalBusiness
@@ -145,7 +147,8 @@ const localBusinessSchema = {
   "@type": "LocalBusiness",
   name: "ООО АСТС",
   image: `${CANONICAL_URL}/images/logo.png`,
-  description: "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
+  description:
+    "Поставка строительной спецтехники, экскаваторов Komatsu, автобетононасосов SANY и Zoomlion из Китая. Новые и б/у машины с гарантией.",
   address: {
     "@type": "PostalAddress",
     streetAddress: "ул. Пролетарская, 123",
@@ -165,13 +168,13 @@ const localBusinessSchema = {
   },
   makesOffer: [
     "Экскаваторы",
-    "Бульдозеры", 
+    "Бульдозеры",
     "Автобетононасосы",
     "Автокраны",
     "Погрузчики",
     "Дорожные катки",
     "Самосвалы",
-    "Автобетоносмесители"
+    "Автобетоносмесители",
   ],
   areaServed: "RU",
 }
@@ -376,6 +379,7 @@ export default function RootLayout({
             </div>
           }
         >
+          <RetargetingProvider />
           {children}
           <AdvertisementModal />
           <Analytics />

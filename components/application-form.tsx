@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { submitLead } from "@/app/actions/submit-lead"
+import { handleFormConversion } from "@/app/config/retargeting"
 
 export default function ApplicationForm() {
   const [formData, setFormData] = useState({
@@ -26,6 +27,13 @@ export default function ApplicationForm() {
       const result = await submitLead(formData)
 
       if (result.success) {
+        await handleFormConversion({
+          leadTemperature: result.leadTemperature || "warm",
+          formType: "application",
+          leadScore: result.leadScore,
+          abTestVariant: sessionStorage.getItem("ab_test_variant_application_form"),
+        })
+
         setSubmitStatus("success")
         setFormData({ name: "", phone: "", email: "", message: "" })
         setConsent(false)
