@@ -119,11 +119,11 @@ const organizationSchema = {
   description: "Поставщик строительной спецтехники из Китая. Экскаваторы Komatsu, автобетононасосы SANY и Zoomlion. Новые и б/у техника с полным документальным сопровождением.",
   address: {
     "@type": "PostalAddress",
-    streetAddress: "ул. Пролетарская, 123",
+    streetAddress: "пер. 1-й Пионерский, 38",
     addressCountry: "RU",
     addressRegion: "Смоленская область",
     addressLocality: "Рославль",
-    postalCode: "216500",
+    postalCode: "216505",
   },
   contactPoint: {
     "@type": "ContactPoint",
