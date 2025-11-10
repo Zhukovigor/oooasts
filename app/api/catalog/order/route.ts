@@ -63,9 +63,12 @@ export async function POST(request: NextRequest) {
 
     // Send to Telegram
     const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
-    const telegramChatId = process.env.TELEGRAM_CHAT_IDS
+    const telegramChatIdsStr = process.env.TELEGRAM_CHAT_IDS
 
-    if (telegramBotToken && telegramChatId) {
+    if (telegramBotToken && telegramChatIdsStr) {
+      // Parse comma-separated chat IDs or single ID
+      const chatIds = telegramChatIdsStr.split(",").map((id) => id.trim())
+
       const message = `
 🆕 Новая заявка из каталога!
 
@@ -79,31 +82,38 @@ ${comment ? `💬 Комментарий: ${comment}` : ""}
       `.trim()
 
       try {
-        const telegramResponse = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: telegramChatId,
-            text: message,
-            parse_mode: "HTML",
-          }),
-        })
+        for (const chatId of chatIds) {
+          const telegramResponse = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: Number.parseInt(chatId, 10), // Convert string to number for Telegram API
+              text: message,
+              parse_mode: "HTML",
+            }),
+          })
 
-        if (telegramResponse.ok) {
-          const telegramData = await telegramResponse.json()
-          await supabase
-            .from("catalog_orders")
-            .update({
-              telegram_sent: true,
-              telegram_message_id: telegramData.result.message_id.toString(),
-            })
-            .eq("id", order.id)
-        } else {
-          console.error("[v0] Telegram API error:", await telegramResponse.text())
+          if (telegramResponse.ok) {
+            const telegramData = await telegramResponse.json()
+            await supabase
+              .from("catalog_orders")
+              .update({
+                telegram_sent: true,
+                telegram_message_id: telegramData.result.message_id.toString(),
+              })
+              .eq("id", order.id)
+
+            console.log("[v0] Telegram message sent successfully to chat", chatId)
+          } else {
+            const errorText = await telegramResponse.text()
+            console.error("[v0] Telegram API error for chat", chatId, ":", errorText)
+          }
         }
       } catch (telegramError) {
         console.error("[v0] Telegram send error:", telegramError)
       }
+    } else {
+      console.warn("[v0] Telegram credentials not configured. Skipping Telegram notification.")
     }
 
     return NextResponse.json({ success: true, orderId: order.id })
