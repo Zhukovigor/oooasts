@@ -11,5 +11,11 @@
       "destination": "https://asts.vercel.app/:path*",
       "permanent": true
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/auto-post-content",
+      "schedule": "0 9,12,15,18 * * *"
+    }
   ]
 }
