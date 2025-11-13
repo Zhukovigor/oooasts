@@ -582,7 +582,7 @@ export default function CampaignCreatorClient({ templates, contactLists, smtpAcc
               </div>
             ) : subscribers.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                {selectedContactList ? "В выбранной базе нет контактов" : "Выберите базу контактов"}
+                {selectedContactList ? "В выбранной базе ��ет контактов" : "Выберите базу контактов"}
               </div>
             ) : (
               <div className="max-h-[400px] overflow-y-auto space-y-2">

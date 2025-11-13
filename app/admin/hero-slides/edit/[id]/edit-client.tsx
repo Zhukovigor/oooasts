@@ -139,7 +139,7 @@ export default function HeroSlideEditClient({ slide }: { slide: HeroSlide }) {
           </div>
 
           <div>
-            <Label htmlFor="title_font_size">Размер шрифта заголовка</Label>
+            <Label htmlFor="title_font_size">Размер шри��та заголовка</Label>
             <Input
               id="title_font_size"
               value={formData.title_font_size}

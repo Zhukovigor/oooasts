@@ -64,7 +64,7 @@ function translateSpecKey(key: string): string {
   const translations: Record<string, string> = {
     // Общие
     chassis: "Шасси",
-    delivery: "Поставка",
+    delivery: "Поставк��",
     warranty: "Гарантия",
     fuel_tank: "Топливный бак",
     water_tank: "Водяной бак",
