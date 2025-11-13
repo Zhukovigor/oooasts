@@ -98,20 +98,20 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
     let formattedText = text
 
     // Обработка заголовков (строки, заканчивающиеся на ? или !)
-    formattedText = formattedText.replace(/^(.+[?!])$/gm, '<h3><strong>$1</strong></h3>')
+    formattedText = formattedText.replace(/^(.+[?!])$/gm, "<h3><strong>$1</strong></h3>")
 
     // Обработка подзаголовков (строки с двоеточием в начале)
-    formattedText = formattedText.replace(/^([^:\n]+):/gm, '<p><strong>$1:</strong>')
+    formattedText = formattedText.replace(/^([^:\n]+):/gm, "<p><strong>$1:</strong>")
 
     // Обработка эмодзи как маркеров разделов
-    formattedText = formattedText.replace(/^(💡|🚜|💰|🇨🇳|⚙️|📞|❓|👉|💬|📩|🌐|📝)(.+)$/gm, '<h4>$1$2</h4>')
+    formattedText = formattedText.replace(/^(💡|🚜|💰|🇨🇳|⚙️|📞|❓|👉|💬|📩|🌐|📝)(.+)$/gm, "<h4>$1$2</h4>")
 
     // Обработка списков с галочками
-    formattedText = formattedText.replace(/^✅ (.+)$/gm, '<li>✅ $1</li>')
+    formattedText = formattedText.replace(/^✅ (.+)$/gm, "<li>✅ $1</li>")
 
     // Обработка обычных пунктов списка (начинаются с дефиса, звездочки или цифры с точкой)
-    formattedText = formattedText.replace(/^[-•*] (.+)$/gm, '<li>$1</li>')
-    formattedText = formattedText.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    formattedText = formattedText.replace(/^[-•*] (.+)$/gm, "<li>$1</li>")
+    formattedText = formattedText.replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
 
     // Обработка хештегов
     formattedText = formattedText.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>')
@@ -119,28 +119,28 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
     // Обработка URL как ссылок
     formattedText = formattedText.replace(
       /(https?:\/\/[^\s]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">$1</a>'
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800">$1</a>',
     )
 
     // Разделение на параграфы (двойные переносы строк)
     const paragraphs = formattedText.split(/\n\s*\n/)
-    
-    let finalHtml = ''
-    
-    paragraphs.forEach(paragraph => {
+
+    let finalHtml = ""
+
+    paragraphs.forEach((paragraph) => {
       if (paragraph.trim()) {
         // Если это уже HTML элемент (h3, h4, li), не оборачиваем в p
         if (paragraph.match(/^<([hu]l|li|h[1-4])/)) {
-          finalHtml += paragraph + '\n'
-        } 
+          finalHtml += paragraph + "\n"
+        }
         // Если это список, оборачиваем в ul
-        else if (paragraph.includes('<li>')) {
-          finalHtml += '<ul class="space-y-2 my-4">\n' + paragraph + '\n</ul>\n'
+        else if (paragraph.includes("<li>")) {
+          finalHtml += '<ul class="space-y-2 my-4">\n' + paragraph + "\n</ul>\n"
         }
         // Обычный текст оборачиваем в p
         else {
           // Убираем лишние переносы внутри параграфа
-          const cleanParagraph = paragraph.replace(/\n/g, ' ').trim()
+          const cleanParagraph = paragraph.replace(/\n/g, " ").trim()
           if (cleanParagraph) {
             finalHtml += `<p class="mb-4">${cleanParagraph}</p>\n`
           }
@@ -160,17 +160,17 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
   // Функция для санитизации HTML контента
   const sanitizeHtml = (html: string): string => {
     return html
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br>')
-      .replace(/&lt;(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|br|span)(.*?)&gt;/g, '<$1$2>')
-      .replace(/&lt;\/(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|span)&gt;/g, '</$1>')
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>")
+      .replace(/&lt;(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|br|span)(.*?)&gt;/g, "<$1$2>")
+      .replace(/&lt;\/(strong|em|h1|h2|h3|h4|ul|ol|li|a|img|p|span)&gt;/g, "</$1>")
   }
 
   // Функция для форматирования контента в предпросмотре
   const formatPreviewContent = (html: string): string => {
     const sanitized = sanitizeHtml(html)
-    
+
     return `
       <div class="article-content">
         ${sanitized}
@@ -205,16 +205,16 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
         break
       case "ul":
         if (selectedText) {
-          const items = selectedText.split('\n').filter(item => item.trim())
-          newText = `\n<ul class="space-y-2 my-4">\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ul>\n`
+          const items = selectedText.split("\n").filter((item) => item.trim())
+          newText = `\n<ul class="space-y-2 my-4">\n${items.map((item) => `  <li>${item.trim()}</li>`).join("\n")}\n</ul>\n`
         } else {
           newText = `\n<ul class="space-y-2 my-4">\n  <li>Пункт списка</li>\n</ul>\n`
         }
         break
       case "ol":
         if (selectedText) {
-          const items = selectedText.split('\n').filter(item => item.trim())
-          newText = `\n<ol class="space-y-2 my-4">\n${items.map(item => `  <li>${item.trim()}</li>`).join('\n')}\n</ol>\n`
+          const items = selectedText.split("\n").filter((item) => item.trim())
+          newText = `\n<ol class="space-y-2 my-4">\n${items.map((item) => `  <li>${item.trim()}</li>`).join("\n")}\n</ol>\n`
         } else {
           newText = `\n<ol class="space-y-2 my-4">\n  <li>Пункт списка</li>\n</ol>\n`
         }
@@ -247,11 +247,7 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
 
   // Функция для автоматического форматирования контента при сохранении
   const formatContentForSave = (html: string): string => {
-    return html
-      .replace(/\n/g, '')
-      .replace(/<br>/g, '\n')
-      .replace(/>\s+</g, '><')
-      .trim()
+    return html.replace(/\n/g, "").replace(/<br>/g, "\n").replace(/>\s+</g, "><").trim()
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -302,6 +298,37 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
       setMessage({ type: "error", text: "Ошибка при обновлении статьи" })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handlePublishToTelegram() {
+    if (!title) {
+      alert("Заполните название статьи")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/telegram/post-to-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title,
+          description: excerpt || content?.substring(0, 150) || "",
+          imageUrl: mainImage,
+          postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/stati/${slug}`,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        alert("Статья успешно опубликована в Telegram канал!")
+      } else {
+        alert(`Ошибка при публикации: ${result.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error publishing to telegram:", error)
+      alert("Ошибка при публикации в Telegram")
     }
   }
 
@@ -384,23 +411,18 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                       Содержание статьи *
                     </Label>
                     <div className="flex gap-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={applyAutoFormatting}
                         title="Автоформатирование"
-                        className="flex items-center gap-1"
+                        className="flex items-center gap-1 bg-transparent"
                       >
                         <Wand2 className="w-4 h-4" />
                         Автоформат
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setPreviewMode(!previewMode)}
-                      >
+                      <Button type="button" variant="outline" size="sm" onClick={() => setPreviewMode(!previewMode)}>
                         {previewMode ? "Редактировать" : "Предпросмотр"}
                       </Button>
                     </div>
@@ -505,12 +527,12 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                   {previewMode ? (
                     <div
                       className="p-6 bg-white rounded-lg border min-h-[400px] article-preview"
-                      style={{ 
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                        lineHeight: '1.6',
+                      style={{
+                        fontFamily: "system-ui, -apple-system, sans-serif",
+                        lineHeight: "1.6",
                       }}
-                      dangerouslySetInnerHTML={{ 
-                        __html: formatPreviewContent(content) || "<p style='color: #666;'>Контент отсутствует</p>" 
+                      dangerouslySetInnerHTML={{
+                        __html: formatPreviewContent(content) || "<p style='color: #666;'>Контент отсутствует</p>",
                       }}
                     />
                   ) : (
@@ -542,9 +564,7 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                         className="font-mono text-sm whitespace-pre-wrap resize-vertical"
                         required
                       />
-                      <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                        {content.length} символов
-                      </div>
+                      <div className="absolute bottom-3 right-3 text-xs text-gray-400">{content.length} символов</div>
                     </div>
                   )}
                 </div>
@@ -554,12 +574,24 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     <h4 className="font-semibold text-blue-900 mb-2">Как работает автоформатирование:</h4>
                     <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• <strong>Заголовки:</strong> Строки с ? или ! → &lt;h3&gt;</li>
-                      <li>• <strong>Подзаголовки:</strong> Текст: с двоеточием → &lt;strong&gt;</li>
-                      <li>• <strong>Списки:</strong> ✅, •, - или 1. → &lt;ul&gt;/&lt;li&gt;</li>
-                      <li>• <strong>Разделы:</strong> Эмодзи 💡🚜💰 → &lt;h4&gt;</li>
-                      <li>• <strong>Ссылки:</strong> URL автоматически становятся кликабельными</li>
-                      <li>• <strong>Хештеги:</strong> #Текст → стилизованные теги</li>
+                      <li>
+                        • <strong>Заголовки:</strong> Строки с ? или ! → &lt;h3&gt;
+                      </li>
+                      <li>
+                        • <strong>Подзаголовки:</strong> Текст: с двоеточием → &lt;strong&gt;
+                      </li>
+                      <li>
+                        • <strong>Списки:</strong> ✅, •, - или 1. → &lt;ul&gt;/&lt;li&gt;
+                      </li>
+                      <li>
+                        • <strong>Разделы:</strong> Эмодзи 💡🚜💰 → &lt;h4&gt;
+                      </li>
+                      <li>
+                        • <strong>Ссылки:</strong> URL автоматически становятся кликабельными
+                      </li>
+                      <li>
+                        • <strong>Хештеги:</strong> #Текст → стилизованные теги
+                      </li>
                     </ul>
                   </div>
                 )}
@@ -737,20 +769,28 @@ export default function ArticleEditClient({ articleId }: ArticleEditClientProps)
           </div>
         )}
 
-        {/* Submit Button */}
-        <div className="flex gap-4">
-          <Button 
-            type="submit" 
-            disabled={isSubmitting} 
+        {/* Кнопки действий */}
+        <div className="flex gap-3 pt-6 border-t">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-lg py-6 transition-colors"
           >
             <Save className="w-5 h-5 mr-2" />
             {isSubmitting ? "Сохранение..." : "Сохранить изменения"}
           </Button>
+          <Button
+            type="button"
+            onClick={handlePublishToTelegram}
+            variant="outline"
+            className="px-6 py-6 bg-transparent border-blue-600 text-blue-600 hover:bg-blue-50"
+          >
+            📱 Telegram
+          </Button>
           <Link href="/admin/stati">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               className="px-6 py-6 bg-transparent border-gray-300 hover:bg-gray-50"
             >
               <X className="w-5 h-5" />

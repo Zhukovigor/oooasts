@@ -304,6 +304,39 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
     }
   }
 
+  const handlePublishToTelegram = async () => {
+    if (!formData.title) {
+      alert("Заполните название объявления")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/telegram/post-to-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description || "",
+          imageUrl: formData.image_url,
+          postUrl:
+            formData.button_url ||
+            `${typeof window !== "undefined" ? window.location.origin : ""}/advertisements/${formData.id}`,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        alert("Объявление успешно опубликовано в Telegram канал!")
+      } else {
+        alert(`Ошибка при публикации: ${result.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error publishing to telegram:", error)
+      alert("Ошибка при публикации в Telegram")
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Сообщение об успехе */}
@@ -696,6 +729,15 @@ export default function AdvertisementEditClient({ advertisement }: { advertiseme
       <div className="flex gap-3 pt-6 border-t">
         <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
           {isLoading ? "Сохранение..." : "Сохранить рекламу"}
+        </Button>
+        <Button
+          type="button"
+          onClick={handlePublishToTelegram}
+          variant="outline"
+          className="border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent"
+          disabled={isLoading}
+        >
+          📱 Telegram
         </Button>
         <Button
           type="button"

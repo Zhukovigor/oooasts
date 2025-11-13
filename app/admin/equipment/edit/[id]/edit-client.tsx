@@ -98,6 +98,34 @@ export default function EquipmentEditClient({ id }: { id: string }) {
     }
   }
 
+  async function handlePublishToTelegram() {
+    if (!formData || !formData.id) return
+
+    try {
+      const response = await fetch("/api/telegram/post-to-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.name,
+          description: formData.description || "",
+          imageUrl: formData.main_image,
+          postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/catalog/${formData.slug}`,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        alert("Техника успешно опубликована в Telegram канал!")
+      } else {
+        alert(`Ошибка при публикации: ${result.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error publishing to telegram:", error)
+      alert("Ошибка при публикации в Telegram")
+    }
+  }
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -428,6 +456,14 @@ export default function EquipmentEditClient({ id }: { id: string }) {
         <div className="flex gap-4">
           <Button type="submit" disabled={saving} className="bg-green-600 hover:bg-green-700">
             {saving ? "Сохранение..." : "Сохранить изменения"}
+          </Button>
+          <Button
+            type="button"
+            onClick={handlePublishToTelegram}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent"
+          >
+            📱 Опубликовать в Telegram
           </Button>
           <Link href="/admin/equipment">
             <Button type="button" variant="outline">
