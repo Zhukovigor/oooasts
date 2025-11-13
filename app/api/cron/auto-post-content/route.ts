@@ -124,7 +124,7 @@ async function scanAndPostNewContent() {
       }
     }
 
-    // 3. Scan and post new announcements - ИСПРАВЛЕННАЯ ВЕРСИЯ
+    // 3. Scan and post new announcements - с улучшенным форматированием
 const { data: newAnnouncements } = await supabase
   .from("announcements")
   .select("id, title, description, category, price, currency, location, type, created_at, contact_name, contact_phone")
@@ -135,12 +135,33 @@ const { data: newAnnouncements } = await supabase
 
 for (const announcement of newAnnouncements || []) {
   if (!postedIds.announcements.has(announcement.id)) {
-    // Формируем описание с ПОЛНОЙ информацией
+    // Определяем иконку и текст в зависимости от типа
+    const typeIcon = announcement.type === 'supply' ? '🛒' : '💼'
+    const typeText = announcement.type === 'supply' ? 'Предложение' : 'Спрос'
+    
+    // Определяем иконку категории
+    let categoryIcon = "🏗️" // по умолчанию для экскаваторов
+if (announcement.category?.includes('Автобетононасос')) categoryIcon = "🚛"
+if (announcement.category?.includes('Бульдозер')) categoryIcon = "🚜"
+if (announcement.category?.includes('Погрузчик')) categoryIcon = "🔧"
+if (announcement.category?.includes('Самосвал')) categoryIcon = "🚚"
+if (announcement.category?.includes('Кран')) categoryIcon = "🏗️"
+if (announcement.category?.includes('Каток')) categoryIcon = "🛞"
+if (announcement.category?.includes('Экскаватор')) categoryIcon = "⛏️"
+if (announcement.category?.includes('Мини-погрузчик')) categoryIcon = "🤖"
+if (announcement.category?.includes('Автобетоносмеситель')) categoryIcon = "🚙"
+if (announcement.category?.includes('Грейдер')) categoryIcon = "📐"
+if (announcement.category?.includes('Подъемник')) categoryIcon = "🛗"
+if (announcement.category?.includes('Гусеничный кран')) categoryIcon = "🐊"
+    
+    // Формируем заголовок
+    const title = `${typeIcon} ${typeText}:\n${categoryIcon} ${announcement.title}`
+    
+    // Формируем описание
     let description = announcement.description || "Новое объявление на доске объявлений"
     
-    // Добавляем тип объявления
-    const typeText = announcement.type === 'supply' ? '🛒 Предложение' : '💼 Спрос'
-    description += `\n${typeText}`
+    // Добавляем разделитель
+    description += "\n"
     
     // Добавляем цену если есть
     if (announcement.price) {
@@ -148,10 +169,7 @@ for (const announcement of newAnnouncements || []) {
       description += `\n💵 Цена: ${formattedPrice} ${announcement.currency || 'RUB'}`
     }
     
-    // Добавляем категорию и местоположение
-    if (announcement.category) {
-      description += `\n📂 Категория: ${announcement.category}`
-    }
+    // Добавляем местоположение
     if (announcement.location) {
       description += `\n📍 Местоположение: ${announcement.location}`
     }
@@ -164,20 +182,14 @@ for (const announcement of newAnnouncements || []) {
       description += `\n📞 Телефон: ${announcement.contact_phone}`
     }
 
-    // Определяем иконку в зависимости от категории
-    let icon = "📢"
-    if (announcement.category?.includes('Автобетононасос')) icon = "🚛"
-    if (announcement.category?.includes('Экскаватор')) icon = "🏗️"
-    if (announcement.category?.includes('Бульдозер')) icon = "🚜"
-    if (announcement.category?.includes('Погрузчик')) icon = "🔧"
-    if (announcement.category?.includes('Самосвал')) icon = "🚚"
+    // Кнопка ведет на общую страницу объявлений
+    const announcementsPageUrl = "https://volgograd-asts.vercel.app/obyavleniya"
     
     await postToTelegram(
       {
-        title: `${icon} Объявление: ${announcement.title}`,
+        title: title,
         description: description,
-        // НЕ передаем postUrl - не будет кнопки "Читать далее"
-        // postUrl: undefined
+        postUrl: announcementsPageUrl,
       },
       supabase,
       "announcements",
