@@ -16,6 +16,11 @@ export async function GET(request: NextRequest) {
   console.log("[v0] NEXT_PUBLIC_SITE_URL существует:", !!process.env.NEXT_PUBLIC_SITE_URL)
 
   try {
+    // Добавим проверку что функция существует
+    if (typeof scanAndPostNewContent !== 'function') {
+      throw new Error("Функция scanAndPostNewContent не найдена")
+    }
+
     const result = await scanAndPostNewContent()
     console.log("[v0] Результат cron job:", result)
     
@@ -34,7 +39,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Также поддерживаем POST запросы если нужно
 export async function POST(request: NextRequest) {
   return GET(request)
 }

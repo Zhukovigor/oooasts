@@ -1,52 +1,45 @@
-// В функции postToTelegram в auto-posting-service.ts
-async function postToTelegram(
-  data: { title: string; description: string; imageUrl?: string; postUrl?: string },
-  supabase: any,
-  contentType: string,
-  contentId: string,
-): Promise<boolean> {
-  try {
-    // Используем функцию с поддержкой медиа если есть изображение
-    const result = data.imageUrl 
-      ? await postToTelegramWithMedia(data)
-      : await postToTelegramDirectly(data)
+// app/api/cron/auto-post-content/route.ts
+import { scanAndPostNewContent } from "../../../lib/auto-posting-service"
+import { type NextRequest, NextResponse } from "next/server"
 
-    // Сохраняем запись об успешной отправке
-    const { error: insertError } = await supabase
-      .from("posted_content_tracking")
-      .insert({
-        content_type: contentType,
-        content_id: contentId,
-        telegram_message_id: result.messageId,
-        telegram_chat_id: result.chatId,
-        status: "posted",
-        posted_at: new Date().toISOString(),
-      })
-
-    if (insertError) {
-      console.error(`[v0] Ошибка сохранения записи ${contentType}/${contentId}:`, insertError)
-      return false
-    }
-
-    console.log(`[v0] Успешно отправлено ${contentType}/${contentId} в Telegram`)
-    return true
-
-  } catch (error) {
-    console.error(`[v0] Ошибка отправки ${contentType}/${contentId}:`, error)
-    
-    // Сохраняем запись об ошибке
-    try {
-      await supabase.from("posted_content_tracking").insert({
-        content_type: contentType,
-        content_id: contentId,
-        status: "failed",
-        error_message: String(error),
-        attempted_at: new Date().toISOString(),
-      })
-    } catch (dbError) {
-      console.error(`[v0] Ошибка сохранения ошибки для ${contentType}/${contentId}:`, dbError)
-    }
-    
-    return false
+export async function GET(request: NextRequest) {
+  // Проверяем cron secret если доступен
+  const authHeader = request.headers.get("Authorization")
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.log("[v0] Неавторизованный запрос к cron")
+    return NextResponse.json({ error: "Неавторизован" }, { status: 401 })
   }
+
+  console.log("[v0] Cron job запущен - проверка переменных окружения")
+  console.log("[v0] NEXT_PUBLIC_SUPABASE_URL существует:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
+  console.log("[v0] SUPABASE_SERVICE_ROLE_KEY существует:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+  console.log("[v0] NEXT_PUBLIC_SITE_URL существует:", !!process.env.NEXT_PUBLIC_SITE_URL)
+
+  try {
+    // Добавим проверку что функция существует
+    if (typeof scanAndPostNewContent !== 'function') {
+      throw new Error("Функция scanAndPostNewContent не найдена")
+    }
+
+    console.log("[v0] Запуск scanAndPostNewContent...")
+    const result = await scanAndPostNewContent()
+    console.log("[v0] Результат cron job:", result)
+    
+    if (result.success) {
+      return NextResponse.json(result)
+    } else {
+      return NextResponse.json(result, { status: 500 })
+    }
+  } catch (error) {
+    console.error("[v0] Ошибка cron job:", error)
+    return NextResponse.json({ 
+      success: false, 
+      error: String(error),
+      message: "Внутренняя ошибка сервера"
+    }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  return GET(request)
 }
