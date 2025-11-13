@@ -4,7 +4,7 @@ import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, description, imageUrl, postUrl, channelId: overrideChannelId } = await request.json()
+    const { title, description, imageUrl, postUrl, channelId: overrideChannelId, withInlineButton, buttonText } = await request.json()
 
     const cookieStore = await cookies()
     const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -25,15 +25,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Telegram configuration not found in database" }, { status: 400 })
     }
 
-    const message = `📢 <b>${title}</b>\n\n${description || ""}\n\n${postUrl ? `<a href="${postUrl}">Подробнее</a>` : ""}`
+    // ФОРМИРУЕМ ТЕКСТ БЕЗ ССЫЛКИ - ссылка будет в кнопке
+    const message = `📢 <b>${title}</b>\n\n${description || ""}`
+
+    // Базовые параметры для Telegram API
+    const basePayload: any = {
+      chat_id: channelId,
+      parse_mode: "HTML",
+      disable_web_page_preview: false,
+    }
+
+    // ДОБАВЛЯЕМ ИНЛАЙН КНОПКУ если есть ссылка
+    if (postUrl) {
+      basePayload.reply_markup = {
+        inline_keyboard: [
+          [
+            {
+              text: buttonText || "📖 Читать далее",
+              url: postUrl
+            }
+          ]
+        ]
+      }
+      console.log(`[v0] Adding inline button with URL: ${postUrl}`)
+    }
 
     if (imageUrl) {
       const photoUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`
       const photoPayload = {
-        chat_id: channelId,
+        ...basePayload,
         photo: imageUrl,
-        caption: message,
-        parse_mode: "HTML",
+        caption: message, // Текст будет под фото
       }
 
       const photoResponse = await fetch(photoUrl, {
@@ -54,10 +76,8 @@ export async function POST(request: NextRequest) {
     } else {
       const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
       const payload = {
-        chat_id: channelId,
+        ...basePayload,
         text: message,
-        parse_mode: "HTML",
-        disable_web_page_preview: false,
       }
 
       const response = await fetch(telegramUrl, {
