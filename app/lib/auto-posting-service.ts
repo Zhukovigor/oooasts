@@ -3,8 +3,18 @@ import { cookies } from "next/headers"
 
 export async function scanAndPostNewContent() {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("[v0] Missing Supabase environment variables")
+      console.log("[v0] NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✓ set" : "✗ missing")
+      console.log("[v0] SUPABASE_SERVICE_ROLE_KEY:", supabaseKey ? "✓ set" : "✗ missing")
+      return { success: false, message: "Supabase configuration missing" }
+    }
+
     const cookieStore = await cookies()
-    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
       cookies: {
         getAll() {
           return cookieStore.getAll()
