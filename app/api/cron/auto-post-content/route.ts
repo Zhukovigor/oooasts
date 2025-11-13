@@ -124,61 +124,68 @@ async function scanAndPostNewContent() {
       }
     }
 
-    // 3. Scan and post new announcements - ДОБАВИЛИ ЭТОТ РАЗДЕЛ
-    const { data: newAnnouncements } = await supabase
-      .from("announcements")
-      .select("id, title, description, category, price, currency, location, type, created_at")
-      .eq("is_active", true)
-      .eq("is_moderated", true)
-      .order("created_at", { ascending: false })
-      .limit(10)
+    // 3. Scan and post new announcements - ИСПРАВЛЕННАЯ ВЕРСИЯ
+const { data: newAnnouncements } = await supabase
+  .from("announcements")
+  .select("id, title, description, category, price, currency, location, type, created_at, contact_name, contact_phone")
+  .eq("is_active", true)
+  .eq("is_moderated", true)
+  .order("created_at", { ascending: false })
+  .limit(10)
 
-    for (const announcement of newAnnouncements || []) {
-      if (!postedIds.announcements.has(announcement.id)) {
-        const announcementUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/obyavleniya/${announcement.id}`
-        
-        // Формируем описание с дополнительной информацией
-        let description = announcement.description || "Новое объявление на доске объявлений"
-        
-        // Добавляем тип объявления
-        const typeText = announcement.type === 'supply' ? '🛒 Предложение' : '💼 Спрос'
-        description += `\n${typeText}`
-        
-        // Добавляем цену если есть
-        if (announcement.price) {
-          const formattedPrice = new Intl.NumberFormat('ru-RU').format(parseFloat(announcement.price))
-          description += `\n💵 Цена: ${formattedPrice} ${announcement.currency || 'RUB'}`
-        }
-        
-        // Добавляем категорию и местоположение
-        if (announcement.category) {
-          description += `\n📂 Категория: ${announcement.category}`
-        }
-        if (announcement.location) {
-          description += `\n📍 Местоположение: ${announcement.location}`
-        }
-
-        // Определяем иконку в зависимости от категории
-        let icon = "📢"
-        if (announcement.category?.includes('Автобетононасос')) icon = "🚛"
-        if (announcement.category?.includes('Экскаватор')) icon = "🏗️"
-        if (announcement.category?.includes('Бульдозер')) icon = "🚜"
-        if (announcement.category?.includes('Погрузчик')) icon = "🔧"
-        if (announcement.category?.includes('Самосвал')) icon = "🚚"
-        
-        await postToTelegram(
-          {
-            title: `${icon} Объявление: ${announcement.title}`,
-            description: description,
-            postUrl: announcementUrl,
-          },
-          supabase,
-          "announcements",
-          announcement.id,
-        )
-        totalPosted++
-      }
+for (const announcement of newAnnouncements || []) {
+  if (!postedIds.announcements.has(announcement.id)) {
+    // Формируем описание с ПОЛНОЙ информацией
+    let description = announcement.description || "Новое объявление на доске объявлений"
+    
+    // Добавляем тип объявления
+    const typeText = announcement.type === 'supply' ? '🛒 Предложение' : '💼 Спрос'
+    description += `\n${typeText}`
+    
+    // Добавляем цену если есть
+    if (announcement.price) {
+      const formattedPrice = new Intl.NumberFormat('ru-RU').format(parseFloat(announcement.price))
+      description += `\n💵 Цена: ${formattedPrice} ${announcement.currency || 'RUB'}`
     }
+    
+    // Добавляем категорию и местоположение
+    if (announcement.category) {
+      description += `\n📂 Категория: ${announcement.category}`
+    }
+    if (announcement.location) {
+      description += `\n📍 Местоположение: ${announcement.location}`
+    }
+    
+    // Добавляем контактную информацию
+    if (announcement.contact_name) {
+      description += `\n👤 Контактное лицо: ${announcement.contact_name}`
+    }
+    if (announcement.contact_phone) {
+      description += `\n📞 Телефон: ${announcement.contact_phone}`
+    }
+
+    // Определяем иконку в зависимости от категории
+    let icon = "📢"
+    if (announcement.category?.includes('Автобетононасос')) icon = "🚛"
+    if (announcement.category?.includes('Экскаватор')) icon = "🏗️"
+    if (announcement.category?.includes('Бульдозер')) icon = "🚜"
+    if (announcement.category?.includes('Погрузчик')) icon = "🔧"
+    if (announcement.category?.includes('Самосвал')) icon = "🚚"
+    
+    await postToTelegram(
+      {
+        title: `${icon} Объявление: ${announcement.title}`,
+        description: description,
+        // НЕ передаем postUrl - не будет кнопки "Читать далее"
+        // postUrl: undefined
+      },
+      supabase,
+      "announcements",
+      announcement.id,
+    )
+    totalPosted++
+  }
+}
 
     return { success: true, totalPosted, message: `Posted ${totalPosted} new items` }
   } catch (error) {
