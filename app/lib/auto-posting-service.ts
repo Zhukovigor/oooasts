@@ -36,7 +36,7 @@ export async function scanAndPostNewContent() {
     const postedIds = {
       catalog: new Set<string>(),
       articles: new Set<string>(),
-      // advertisements: new Set<string>(), // Убрали рекламу
+      announcements: new Set<string>(), // Добавили для объявлений
     }
 
     postedContent?.forEach((item: any) => {
@@ -50,14 +50,13 @@ export async function scanAndPostNewContent() {
     // 1. Scan and post new catalog models
     const { data: newCatalog } = await supabase
       .from("catalog_models")
-      .select("id, name, description, main_image, created_at, slug") // Добавили slug
+      .select("id, name, description, main_image, created_at, slug")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(10)
 
     for (const item of newCatalog || []) {
       if (!postedIds.catalog.has(item.id)) {
-        // Используем slug для правильного URL
         const catalogUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/katalog/${item.slug}`
         
         await postToTelegram(
@@ -78,14 +77,13 @@ export async function scanAndPostNewContent() {
     // 2. Scan and post new articles
     const { data: newArticles } = await supabase
       .from("articles")
-      .select("id, title, excerpt, main_image, created_at, slug") // Добавили slug
+      .select("id, title, excerpt, main_image, created_at, slug")
       .eq("status", "published")
       .order("created_at", { ascending: false })
       .limit(10)
 
     for (const article of newArticles || []) {
       if (!postedIds.articles.has(article.id)) {
-        // Используем slug для правильного URL
         const articleUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/stati/${article.slug}`
         
         await postToTelegram(
@@ -103,7 +101,62 @@ export async function scanAndPostNewContent() {
       }
     }
 
-    // 3. Рекламные баннеры УБРАНЫ
+    // 3. Scan and post new announcements
+    const { data: newAnnouncements } = await supabase
+      .from("announcements")
+      .select("id, title, description, category, price, currency, location, type, created_at")
+      .eq("is_active", true)
+      .eq("is_moderated", true)
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    for (const announcement of newAnnouncements || []) {
+      if (!postedIds.announcements.has(announcement.id)) {
+        // Формируем URL для объявления
+        const announcementUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/obyavleniya/${announcement.id}`
+        
+        // Формируем описание с дополнительной информацией
+        let description = announcement.description || "Новое объявление на доске объявлений"
+        
+        // Добавляем тип объявления
+        const typeText = announcement.type === 'supply' ? '🛒 Предложение' : '💼 Спрос'
+        description += `\n${typeText}`
+        
+        // Добавляем цену если есть
+        if (announcement.price) {
+          const formattedPrice = new Intl.NumberFormat('ru-RU').format(parseFloat(announcement.price))
+          description += `\n💵 Цена: ${formattedPrice} ${announcement.currency || 'RUB'}`
+        }
+        
+        // Добавляем категорию и местоположение
+        if (announcement.category) {
+          description += `\n📂 Категория: ${announcement.category}`
+        }
+        if (announcement.location) {
+          description += `\n📍 Местоположение: ${announcement.location}`
+        }
+
+        // Определяем иконку в зависимости от категории
+        let icon = "📢"
+        if (announcement.category?.includes('Автобетононасос')) icon = "🚛"
+        if (announcement.category?.includes('Экскаватор')) icon = "🏗️"
+        if (announcement.category?.includes('Бульдозер')) icon = "🚜"
+        if (announcement.category?.includes('Погрузчик')) icon = "🔧"
+        if (announcement.category?.includes('Самосвал')) icon = "🚚"
+        
+        await postToTelegram(
+          {
+            title: `${icon} Объявление: ${announcement.title}`,
+            description: description,
+            postUrl: announcementUrl,
+          },
+          supabase,
+          "announcements",
+          announcement.id,
+        )
+        totalPosted++
+      }
+    }
 
     return { success: true, totalPosted, message: `Posted ${totalPosted} new items` }
   } catch (error) {

@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Перенесенная функция из auto-posting-service.ts
 async function scanAndPostNewContent() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -60,7 +59,7 @@ async function scanAndPostNewContent() {
     const postedIds = {
       catalog: new Set<string>(),
       articles: new Set<string>(),
-      // advertisements убраны
+      announcements: new Set<string>(), // ДОБАВИЛИ для объявлений
     }
 
     postedContent?.forEach((item: any) => {
@@ -81,7 +80,6 @@ async function scanAndPostNewContent() {
 
     for (const item of newCatalog || []) {
       if (!postedIds.catalog.has(item.id)) {
-        // Используем slug для правильного URL
         const catalogUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/katalog/${item.slug}`
         
         await postToTelegram(
@@ -109,7 +107,6 @@ async function scanAndPostNewContent() {
 
     for (const article of newArticles || []) {
       if (!postedIds.articles.has(article.id)) {
-        // Используем slug для правильного URL
         const articleUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/stati/${article.slug}`
         
         await postToTelegram(
@@ -127,7 +124,61 @@ async function scanAndPostNewContent() {
       }
     }
 
-    // 3. Рекламные баннеры УБРАНЫ
+    // 3. Scan and post new announcements - ДОБАВИЛИ ЭТОТ РАЗДЕЛ
+    const { data: newAnnouncements } = await supabase
+      .from("announcements")
+      .select("id, title, description, category, price, currency, location, type, created_at")
+      .eq("is_active", true)
+      .eq("is_moderated", true)
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    for (const announcement of newAnnouncements || []) {
+      if (!postedIds.announcements.has(announcement.id)) {
+        const announcementUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/obyavleniya/${announcement.id}`
+        
+        // Формируем описание с дополнительной информацией
+        let description = announcement.description || "Новое объявление на доске объявлений"
+        
+        // Добавляем тип объявления
+        const typeText = announcement.type === 'supply' ? '🛒 Предложение' : '💼 Спрос'
+        description += `\n${typeText}`
+        
+        // Добавляем цену если есть
+        if (announcement.price) {
+          const formattedPrice = new Intl.NumberFormat('ru-RU').format(parseFloat(announcement.price))
+          description += `\n💵 Цена: ${formattedPrice} ${announcement.currency || 'RUB'}`
+        }
+        
+        // Добавляем категорию и местоположение
+        if (announcement.category) {
+          description += `\n📂 Категория: ${announcement.category}`
+        }
+        if (announcement.location) {
+          description += `\n📍 Местоположение: ${announcement.location}`
+        }
+
+        // Определяем иконку в зависимости от категории
+        let icon = "📢"
+        if (announcement.category?.includes('Автобетононасос')) icon = "🚛"
+        if (announcement.category?.includes('Экскаватор')) icon = "🏗️"
+        if (announcement.category?.includes('Бульдозер')) icon = "🚜"
+        if (announcement.category?.includes('Погрузчик')) icon = "🔧"
+        if (announcement.category?.includes('Самосвал')) icon = "🚚"
+        
+        await postToTelegram(
+          {
+            title: `${icon} Объявление: ${announcement.title}`,
+            description: description,
+            postUrl: announcementUrl,
+          },
+          supabase,
+          "announcements",
+          announcement.id,
+        )
+        totalPosted++
+      }
+    }
 
     return { success: true, totalPosted, message: `Posted ${totalPosted} new items` }
   } catch (error) {
@@ -136,7 +187,6 @@ async function scanAndPostNewContent() {
   }
 }
 
-// Обновленная функция postToTelegram с поддержкой инлайн кнопок
 async function postToTelegram(
   data: { title: string; description: string; imageUrl?: string; postUrl?: string },
   supabase: any,
@@ -144,14 +194,12 @@ async function postToTelegram(
   contentId: string,
 ) {
   try {
-    // Используем абсолютный URL
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
     const response = await fetch(`${baseUrl}/api/telegram/post-to-channel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...data,
-        // Добавляем параметры для инлайн кнопки
         withInlineButton: true,
         buttonText: "📖 Читать далее"
       }),
@@ -160,7 +208,6 @@ async function postToTelegram(
     const result = await response.json()
 
     if (result.success) {
-      // Save tracking record
       await supabase.from("posted_content_tracking").insert({
         content_type: contentType,
         content_id: contentId,
@@ -169,7 +216,6 @@ async function postToTelegram(
       })
       console.log(`[v0] Posted ${contentType}/${contentId} to Telegram`)
     } else {
-      // Save error record
       await supabase.from("posted_content_tracking").insert({
         content_type: contentType,
         content_id: contentId,
