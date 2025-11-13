@@ -36,11 +36,13 @@ export async function scanAndPostNewContent() {
     const postedIds = {
       catalog: new Set<string>(),
       articles: new Set<string>(),
-      advertisements: new Set<string>(),
+      // advertisements: new Set<string>(), // Убрали рекламу
     }
 
     postedContent?.forEach((item: any) => {
-      postedIds[item.content_type as keyof typeof postedIds].add(item.content_id)
+      if (postedIds[item.content_type as keyof typeof postedIds]) {
+        postedIds[item.content_type as keyof typeof postedIds].add(item.content_id)
+      }
     })
 
     let totalPosted = 0
@@ -48,19 +50,22 @@ export async function scanAndPostNewContent() {
     // 1. Scan and post new catalog models
     const { data: newCatalog } = await supabase
       .from("catalog_models")
-      .select("id, name, description, main_image, created_at")
+      .select("id, name, description, main_image, created_at, slug") // Добавили slug
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(10)
 
     for (const item of newCatalog || []) {
       if (!postedIds.catalog.has(item.id)) {
+        // Используем slug для правильного URL
+        const catalogUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/katalog/${item.slug}`
+        
         await postToTelegram(
           {
             title: `🚗 Новое в каталоге: ${item.name}`,
             description: item.description || "Новое оборудование в нашем каталоге",
             imageUrl: item.main_image,
-            postUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/catalog/${item.id}`,
+            postUrl: catalogUrl,
           },
           supabase,
           "catalog",
@@ -73,19 +78,22 @@ export async function scanAndPostNewContent() {
     // 2. Scan and post new articles
     const { data: newArticles } = await supabase
       .from("articles")
-      .select("id, title, excerpt, main_image, created_at")
+      .select("id, title, excerpt, main_image, created_at, slug") // Добавили slug
       .eq("status", "published")
       .order("created_at", { ascending: false })
       .limit(10)
 
     for (const article of newArticles || []) {
       if (!postedIds.articles.has(article.id)) {
+        // Используем slug для правильного URL
+        const articleUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/stati/${article.slug}`
+        
         await postToTelegram(
           {
             title: `📰 Новая статья: ${article.title}`,
             description: article.excerpt || "Новая статья на нашем сайте",
             imageUrl: article.main_image,
-            postUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/articles/${article.id}`,
+            postUrl: articleUrl,
           },
           supabase,
           "articles",
@@ -95,30 +103,7 @@ export async function scanAndPostNewContent() {
       }
     }
 
-    // 3. Scan and post new advertisements
-    const { data: newAdvertisements } = await supabase
-      .from("advertisements")
-      .select("id, title, description, image_url, created_at")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(10)
-
-    for (const ad of newAdvertisements || []) {
-      if (!postedIds.advertisements.has(ad.id)) {
-        await postToTelegram(
-          {
-            title: `📢 Объявление: ${ad.title}`,
-            description: ad.description || "Новое объявление",
-            imageUrl: ad.image_url,
-            postUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/advertisements/${ad.id}`,
-          },
-          supabase,
-          "advertisements",
-          ad.id,
-        )
-        totalPosted++
-      }
-    }
+    // 3. Рекламные баннеры УБРАНЫ
 
     return { success: true, totalPosted, message: `Posted ${totalPosted} new items` }
   } catch (error) {
@@ -134,10 +119,20 @@ async function postToTelegram(
   contentId: string,
 ) {
   try {
-    const response = await fetch("/api/telegram/post-to-channel", {
+    // Используем абсолютный URL вместо относительного
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://asts.vercel.app"
+    const response = await fetch(`${baseUrl}/api/telegram/post-to-channel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        imageUrl: data.imageUrl,
+        postUrl: data.postUrl,
+        // Добавляем параметры для инлайн кнопки
+        withInlineButton: true,
+        buttonText: "📖 Читать далее"
+      }),
     })
 
     const result = await response.json()
