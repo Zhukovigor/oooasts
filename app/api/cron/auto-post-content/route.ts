@@ -1,5 +1,4 @@
-// app/api/cron/auto-post-content/route.ts
-import { scanAndPostNewContent } from "../../../lib/auto-posting-service"
+import { scanAndPostNewContent } from "@/app/lib/auto-posting-service"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
