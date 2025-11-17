@@ -124,7 +124,7 @@ export default function AdminSidebar() {
                     }`}
                     onClick={() => setIsOpen(false)}
                   >
-                    Создать статью
+                    ��оздать статью
                   </Link>
                   <Link
                     href="/admin/stati/import"
