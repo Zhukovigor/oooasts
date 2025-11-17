@@ -5,6 +5,7 @@ import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
 import Footer from "@/components/footer"
 import { ImageGallery } from "@/components/image-gallery"
+import { SpecificationsDisplay } from "@/components/specifications-display"
 
 type Props = {
   params: { category: string; model: string }
@@ -522,26 +523,7 @@ export default async function ModelPage({ params }: Props) {
 
         {/* Full Specifications */}
         {sortedCategories.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Характеристики</h2>
-            <div className="grid md:grid-cols-2 gap-8">
-              {sortedCategories.map(([category, specs]) => (
-                <div key={category} className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">{category}</h3>
-                  <div className="space-y-2">
-                    {Object.entries(specs).map(([key, value]) => (
-                      <div key={key} className="flex justify-between py-1">
-                        <span className="text-gray-600 text-sm">{key}</span>
-                        <span className="font-medium text-gray-900 text-sm text-right">
-                          {typeof value === "number" ? value.toString() : String(value)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SpecificationsDisplay categories={sortedCategories} />
         )}
 
         {/* Description */}
