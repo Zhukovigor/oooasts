@@ -39,7 +39,7 @@ export default function EquipmentEditClient({ id }: { id: string }) {
   const [categories, setCategories] = useState<Category[]>([])
   const [formData, setFormData] = useState<Equipment | null>(null)
   const [activeTab, setActiveTab] = useState<"basic" | "specs" | "gallery">("basic")
-  const [categorySlug, setCategorySlug] = useState<string>("") // ← ДОБАВЛЕНО для хранения slug категории
+  const [parsedSpecs, setParsedSpecs] = useState<Record<string, any>>({})
 
   useEffect(() => {
     fetchData()
@@ -55,12 +55,6 @@ export default function EquipmentEditClient({ id }: { id: string }) {
 
     if (equipmentResult.data) {
       setFormData(equipmentResult.data)
-      
-      // Находим slug категории для формирования правильного URL
-      const category = categoriesResult.data?.find(cat => cat.id === equipmentResult.data.category_id)
-      if (category) {
-        setCategorySlug(category.slug)
-      }
     }
     setCategories(categoriesResult.data || [])
     setLoading(false)
@@ -108,19 +102,14 @@ export default function EquipmentEditClient({ id }: { id: string }) {
     if (!formData || !formData.id) return
 
     try {
-      // ФОРМИРУЕМ ПРАВИЛЬНЫЙ URL с категорией
-      const correctUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${categorySlug || "ekskavatory"}/${formData.slug}`
-      
       const response = await fetch("/api/telegram/post-to-channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `🚗 Новое в каталоге: ${formData.name}`,
-          description: formData.description || "Новое оборудование в нашем каталоге",
+          title: formData.name,
+          description: formData.description || "",
           imageUrl: formData.main_image,
-          postUrl: correctUrl, // ← ИСПРАВЛЕННЫЙ URL
-          withInlineButton: true,
-          buttonText: "📖 Читать далее"
+          postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${categorySlug}/${formData.slug}`,
         }),
       })
 
@@ -134,17 +123,6 @@ export default function EquipmentEditClient({ id }: { id: string }) {
     } catch (error) {
       console.error("[v0] Error publishing to telegram:", error)
       alert("Ошибка при публикации в Telegram")
-    }
-  }
-
-  // Обновляем categorySlug при изменении категории
-  const handleCategoryChange = (categoryId: string) => {
-    setFormData({ ...formData!, category_id: categoryId })
-    
-    // Находим slug выбранной категории
-    const selectedCategory = categories.find(cat => cat.id === categoryId)
-    if (selectedCategory) {
-      setCategorySlug(selectedCategory.slug)
     }
   }
 
@@ -264,7 +242,7 @@ export default function EquipmentEditClient({ id }: { id: string }) {
                   <select
                     required
                     value={formData.category_id}
-                    onChange={(e) => handleCategoryChange(e.target.value)} {/* ← ИСПРАВЛЕННЫЙ обработчик */}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                     className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Выберите категорию</option>
