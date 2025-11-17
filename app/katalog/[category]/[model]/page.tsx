@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound } from 'next/navigation'
 import type { Metadata } from "next"
 import { OrderModal } from "@/components/order-modal"
 import Footer from "@/components/footer"
@@ -64,7 +64,7 @@ function translateSpecKey(key: string): string {
   const translations: Record<string, string> = {
     // Общие
     chassis: "Шасси",
-    delivery: "Поставк��",
+    delivery: "Поставка",
     warranty: "Гарантия",
     fuel_tank: "Топливный бак",
     water_tank: "Водяной бак",
@@ -175,7 +175,7 @@ function getCategory(key: string): string {
     pressure_high: "Рабочие характеристики",
     pump_cycles_low: "Рабочие характеристики",
     pump_cycles_high: "Рабочие характеристики",
-    cylinder_diameter: "��абочие характеристики",
+    cylinder_diameter: "Рабочие характеристики",
 
     // Двигатель
     engine_model: "Двигатель",
@@ -273,7 +273,6 @@ function extractNestedSpecifications(specs: Record<string, any>): Record<string,
   return flattened
 }
 
-// Функция для группировки характеристик по категориям
 function groupSpecificationsByCategory(specs: Record<string, any>) {
   const categories: Record<string, Record<string, any>> = {}
 
@@ -288,36 +287,67 @@ function groupSpecificationsByCategory(specs: Record<string, any>) {
     // Экскаваторы - извлекаем из вложенной структуры
     flatSpecs = extractNestedSpecifications(specs)
   } else {
-    // Бетононасосы - уже плоский формат
-    flatSpecs = specs
+    // Бетононасосы - уже плоский формат или новый парсер
+    Object.entries(specs).forEach(([key, value]) => {
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        // Если ценность - объект, разворачиваем его
+        Object.entries(value).forEach(([subKey, subValue]) => {
+          flatSpecs[`${key}_${subKey}`] = subValue;
+        });
+      } else {
+        flatSpecs[key] = value;
+      }
+    });
   }
 
   // Группируем характеристики по категориям
   Object.entries(flatSpecs).forEach(([key, value]) => {
-    if (value !== null && value !== undefined && value !== "") {
-      // Определяем категорию и чистый ключ
-      let category = "Дополнительная информация"
-      let cleanKey = key
+    // Фильтруем пустые, null и undefined значения
+    if (value === null || value === undefined || value === "" || value === "N/A") {
+      return;
+    }
+    
+    // Пропускаем очень длинные значения (признак ошибки парсинга)
+    if (typeof value === 'string' && value.length > 200) {
+      return;
+    }
 
-      // Для экскаваторов: извлекаем категорию из префикса
-      if (isNestedFormat && key.includes("_")) {
-        const [categoryPrefix, ...rest] = key.split("_")
-        category = categoryPrefix
-        cleanKey = rest.join("_")
-      } else {
-        // Для бетононасосов: используем функцию getCategory
-        category = getCategory(key)
-      }
+    // Определяем категорию и чистый ключ
+    let category = "Дополнительная информация"
+    let cleanKey = key
 
-      const translatedKey = translateSpecKey(cleanKey)
+    // Для экскаваторов: извлекаем категорию из префикса
+    if (isNestedFormat && key.includes("_")) {
+      const parts = key.split("_");
+      const categoryPrefix = parts[0];
+      category = categoryPrefix;
+      cleanKey = parts.slice(1).join("_");
+    } else {
+      // Для бетононасосов и нового парсера: используем функцию getCategory
+      category = getCategory(key)
+    }
 
-      if (!categories[category]) {
-        categories[category] = {}
-      }
+    const translatedKey = translateSpecKey(cleanKey)
+    
+    // Исключаем дублирующиеся или малоинформативные ключи
+    if (translatedKey.toLowerCase().includes('примечание') || 
+        translatedKey.toLowerCase().includes('другое')) {
+      return;
+    }
 
-      // Не добавляем дубликаты
-      if (!categories[category][translatedKey]) {
-        categories[category][translatedKey] = value
+    if (!categories[category]) {
+      categories[category] = {}
+    }
+
+    // Не добавляем дубликаты, предпочитаем существующее значение если оно более информативно
+    if (!categories[category][translatedKey]) {
+      categories[category][translatedKey] = value
+    } else {
+      // Если новое значение содержит больше информации, заменяем
+      const existing = String(categories[category][translatedKey]);
+      const newVal = String(value);
+      if (newVal.length > existing.length && newVal.length < 100) {
+        categories[category][translatedKey] = value;
       }
     }
   })

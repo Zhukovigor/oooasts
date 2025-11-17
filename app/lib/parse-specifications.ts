@@ -140,12 +140,21 @@ function parseTableLine(line: string): { key: string; value: string } | null {
 }
 
 function parseColonLine(line: string): { key: string; value: string } | null {
-  const colonMatch = line.match(/^([^:]{3,50}?)\s*[:\-]\s*(.+)$/);
+  // Улучшен парсинг для формата "Ключ: Значение"
+  const colonMatch = line.match(/^([^:]{3,80}?)\s*[:–-]\s*(.+)$/);
   if (colonMatch) {
     const [, key, value] = colonMatch;
+    const trimmedKey = key.trim();
+    const trimmedValue = value.trim();
+    
+    // Исключаем случаи когда значение очень длинное (вероятно - это не пара ключ-значение)
+    if (trimmedValue.length > 200) {
+      return null;
+    }
+    
     return {
-      key: key.trim(),
-      value: value.trim()
+      key: trimmedKey,
+      value: trimmedValue
     };
   }
   return null;
@@ -215,12 +224,16 @@ function isValidSpec(key: string, value: string): boolean {
   if (key.length < minKeyLength || key.length > maxKeyLength) return false;
   
   // Проверяем, что значение содержит значимую информацию
-  if (!/\d/.test(value) && value.length < 3) return false;
+  if (!/[\d]/.test(value) && value.length < 3) return false;
+  
+  // Исключаем слишком длинные значения (признак неправильного парсинга)
+  if (value.length > 150) return false;
   
   // Исключаем общие слова и заголовки
   const excludedKeys = [
     'год', 'страна', 'цвет', 'цена', 'стоимость', 'характеристики',
-    'технические', 'спецификации', '===', '---', '###'
+    'технические', 'спецификации', '===', '---', '###', 'примечание',
+    'описание', 'скачать', 'pdf'
   ];
   
   if (excludedKeys.some(excluded => key.toLowerCase().includes(excluded))) {
@@ -278,38 +291,61 @@ function determineCategory(key: string, value: string, unit: string): string {
 function normalizeKey(key: string): string {
   const synonyms: Record<string, string> = {
     'емкость ковша': 'Объем ковша',
+    'объем ковша': 'Объем ковша',
     'грузоподъемность': 'Грузоподъемность',
-    'мощность': 'Мощность',
+    'мощность': 'Мощность двигателя',
+    'мощность двигателя': 'Мощность двигателя',
     'производитель': 'Производитель',
     'модель': 'Модель',
+    'модель двигателя': 'Модель двигателя',
     'длина': 'Длина',
     'ширина': 'Ширина', 
     'высота': 'Высота',
-    'масса': 'Масса',
-    'вес': 'Масса',
+    'масса': 'Рабочий вес',
+    'вес': 'Рабочий вес',
+    'рабочий вес': 'Рабочий вес',
     'топливный бак': 'Топливный бак',
     'объем': 'Объем',
     'тяговое усилие': 'Тяговое усилие',
     'преодолеваемый подъем': 'Максимальный уклон',
     'усилие копания ковшом': 'Усилие копания (ковш)',
     'усилие копания рукоятью': 'Усилие копания (рукоять)',
+    'усилие копания ковша': 'Усилие копания ковша',
+    'усилие копания': 'Усилие копания ковша',
     'скорость поворота': 'Скорость поворота',
+    'скорость': 'Скорость',
     'расход': 'Расход гидросистемы',
-    'давление': 'Давление в системе'
+    'давление': 'Давление в системе',
+    'глубина копания': 'Макс. глубина копания',
+    'максимальная глубина': 'Макс. глубина копания',
+    'макс глубина': 'Макс. глубина копания',
+    'радиус работ': 'Макс. радиус работ',
+    'максимальный радиус': 'Макс. радиус работ',
+    'макс радиус': 'Макс. радиус работ',
+    'высота разгрузки': 'Макс. высота разгрузки',
+    'максимальная высота': 'Макс. высота разгрузки'
   };
 
   const normalized = key
     .trim()
     .toLowerCase();
   
-  // Применяем синонимы
+  // Применяем синонимы - ищем лучший матч
+  let bestMatch = null;
+  let bestMatchLength = 0;
+  
   for (const [wrong, correct] of Object.entries(synonyms)) {
-    if (normalized.includes(wrong.toLowerCase())) {
-      return correct;
+    if (normalized.includes(wrong) && wrong.length > bestMatchLength) {
+      bestMatch = correct;
+      bestMatchLength = wrong.length;
     }
   }
   
-  // Капитализируем первую букву каждого слова
+  if (bestMatch) {
+    return bestMatch;
+  }
+  
+  // Если синонима не найдено, капитализируем первую букву каждого слова
   return normalized
     .split(/[\s\-_]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
