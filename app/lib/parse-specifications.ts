@@ -6,52 +6,57 @@ export interface ParsedSpec {
   unit?: string
 }
 
-// Категории характеристик на русском
 const SPEC_CATEGORIES: Record<string, string[]> = {
-  "Двигатель": ["мощность", "объем", "тип топлива", "расход", "rpm", "цилиндры"],
-  "Размеры": ["длина", "ширина", "высота", "глубина", "вес", "масса", "размер"],
-  "Производительность": ["объем ковша", "грузоподъемность", "выход", "производительность", "часовая", "объем"],
-  "Гидравлика": ["давление", "расход", "насос", "давления гидравлического"],
-  "Трансмиссия": ["коробка", "передач", "привод", "трансмиссия", "ведущие колеса"],
+  "Двигатель": ["мощность", "кВт", "л.с.", "объем двигателя", "тип топлива", "расход топлива", "rpm", "об/мин", "цилиндры", "турбо"],
+  "Размеры и вес": ["длина", "ширина", "высота", "глубина", "вес", "масса", "размер", "габариты", "рабочий вес", "вес конструкции"],
+  "Производительность": ["объем ковша", "грузоподъемность", "выход", "производительность", "часовая производительность", "объем", "минут"],
+  "Гидравлика": ["давление", "расход гидравлический", "насос", "максимальное давление", "система"],
+  "Трансмиссия": ["коробка", "передач", "привод", "трансмиссия", "ведущие колеса", "скорость"],
+  "Копание": ["максимальная глубина", "глубина копания", "высота разгрузки", "радиус действия"],
 }
 
 export function parseSpecificationsFromText(text: string): ParsedSpec[] {
   const specs: ParsedSpec[] = []
   const lines = text.split("\n").filter((line) => line.trim())
 
-  // Регулярные выражения для поиска паттернов
-  const patterns = [
-    /^[\s]*([а-яёА-ЯЁ\s]+?)[\s]*[:\-][\s]*([0-9.,]+[\s]*(?:[а-яё%/()°CKHM²³]+)?)/gm,
-    /([а-яёА-ЯЁ\s]+?)[\s]+([0-9.,\s]+(?:[а-яёa-zA-Z%/()°CKHM²³]*)?)/gm,
-  ]
-
   for (const line of lines) {
-    if (!line.trim() || line.length < 5) continue
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.length < 5) continue
 
-    for (const pattern of patterns) {
-      let match
-      while ((match = pattern.exec(line)) !== null) {
-        const key = match[1]?.trim()
-        const value = match[2]?.trim()
+    const match = trimmed.match(/^([^:\-—]+?)[\s]*[:—\-][\s]*([^:\-—]+?)(?:\s*[\-–].*)?$/)
+    
+    if (!match) continue
 
-        if (!key || !value || key.length < 2) continue
+    const rawKey = match[1]?.trim()
+    const rawValue = match[2]?.trim()
 
-        // Определяем категорию
-        let category = "Прочие"
-        for (const [cat, keywords] of Object.entries(SPEC_CATEGORIES)) {
-          if (keywords.some((kw) => key.toLowerCase().includes(kw))) {
-            category = cat
-            break
-          }
-        }
+    if (!rawKey || !rawValue || rawKey.length < 2 || rawValue.length < 1) continue
 
-        specs.push({
-          category,
-          key: normalizeKey(key),
-          value: normalizeValue(value),
-        })
+    if (rawValue.length > 200) continue
+
+    let category = "Прочие характеристики"
+    const keyLower = rawKey.toLowerCase()
+    
+    for (const [cat, keywords] of Object.entries(SPEC_CATEGORIES)) {
+      if (keywords.some((kw) => keyLower.includes(kw.toLowerCase()))) {
+        category = cat
+        break
       }
     }
+
+    const normalizedKey = normalizeKey(rawKey)
+    const normalizedValue = normalizeValue(rawValue)
+
+    const isDuplicate = specs.some(
+      (s) => s.category === category && s.key === normalizedKey
+    )
+    if (isDuplicate) continue
+
+    specs.push({
+      category,
+      key: normalizedKey,
+      value: normalizedValue,
+    })
   }
 
   return specs
@@ -73,12 +78,20 @@ export function convertParsedToJSON(specs: ParsedSpec[]): Record<string, Record<
 function normalizeKey(key: string): string {
   return key
     .trim()
-    .toLowerCase()
+    .replace(/\s+/g, " ")
     .split(/[\s\-_]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word, index) => {
+      if (index === 0) return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      return word.toLowerCase()
+    })
     .join(" ")
 }
 
 function normalizeValue(value: string): string {
-  return value.trim().replace(/\s+/g, " ")
+  return value
+    .trim()
+    .replace(/<[^>]*>/g, "") // убираем HTML теги
+    .replace(/\s+/g, " ") // нормализуем пробелы
+    .replace(/([0-9]+),([0-9]{2,3})\s*(кВт|л\.с\.|т|м³|мм|м|кг)/gi, "$1.$2 $3") // нормализуем числа
+    .substring(0, 100) // Ограничиваем длину значения
 }
