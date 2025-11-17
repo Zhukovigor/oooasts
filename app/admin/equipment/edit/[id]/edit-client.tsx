@@ -102,14 +102,24 @@ export default function EquipmentEditClient({ id }: { id: string }) {
     if (!formData || !formData.id) return
 
     try {
+      // ИСПРАВЛЕНИЕ: находим slug категории из уже загруженных категорий
+      const category = categories.find(cat => cat.id === formData.category_id)
+      
+      if (!category) {
+        alert("Категория не найдена. Сначала сохраните технику с выбранной категорией.")
+        return
+      }
+
       const response = await fetch("/api/telegram/post-to-channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: formData.name,
-          description: formData.description || "",
+          title: `🚗 Новое в каталоге: ${formData.name}`,
+          description: formData.description || "Новое оборудование в нашем каталоге",
           imageUrl: formData.main_image,
-          postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${categorySlug}/${formData.slug}`,
+          postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${category.slug}/${formData.slug}`,
+          withInlineButton: true,
+          buttonText: "📖 Читать далее"
         }),
       })
 
