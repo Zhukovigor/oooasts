@@ -114,12 +114,12 @@ export default function EquipmentEditClient({ id }: { id: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `🚗 Новое в каталоге: ${formData.name}`,
+          title: `🚗 Предложение: ${formData.name}`,
           description: formData.description || "Новое оборудование в нашем каталоге",
           imageUrl: formData.main_image,
           postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${category.slug}/${formData.slug}`,
           withInlineButton: true,
-          buttonText: "📖 Читать далее"
+          buttonText: "📖 Заказать"
         }),
       })
 
