@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createBrowserClient } from "@supabase/ssr"
 
-interface Settings {
+interface TelegramChannel {
+  id: string
   bot_token: string
-  channel_id: number | string
-  channel_username?: string
+  channel_id: bigint
+  channel_name: string
   is_active: boolean
+  created_at: string
 }
 
 interface QueueItem {
@@ -27,15 +29,15 @@ interface QueueItem {
 
 export default function PostingClient() {
   const [loading, setLoading] = useState(true)
-  const [settings, setSettings] = useState<Settings>({
-    bot_token: "",
-    channel_id: "",
-    is_active: false,
-  })
+  const [channels, setChannels] = useState<TelegramChannel[]>([])
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+
+  const [newChannel, setNewChannel] = useState({ name: "", token: "", channelId: "" })
+  const [addingChannel, setAddingChannel] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,19 +45,24 @@ export default function PostingClient() {
   )
 
   useEffect(() => {
-    loadSettings()
+    loadChannels()
     loadQueue()
   }, [])
 
-  async function loadSettings() {
+  async function loadChannels() {
     try {
-      const { data } = await supabase.from("telegram_posting_settings").select("*").limit(1).single()
+      const { data } = await supabase
+        .from("telegram_posting_settings")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
 
       if (data) {
-        setSettings(data)
+        setChannels(data)
+        setSelectedChannels(data.map((ch) => ch.id))
       }
     } catch (error) {
-      console.error("Error loading settings:", error)
+      console.error("[v0] Error loading channels:", error)
     } finally {
       setLoading(false)
     }
@@ -73,56 +80,92 @@ export default function PostingClient() {
         setQueue(data)
       }
     } catch (error) {
-      console.error("Error loading queue:", error)
+      console.error("[v0] Error loading queue:", error)
     }
   }
 
-  async function handleSaveSettings() {
-    setSaving(true)
+  async function handleAddChannel() {
+    if (!newChannel.name || !newChannel.token || !newChannel.channelId) {
+      setMessage({ type: "error", text: "Заполните все поля" })
+      return
+    }
+
+    setAddingChannel(true)
     setMessage(null)
 
     try {
-      const { data: existing } = await supabase.from("telegram_posting_settings").select("id").limit(1).single()
+      const { error } = await supabase.from("telegram_posting_settings").insert({
+        channel_name: newChannel.name,
+        bot_token: newChannel.token,
+        channel_id: BigInt(newChannel.channelId),
+        is_active: true,
+      })
 
-      if (existing) {
-        await supabase.from("telegram_posting_settings").update(settings).eq("id", existing.id)
-      } else {
-        await supabase.from("telegram_posting_settings").insert(settings)
-      }
+      if (error) throw error
 
-      setMessage({ type: "success", text: "Настройки сохранены успешно!" })
+      setMessage({ type: "success", text: "Канал добавлен успешно!" })
+      setNewChannel({ name: "", token: "", channelId: "" })
+      loadChannels()
     } catch (error: any) {
-      console.error("Error saving settings:", error)
-      setMessage({ type: "error", text: "Ошибка при сохранении настроек" })
+      console.error("[v0] Error adding channel:", error)
+      setMessage({ type: "error", text: "Ошибка при добавлении канала" })
     } finally {
-      setSaving(false)
+      setAddingChannel(false)
     }
   }
 
+  async function handleDeleteChannel(channelId: string) {
+    try {
+      await supabase.from("telegram_posting_settings").delete().eq("id", channelId)
+      setMessage({ type: "success", text: "Канал удалён" })
+      loadChannels()
+    } catch (error: any) {
+      console.error("[v0] Error deleting channel:", error)
+      setMessage({ type: "error", text: "Ошибка при удалении канала" })
+    }
+  }
+
+  function toggleChannel(channelId: string) {
+    setSelectedChannels((prev) =>
+      prev.includes(channelId) ? prev.filter((id) => id !== channelId) : [...prev, channelId]
+    )
+  }
+
   async function handleTestConnection() {
+    if (selectedChannels.length === 0) {
+      setMessage({ type: "error", text: "Выберите хотя бы один канал" })
+      return
+    }
+
     setTesting(true)
     setMessage(null)
 
     try {
-      const response = await fetch("/api/telegram/post-to-channel", {
+      const response = await fetch("/api/telegram/post-to-channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: "Тестовое сообщение",
           description: "Это тестовое сообщение из системы постинга ООО АСТС",
-          channelId: settings.channel_id,
+          contentType: "test",
+          contentId: "test-" + Date.now(),
+          channelIds: selectedChannels,
         }),
       })
 
       const data = await response.json()
 
-      if (response.ok) {
-        setMessage({ type: "success", text: "Тестовое сообщение успешно отправлено!" })
+      if (response.ok && data.success) {
+        const successCount = data.results.filter((r: any) => r.success).length
+        setMessage({
+          type: "success",
+          text: `Тестовое сообщение отправлено в ${successCount} канал(ов)!`,
+        })
       } else {
-        setMessage({ type: "error", text: `Ошибка: ${data.error}` })
+        setMessage({ type: "error", text: "Ошибка при отправке тестового сообщения" })
       }
     } catch (error: any) {
-      console.error("Error testing connection:", error)
+      console.error("[v0] Error testing connection:", error)
       setMessage({ type: "error", text: "Ошибка при отправке тестового сообщения" })
     } finally {
       setTesting(false)
@@ -145,44 +188,64 @@ export default function PostingClient() {
   }
 
   return (
-    <Tabs defaultValue="settings" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="settings">Настройки</TabsTrigger>
-        <TabsTrigger value="queue">Очередь постинга ({queue.length})</TabsTrigger>
+    <Tabs defaultValue="channels" className="w-full">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="channels">Каналы ({channels.length})</TabsTrigger>
+        <TabsTrigger value="selection">Выбор для постинга</TabsTrigger>
+        <TabsTrigger value="queue">Очередь ({queue.length})</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="settings" className="space-y-6">
+      <TabsContent value="channels" className="space-y-6">
         <Card>
           <CardContent className="p-6 space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">Telegram Bot Token</label>
-              <Input
-                type="password"
-                value={settings.bot_token}
-                onChange={(e) => setSettings({ ...settings, bot_token: e.target.value })}
-                placeholder="6816923933:AAHWM79Z6PfpvKVjZh793f_HrPe9ds6ajDM"
-              />
-              <p className="text-sm text-gray-500 mt-1">Получите токен у @BotFather в Telegram</p>
+              <h3 className="font-semibold text-lg mb-4">Добавить новый канал</h3>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Название канала"
+                  value={newChannel.name}
+                  onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })}
+                />
+                <Input
+                  type="password"
+                  placeholder="Bot Token"
+                  value={newChannel.token}
+                  onChange={(e) => setNewChannel({ ...newChannel, token: e.target.value })}
+                />
+                <Input
+                  placeholder="Channel ID (например: -1002080159369)"
+                  value={newChannel.channelId}
+                  onChange={(e) => setNewChannel({ ...newChannel, channelId: e.target.value })}
+                />
+                <Button onClick={handleAddChannel} disabled={addingChannel} className="w-full bg-blue-600">
+                  {addingChannel ? "Добавление..." : "Добавить канал"}
+                </Button>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">Chat ID канала</label>
-              <Input
-                value={settings.channel_id}
-                onChange={(e) => setSettings({ ...settings, channel_id: e.target.value })}
-                placeholder="-1002080159369"
-              />
-              <p className="text-sm text-gray-500 mt-1">Отрицательный ID (например: -1002080159369)</p>
-            </div>
-
-            <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg">
-              <input
-                type="checkbox"
-                checked={settings.is_active}
-                onChange={(e) => setSettings({ ...settings, is_active: e.target.checked })}
-                className="w-4 h-4"
-              />
-              <label className="text-sm font-medium text-gray-900">Активировать постинг</label>
+            <div className="border-t pt-6">
+              <h3 className="font-semibold text-lg mb-4">Активные каналы</h3>
+              {channels.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Нет активных каналов</div>
+              ) : (
+                <div className="space-y-3">
+                  {channels.map((channel) => (
+                    <div key={channel.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{channel.channel_name}</p>
+                        <p className="text-sm text-gray-600">ID: {channel.channel_id.toString()}</p>
+                      </div>
+                      <Button
+                        onClick={() => handleDeleteChannel(channel.id)}
+                        variant="outline"
+                        className="text-red-600"
+                      >
+                        Удалить
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {message && (
@@ -194,15 +257,54 @@ export default function PostingClient() {
                 {message.text}
               </div>
             )}
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-            <div className="flex gap-3">
-              <Button onClick={handleSaveSettings} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-                {saving ? "Сохранение..." : "Сохранить настройки"}
-              </Button>
-              <Button onClick={handleTestConnection} disabled={testing} variant="outline">
-                {testing ? "Отправка..." : "Проверить подключение"}
+      <TabsContent value="selection" className="space-y-6">
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            <h3 className="font-semibold text-lg">Выберите каналы для постинга</h3>
+            {channels.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">Нет доступных каналов</div>
+            ) : (
+              <div className="space-y-3">
+                {channels.map((channel) => (
+                  <div key={channel.id} className="flex items-center gap-3 p-4 border rounded-lg">
+                    <input
+                      type="checkbox"
+                      checked={selectedChannels.includes(channel.id)}
+                      onChange={() => toggleChannel(channel.id)}
+                      className="w-4 h-4"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{channel.channel_name}</p>
+                      <p className="text-sm text-gray-600">ID: {channel.channel_id.toString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleTestConnection}
+                disabled={testing || selectedChannels.length === 0}
+                className="flex-1 bg-blue-600"
+              >
+                {testing ? "Отправка..." : "Проверить выбранные каналы"}
               </Button>
             </div>
+
+            {message && (
+              <div
+                className={`p-3 rounded-lg ${
+                  message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                }`}
+              >
+                {message.text}
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>
