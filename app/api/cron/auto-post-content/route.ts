@@ -183,7 +183,7 @@ if (announcement.category?.includes('Гусеничный кран')) categoryIc
     }
 
     // Кнопка ведет на общую страницу объявлений
-    const announcementsPageUrl = "https://volgograd-asts.vercel.app/obyavleniya"
+    const announcementsPageUrl = "https://asts.vercel.app/obyavleniya"
     
     await postToTelegram(
       {
