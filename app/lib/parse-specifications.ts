@@ -1,10 +1,11 @@
-// Улучшенный парсер для извлечения характеристик из текста
+// Улучшенный парсер для извлечения характеристик из текста с AI-компонентом
 export interface ParsedSpec {
   category: string;
   key: string;
   value: string;
   unit?: string;
   rawText: string;
+  confidence?: number; // Уверенность в правильности извлечения (0-1)
 }
 
 // Конфигурация парсера для гибкой настройки
@@ -13,13 +14,17 @@ interface ParserConfig {
   autoCategorize: boolean;
   mergeSimilar: boolean;
   maxValueLength: number;
+  useAI: boolean; // Использовать AI для сложных случаев
+  minConfidence: number; // Минимальная уверенность для AI-результатов
 }
 
 const defaultConfig: ParserConfig = {
   strictMode: false,
   autoCategorize: true,
   mergeSimilar: true,
-  maxValueLength: 150
+  maxValueLength: 150,
+  useAI: false,
+  minConfidence: 0.6
 };
 
 // Расширенные категории характеристик на русском
@@ -108,6 +113,20 @@ const KEY_SYNONYMS: Record<string, string> = {
   'engine power': 'Мощность двигателя'
 };
 
+// Словарь для исправления OCR-ошибок и опечаток
+const OCR_CORRECTIONS: Record<string, string> = {
+  'предварительная система': 'гидравлическая система',
+  'производительность насосов': 'производительность насоса',
+  'блокиры': 'емкости',
+  'техническая база': 'топливный бак',
+  'напряжение насоса': 'моторное масло',
+  'система пользователя': 'система охлаждения',
+  'следопоставляя': 'гидросистема',
+  'диапазон': 'давление',
+  'денъги гла': 'неизвестный параметр',
+  'иссоны прокладетам': 'неизвестное значение'
+};
+
 /**
  * Основная функция парсинга характеристик из текста
  */
@@ -123,6 +142,74 @@ export function parseSpecificationsFromTextAdvanced(
   config: Partial<ParserConfig> = {}
 ): ParsedSpec[] {
   const finalConfig = { ...defaultConfig, ...config };
+  
+  // Используем AI-парсер для сложных случаев
+  if (finalConfig.useAI) {
+    return parseWithAI(text, finalConfig);
+  }
+  
+  // Используем стандартный парсер
+  return parseWithStandard(text, finalConfig);
+}
+
+/**
+ * Парсинг с использованием AI для сложных случаев
+ */
+function parseWithAI(text: string, config: ParserConfig): ParsedSpec[] {
+  const specs: ParsedSpec[] = [];
+  const lines = text.split("\n").filter(line => {
+    const trimmed = line.trim();
+    return trimmed.length > 2 && 
+           !trimmed.startsWith('#') && 
+           !trimmed.startsWith('---') &&
+           !trimmed.startsWith('|') &&
+           !trimmed.includes('Примечание');
+  });
+  
+  const processedKeys = new Set<string>();
+  let currentCategory = "Общие";
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Пропускаем пустые строки и разделители
+    if (isSeparatorLine(line)) continue;
+    
+    // Исправляем OCR-ошибки
+    const correctedLine = correctOCRerrors(line);
+    
+    // Определяем категорию по заголовкам
+    const category = detectCategoryFromLine(correctedLine);
+    if (category) {
+      currentCategory = category;
+      continue;
+    }
+
+    // Парсим с AI-подходом
+    const parsedSpec = parseLineWithAI(correctedLine, currentCategory, config);
+    if (parsedSpec && !processedKeys.has(`${currentCategory}_${parsedSpec.key}`)) {
+      processedKeys.add(`${currentCategory}_${parsedSpec.key}`);
+      
+      // Фильтруем по уверенности
+      if (parsedSpec.confidence && parsedSpec.confidence >= config.minConfidence) {
+        specs.push(parsedSpec);
+      } else if (!parsedSpec.confidence) {
+        specs.push(parsedSpec);
+      }
+    }
+  }
+
+  const mergedSpecs = config.mergeSimilar ? 
+    mergeSimilarSpecs(specs) : 
+    mergeDuplicateSpecs(specs);
+
+  return mergedSpecs;
+}
+
+/**
+ * Стандартный парсинг
+ */
+function parseWithStandard(text: string, config: ParserConfig): ParsedSpec[] {
   const specs: ParsedSpec[] = [];
   const lines = text.split("\n").filter(line => line.trim().length > 2);
   
@@ -143,19 +230,299 @@ export function parseSpecificationsFromTextAdvanced(
     }
 
     // Парсим различные форматы данных
-    const parsedSpec = parseLineFormats(line, currentCategory, finalConfig);
+    const parsedSpec = parseLineFormats(line, currentCategory, config);
     if (parsedSpec && !processedKeys.has(`${currentCategory}_${parsedSpec.key}`)) {
       processedKeys.add(`${currentCategory}_${parsedSpec.key}`);
       specs.push(parsedSpec);
     }
   }
 
-  const mergedSpecs = finalConfig.mergeSimilar ? 
+  const mergedSpecs = config.mergeSimilar ? 
     mergeSimilarSpecs(specs) : 
     mergeDuplicateSpecs(specs);
 
   return mergedSpecs;
 }
+
+/**
+ * Исправление OCR-ошибок
+ */
+function correctOCRerrors(text: string): string {
+  let corrected = text.toLowerCase();
+  
+  // Применяем исправления из словаря
+  Object.entries(OCR_CORRECTIONS).forEach(([wrong, correct]) => {
+    if (corrected.includes(wrong)) {
+      corrected = corrected.replace(wrong, correct);
+    }
+  });
+
+  return corrected;
+}
+
+/**
+ * AI-парсинг строки
+ */
+function parseLineWithAI(
+  line: string, 
+  currentCategory: string, 
+  config: ParserConfig
+): ParsedSpec | null {
+  // Пробуем разные стратегии парсинга с оценкой уверенности
+  const strategies = [
+    { parser: parseColonFormat, weight: 1.0 },
+    { parser: parseKeyValueFormat, weight: 0.9 },
+    { parser: parseNumericFormat, weight: 0.8 },
+    { parser: parseSimpleFormat, weight: 0.6 }
+  ];
+
+  let bestResult: ParsedSpec | null = null;
+  let bestConfidence = 0;
+
+  for (const { parser, weight } of strategies) {
+    const result = parser(line, currentCategory);
+    if (result) {
+      const confidence = (result.confidence || 0.5) * weight;
+      if (confidence > bestConfidence) {
+        bestResult = { ...result, confidence };
+        bestConfidence = confidence;
+      }
+    }
+  }
+
+  return bestResult;
+}
+
+/**
+ * Парсинг формата "Ключ: Значение" с оценкой уверенности
+ */
+function parseColonFormat(line: string, category: string): ParsedSpec | null {
+  const match = line.match(/^([^:]{3,50}?)\s*[:]\s*(.+)$/i);
+  if (!match) return null;
+
+  const [, rawKey, rawValue] = match;
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(rawKey.trim());
+  const { value, unit, confidence: valueConfidence } = parseValueWithConfidence(rawValue.trim());
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2;
+
+  if (isValidSpec(key, value, { maxValueLength: 150 })) {
+    return {
+      category,
+      key,
+      value,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Парсинг ключ-значение без явного разделителя
+ */
+function parseKeyValueFormat(line: string, category: string): ParsedSpec | null {
+  const match = line.match(/^([а-яa-z\s]{3,40}?)\s+([\d.,]+)\s*([а-яa-z\/²³%°]*)$/i);
+  if (!match) return null;
+
+  const [, rawKey, rawValue, rawUnit] = match;
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(rawKey.trim());
+  const { value, unit, confidence: valueConfidence } = parseValueWithConfidence(rawValue.trim(), rawUnit.trim());
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2;
+
+  if (isValidSpec(key, value, { maxValueLength: 150 })) {
+    return {
+      category,
+      key,
+      value,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Парсинг числовых форматов
+ */
+function parseNumericFormat(line: string, category: string): ParsedSpec | null {
+  const match = line.match(/([\d.,]+)\s*([а-яa-z\/²³%°]+)/gi);
+  if (!match) return null;
+
+  const numericPart = match[0];
+  const keyPart = line.replace(numericPart, '').trim();
+
+  if (keyPart.length < 2 || keyPart.length > 50) return null;
+
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(keyPart);
+  const valueMatch = numericPart.match(/([\d.,]+)\s*([а-яa-z\/²³%°]*)/i);
+  
+  if (!valueMatch) return null;
+
+  const [, value, unit] = valueMatch;
+  const { value: normalizedValue, confidence: valueConfidence } = parseValueWithConfidence(value, unit);
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2 * 0.8;
+
+  if (isValidSpec(key, normalizedValue, { maxValueLength: 150 })) {
+    return {
+      category,
+      key,
+      value: normalizedValue,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Простой парсинг для сложных случаев
+ */
+function parseSimpleFormat(line: string, category: string): ParsedSpec | null {
+  const words = line.trim().split(/\s+/);
+  if (words.length < 2) return null;
+
+  // Пытаемся найти числовое значение
+  let valueIndex = -1;
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].match(/[\d.,]/) && !words[i].match(/[а-яa-z]/i)) {
+      valueIndex = i;
+      break;
+    }
+  }
+
+  if (valueIndex === -1) return null;
+
+  const keyWords = words.slice(0, valueIndex).join(' ');
+  const valueWords = words.slice(valueIndex).join(' ');
+
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(keyWords);
+  const { value, unit, confidence: valueConfidence } = parseValueWithConfidence(valueWords);
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2 * 0.6;
+
+  if (isValidSpec(key, value, { maxValueLength: 150 })) {
+    return {
+      category,
+      key,
+      value,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Нормализация ключа с оценкой уверенности
+ */
+function normalizeKeyWithConfidence(rawKey: string): { key: string; confidence: number } {
+  const normalized = rawKey.trim().toLowerCase();
+  
+  // Применяем синонимы - ищем лучший матч
+  let bestMatch = null;
+  let bestMatchLength = 0;
+  let bestConfidence = 0.3; // Базовая уверенность
+  
+  for (const [wrong, correct] of Object.entries(KEY_SYNONYMS)) {
+    if (normalized.includes(wrong.toLowerCase()) && wrong.length > bestMatchLength) {
+      bestMatch = correct;
+      bestMatchLength = wrong.length;
+      bestConfidence = 0.9; // Высокая уверенность для известных ключей
+    }
+  }
+  
+  if (bestMatch) {
+    return { key: bestMatch, confidence: bestConfidence };
+  }
+  
+  // Если синонима не найдено, капитализируем первую букву каждого слова
+  const formattedKey = normalized
+    .split(/[\s\-_]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+  return { key: formattedKey, confidence: 0.3 };
+}
+
+/**
+ * Парсинг значения с оценкой уверенности
+ */
+function parseValueWithConfidence(rawValue: string, rawUnit: string = ''): { 
+  value: string; 
+  unit?: string; 
+  confidence: number 
+} {
+  // Извлекаем число из значения
+  const numberMatch = rawValue.match(/^([\d.,]+)/);
+  if (!numberMatch) {
+    return { value: rawValue, confidence: 0.1 };
+  }
+
+  const numberStr = numberMatch[1].replace(',', '.');
+  const numberValue = parseFloat(numberStr);
+
+  if (isNaN(numberValue)) {
+    return { value: rawValue, confidence: 0.1 };
+  }
+
+  // Определяем единицу измерения
+  let unit = rawUnit;
+  if (!unit) {
+    const unitMatch = rawValue.replace(numberStr, '').trim();
+    if (unitMatch) {
+      unit = normalizeUnit(unitMatch);
+    }
+  } else {
+    unit = normalizeUnit(unit);
+  }
+
+  // Проверяем правдоподобность значения
+  let confidence = 0.7; // Базовая уверенность для числовых значений
+
+  // Повышаем уверенность для правдоподобных значений
+  if (unit === 'л/мин' && numberValue > 10 && numberValue < 1000) confidence += 0.2;
+  if (unit === 'бар' && numberValue > 10 && numberValue < 500) confidence += 0.2;
+  if (unit === 'л' && numberValue > 1 && numberValue < 1000) confidence += 0.2;
+
+  return {
+    value: numberValue.toString(),
+    unit,
+    confidence: Math.min(confidence, 0.95)
+  };
+}
+
+/**
+ * Нормализация единиц измерения
+ */
+function normalizeUnit(unit: string): string {
+  const unitMap: Record<string, string> = {
+    'л/мин': 'л/мин',
+    'л': 'л',
+    'бар': 'бар',
+    'литр': 'л',
+    'литров': 'л',
+    'литры': 'л',
+    'l/min': 'л/мин',
+    'l': 'л',
+    'bar': 'бар'
+  };
+
+  const lowerUnit = unit.toLowerCase();
+  return unitMap[lowerUnit] || unit;
+}
+
+// Остальные функции остаются без изменений...
 
 /**
  * Парсинг различных форматов строк
@@ -597,6 +964,11 @@ function selectBestSpecFromGroup(group: ParsedSpec[]): ParsedSpec {
     if (a.rawText.includes('|') && !b.rawText.includes('|')) return -1;
     if (!a.rawText.includes('|') && b.rawText.includes('|')) return 1;
     
+    // Приоритет: более высокая уверенность (для AI)
+    if (a.confidence && b.confidence) {
+      return b.confidence - a.confidence;
+    }
+    
     return 0;
   })[0];
 }
@@ -611,6 +983,8 @@ function isBetterSpec(newSpec: ParsedSpec, existingSpec: ParsedSpec): boolean {
   if (newSpec.value.length > existingSpec.value.length) return true;
   // Предпочитаем значения из таблиц (обычно более структурированы)
   if (newSpec.rawText.includes('|') && !existingSpec.rawText.includes('|')) return true;
+  // Предпочитаем более высокую уверенность (для AI)
+  if (newSpec.confidence && existingSpec.confidence && newSpec.confidence > existingSpec.confidence) return true;
   return false;
 }
 
@@ -651,22 +1025,29 @@ export function formatSpecifications(specs: ParsedSpec[]): string {
 /**
  * Функция для тестирования парсера
  */
-export function testParser(text: string) {
-  const specs = parseSpecificationsFromText(text);
+export function testParser(text: string, useAI: boolean = false) {
+  const specs = parseSpecificationsFromTextAdvanced(text, { useAI });
   const json = convertParsedToJSON(specs);
   
   console.log('=== РЕЗУЛЬТАТЫ ПАРСИНГА ===');
+  console.log(`Режим: ${useAI ? 'AI' : 'Стандартный'}`);
   console.log(`Всего характеристик: ${specs.length}`);
   console.log('По категориям:');
   Object.entries(json).forEach(([category, specs]) => {
     console.log(`  ${category}: ${Object.keys(specs).length} характеристик`);
   });
   
+  // Показываем уверенность для AI-результатов
+  if (useAI) {
+    console.log('\n🔍 УВЕРЕННОСТЬ ИЗВЛЕЧЕНИЯ:');
+    specs.forEach(spec => {
+      const confidence = spec.confidence ? `${Math.round(spec.confidence * 100)}%` : 'N/A';
+      console.log(`   ${spec.key}: ${confidence}`);
+    });
+  }
+  
   console.log('\n📋 СТРУКТУРИРОВАННЫЕ ДАННЫЕ:');
   console.log(JSON.stringify(json, null, 2));
-  
-  console.log('\n✨ ФОРМАТИРОВАННЫЙ ВЫВОД:');
-  console.log(formatSpecifications(specs));
   
   return {
     specs,
@@ -676,6 +1057,39 @@ export function testParser(text: string) {
       total: specs.length,
       byCategory: Object.groupBy(specs, spec => spec.category)
     }
+  };
+}
+
+/**
+ * Тестирование с проблемным текстом
+ */
+export function testWithProblematicText() {
+  const problematicText = `
+Предварительная система
+Производительность насосов: 180 л/мин
+Диапазон: 250 бар
+
+Блокиры
+Техническая база: 150 л
+Напряжение насоса: 12,8 л
+Система пользователя: 16,2 л
+Следопоставляя: 97 л
+  `;
+
+  console.log('🧪 ТЕСТИРОВАНИЕ С ПРОБЛЕМНЫМ ТЕКСТОМ');
+  console.log('=' .repeat(50));
+  
+  // Тестируем стандартный парсер
+  console.log('\n📊 СТАНДАРТНЫЙ ПАРСЕР:');
+  const standardResult = testParser(problematicText, false);
+  
+  // Тестируем AI-парсер
+  console.log('\n🤖 AI-ПАРСЕР:');
+  const aiResult = testParser(problematicText, true);
+  
+  return {
+    standard: standardResult,
+    ai: aiResult
   };
 }
 
@@ -721,5 +1135,10 @@ export function exampleUsage() {
 // Экспорт утилитарных функций
 export {
   SPEC_CATEGORIES,
-  KEY_SYNONYMS
+  KEY_SYNONYMS,
+  OCR_CORRECTIONS
 };
+
+// Запуск тестов
+// exampleUsage();
+// testWithProblematicText();
