@@ -10,6 +10,7 @@ export interface Specification {
   unit?: string; // Единица измерения - кВт, тонн, м³ и т.д.
   category?: string; // Категория - engine, dimensions, performance и т.д.
   priority?: number; // Приоритет для сортировки
+  confidence?: number; // Уверенность в правильности извлечения (0-1)
 }
 
 /**
@@ -24,12 +25,26 @@ export interface ParsedSpecifications {
 }
 
 /**
+ * Интерфейс для AI-парсера
+ */
+export interface AIParsedSpec {
+  category: string;
+  key: string;
+  value: string;
+  unit?: string;
+  rawText: string;
+  confidence: number;
+}
+
+/**
  * Конфигурация парсера
  */
 interface ParserConfig {
   autoCategorize: boolean;
   autoTranslate: boolean;
   sortByPriority: boolean;
+  useAI: boolean; // Использовать AI для сложных случаев
+  minConfidence: number; // Минимальная уверенность для AI-результатов
 }
 
 /**
@@ -43,6 +58,8 @@ export function parseSpecifications(
     autoCategorize: true,
     autoTranslate: true,
     sortByPriority: true,
+    useAI: false,
+    minConfidence: 0.6,
     ...config
   };
 
@@ -78,8 +95,441 @@ export function parseSpecifications(
 }
 
 /**
- * Создать пустую структуру характеристик
+ * Парсить характеристики из текста с использованием AI
  */
+export function parseSpecificationsFromText(
+  text: string,
+  config: Partial<ParserConfig> = {}
+): ParsedSpecifications {
+  const defaultConfig: ParserConfig = {
+    autoCategorize: true,
+    autoTranslate: true,
+    sortByPriority: true,
+    useAI: true,
+    minConfidence: 0.6,
+    ...config
+  };
+
+  const specs: ParsedSpecifications = getEmptySpecifications();
+
+  try {
+    let aiSpecs: AIParsedSpec[] = [];
+
+    if (defaultConfig.useAI) {
+      // Используем AI-парсер для сложных случаев
+      aiSpecs = parseSpecificationsWithAI(text);
+    } else {
+      // Используем обычный парсер
+      aiSpecs = parseSpecificationsWithBasic(text);
+    }
+
+    // Конвертируем AI-результаты в стандартный формат
+    aiSpecs.forEach(aiSpec => {
+      if (aiSpec.confidence >= defaultConfig.minConfidence) {
+        const spec = convertAISpecToStandard(aiSpec, defaultConfig);
+        const category = mapCategoryToEnglish(spec.category || 'other') as keyof ParsedSpecifications;
+        
+        if (category in specs) {
+          specs[category].push(spec);
+        } else {
+          specs.other.push(spec);
+        }
+      }
+    });
+
+    // Сортировка по приоритету
+    if (defaultConfig.sortByPriority) {
+      sortSpecificationsByPriority(specs);
+    }
+
+  } catch (error) {
+    console.error('Error parsing specifications from text:', error);
+    return getEmptySpecifications();
+  }
+
+  return specs;
+}
+
+/**
+ * Конвертировать AI-спецификацию в стандартный формат
+ */
+function convertAISpecToStandard(aiSpec: AIParsedSpec, config: ParserConfig): Specification {
+  const key = generateEnglishKey(aiSpec.key);
+  const category = mapCategoryToEnglish(aiSpec.category);
+  
+  return {
+    key,
+    label: config.autoTranslate ? formatLabel(key) : aiSpec.key,
+    value: normalizeValue(aiSpec.value),
+    unit: aiSpec.unit,
+    category,
+    priority: getSpecPriority(key),
+    confidence: aiSpec.confidence
+  };
+}
+
+/**
+ * Базовый парсер для текста (без AI)
+ */
+function parseSpecificationsWithBasic(text: string): AIParsedSpec[] {
+  const specs: AIParsedSpec[] = [];
+  const lines = text.split('\n').filter(line => line.trim().length > 3);
+
+  let currentCategory = "Общие";
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    
+    // Пропускаем заголовки и разделители
+    if (isHeaderLine(trimmed)) {
+      const category = detectBasicCategory(trimmed);
+      if (category) currentCategory = category;
+      return;
+    }
+
+    // Парсим простые форматы
+    const spec = parseBasicLine(trimmed, currentCategory);
+    if (spec) {
+      specs.push(spec);
+    }
+  });
+
+  return specs;
+}
+
+/**
+ * AI-парсер для сложных случаев
+ */
+function parseSpecificationsWithAI(text: string): AIParsedSpec[] {
+  const specs: AIParsedSpec[] = [];
+  const lines = text.split("\n").filter(line => {
+    const trimmed = line.trim();
+    return trimmed.length > 3 && 
+           !trimmed.startsWith('#') && 
+           !trimmed.startsWith('---') &&
+           !trimmed.startsWith('|') &&
+           !trimmed.includes('Примечание');
+  });
+
+  // Словарь для исправления OCR-ошибок
+  const OCR_CORRECTIONS: Record<string, string> = {
+    'предварительная система': 'гидравлическая система',
+    'производительность насосов': 'производительность насоса',
+    'блокиры': 'емкости',
+    'техническая база': 'топливный бак',
+    'напряжение насоса': 'моторное масло',
+    'система пользователя': 'система охлаждения',
+    'следопоставляя': 'гидросистема',
+    'диапазон': 'давление'
+  };
+
+  let currentCategory = "Общие";
+  const processed = new Set<string>();
+
+  for (const line of lines) {
+    // Исправляем OCR-ошибки
+    let correctedLine = line.toLowerCase();
+    Object.entries(OCR_CORRECTIONS).forEach(([wrong, correct]) => {
+      if (correctedLine.includes(wrong)) {
+        correctedLine = correctedLine.replace(wrong, correct);
+      }
+    });
+
+    // Определяем категорию
+    const category = detectAICategory(correctedLine, currentCategory);
+    if (category && category !== currentCategory) {
+      currentCategory = category;
+      continue;
+    }
+
+    // Парсим строку
+    const parsed = parseAILine(correctedLine, currentCategory);
+    if (parsed) {
+      const specId = `${parsed.category}_${parsed.key}`;
+      if (!processed.has(specId)) {
+        processed.add(specId);
+        specs.push(parsed);
+      }
+    }
+  }
+
+  return filterAndSortAISpecs(specs);
+}
+
+/**
+ * Парсинг строки с AI-подходом
+ */
+function parseAILine(line: string, category: string): AIParsedSpec | null {
+  // Пробуем разные форматы
+  const formats = [
+    parseColonFormat,
+    parseKeyValueFormat,
+    parseNumericFormat
+  ];
+
+  let bestResult: AIParsedSpec | null = null;
+  let bestConfidence = 0;
+
+  for (const format of formats) {
+    const result = format(line, category);
+    if (result && result.confidence > bestConfidence) {
+      bestResult = result;
+      bestConfidence = result.confidence;
+    }
+  }
+
+  return bestResult;
+}
+
+/**
+ * Парсинг формата "Ключ: Значение"
+ */
+function parseColonFormat(line: string, category: string): AIParsedSpec | null {
+  const match = line.match(/^([^:]{3,50}?)\s*[:]\s*(.+)$/i);
+  if (!match) return null;
+
+  const [, rawKey, rawValue] = match;
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(rawKey.trim());
+  const { value, unit, confidence: valueConfidence } = parseValueWithConfidence(rawValue.trim());
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2;
+
+  if (overallConfidence > 0.3) {
+    return {
+      category,
+      key,
+      value,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Парсинг ключ-значение без явного разделителя
+ */
+function parseKeyValueFormat(line: string, category: string): AIParsedSpec | null {
+  const match = line.match(/^([а-яa-z\s]{3,40}?)\s+([\d.,]+)\s*([а-яa-z\/²³%°]*)$/i);
+  if (!match) return null;
+
+  const [, rawKey, rawValue, rawUnit] = match;
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(rawKey.trim());
+  const { value, unit, confidence: valueConfidence } = parseValueWithConfidence(rawValue.trim(), rawUnit.trim());
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2;
+
+  if (overallConfidence > 0.4) {
+    return {
+      category,
+      key,
+      value,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Парсинг числовых форматов
+ */
+function parseNumericFormat(line: string, category: string): AIParsedSpec | null {
+  const match = line.match(/([\d.,]+)\s*([а-яa-z\/²³%°]+)/gi);
+  if (!match) return null;
+
+  const numericPart = match[0];
+  const keyPart = line.replace(numericPart, '').trim();
+
+  if (keyPart.length < 2 || keyPart.length > 50) return null;
+
+  const { key, confidence: keyConfidence } = normalizeKeyWithConfidence(keyPart);
+  const valueMatch = numericPart.match(/([\d.,]+)\s*([а-яa-z\/²³%°]*)/i);
+  
+  if (!valueMatch) return null;
+
+  const [, value, unit] = valueMatch;
+  const { value: normalizedValue, confidence: valueConfidence } = parseValueWithConfidence(value, unit);
+
+  const overallConfidence = (keyConfidence + valueConfidence) / 2 * 0.8;
+
+  if (overallConfidence > 0.3) {
+    return {
+      category,
+      key,
+      value: normalizedValue,
+      unit,
+      rawText: line,
+      confidence: overallConfidence
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Нормализация ключа с оценкой уверенности
+ */
+function normalizeKeyWithConfidence(rawKey: string): { key: string; confidence: number } {
+  const knownKeys: Record<string, { correct: string; confidence: number }> = {
+    'производительность насоса': { correct: 'Производительность насоса', confidence: 0.9 },
+    'давление': { correct: 'Давление в системе', confidence: 0.9 },
+    'топливный бак': { correct: 'Топливный бак', confidence: 0.9 },
+    'моторное масло': { correct: 'Моторное масло', confidence: 0.9 },
+    'система охлаждения': { correct: 'Система охлаждения', confidence: 0.9 },
+    'гидросистема': { correct: 'Объем гидросистемы', confidence: 0.8 },
+    'производитель': { correct: 'Производитель', confidence: 0.9 },
+    'модель': { correct: 'Модель', confidence: 0.9 }
+  };
+
+  const lowerKey = rawKey.toLowerCase().trim();
+
+  for (const [wrong, data] of Object.entries(knownKeys)) {
+    if (lowerKey.includes(wrong)) {
+      return { key: data.correct, confidence: data.confidence };
+    }
+  }
+
+  const normalized = rawKey
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+
+  return { key: normalized, confidence: 0.3 };
+}
+
+/**
+ * Парсинг значения с оценкой уверенности
+ */
+function parseValueWithConfidence(rawValue: string, rawUnit: string = ''): { 
+  value: string; 
+  unit?: string; 
+  confidence: number 
+} {
+  const numberMatch = rawValue.match(/^([\d.,]+)/);
+  if (!numberMatch) {
+    return { value: rawValue, confidence: 0.1 };
+  }
+
+  const numberStr = numberMatch[1].replace(',', '.');
+  const numberValue = parseFloat(numberStr);
+
+  if (isNaN(numberValue)) {
+    return { value: rawValue, confidence: 0.1 };
+  }
+
+  let unit = rawUnit;
+  if (!unit) {
+    const unitMatch = rawValue.replace(numberStr, '').trim();
+    if (unitMatch) {
+      unit = normalizeUnit(unitMatch);
+    }
+  } else {
+    unit = normalizeUnit(unit);
+  }
+
+  let confidence = 0.7;
+
+  if (unit === 'л/мин' && numberValue > 10 && numberValue < 1000) confidence += 0.2;
+  if (unit === 'бар' && numberValue > 10 && numberValue < 500) confidence += 0.2;
+  if (unit === 'л' && numberValue > 1 && numberValue < 1000) confidence += 0.2;
+
+  return {
+    value: numberValue.toString(),
+    unit,
+    confidence: Math.min(confidence, 0.95)
+  };
+}
+
+/**
+ * Определение категории AI
+ */
+function detectAICategory(line: string, currentCategory: string): string | null {
+  const AI_CATEGORIES: Record<string, { keywords: string[]; priority: number }> = {
+    "Гидравлическая система": {
+      keywords: ["гидравлика", "насос", "давление", "производительность", "диапазон", "бар", "л/мин"],
+      priority: 1
+    },
+    "Емкости": {
+      keywords: ["топливный", "масло", "охлаждение", "гидросистема", "бак", "емкость", "л", "литр"],
+      priority: 2
+    },
+    "Двигатель": {
+      keywords: ["двигатель", "мощность", "квт", "л.с.", "цилиндр", "момент"],
+      priority: 3
+    },
+    "Общие": {
+      keywords: ["производитель", "модель", "назначение", "тип"],
+      priority: 10
+    }
+  };
+
+  const lowerLine = line.toLowerCase();
+  const categoryScores: Record<string, number> = {};
+  
+  Object.entries(AI_CATEGORIES).forEach(([category, data]) => {
+    let score = 0;
+    
+    data.keywords.forEach(keyword => {
+      if (lowerLine.includes(keyword)) {
+        score += 2;
+      }
+    });
+
+    if (isLikelyHeader(line)) {
+      score += 3;
+    }
+
+    score += (10 - data.priority) * 0.1;
+    categoryScores[category] = score;
+  });
+
+  const bestCategory = Object.entries(categoryScores)
+    .sort(([, a], [, b]) => b - a)[0];
+
+  return bestCategory && bestCategory[1] > 1 ? bestCategory[0] : null;
+}
+
+/**
+ * Базовое определение категории
+ */
+function detectBasicCategory(line: string): string | null {
+  const lowerLine = line.toLowerCase();
+  
+  if (lowerLine.includes('гидравли') || lowerLine.includes('насос')) return "Гидравлическая система";
+  if (lowerLine.includes('топлив') || lowerLine.includes('масло') || lowerLine.includes('емкост')) return "Емкости";
+  if (lowerLine.includes('двигатель') || lowerLine.includes('мощность')) return "Двигатель";
+  if (lowerLine.includes('размер') || lowerLine.includes('габарит')) return "Размеры";
+  
+  return null;
+}
+
+/**
+ * Базовый парсинг строки
+ */
+function parseBasicLine(line: string, category: string): AIParsedSpec | null {
+  const colonMatch = line.match(/^([^:]{3,50}?)\s*[:]\s*(.+)$/i);
+  if (colonMatch) {
+    const [, key, value] = colonMatch;
+    return {
+      category,
+      key: key.trim(),
+      value: value.trim(),
+      rawText: line,
+      confidence: 0.7
+    };
+  }
+  return null;
+}
+
+/**
+ * Вспомогательные функции (остаются без изменений)
+ */
+
 function getEmptySpecifications(): ParsedSpecifications {
   return {
     engine: [],
@@ -90,9 +540,6 @@ function getEmptySpecifications(): ParsedSpecifications {
   };
 }
 
-/**
- * Обработать массив данных
- */
 function processArrayData(
   data: any[], 
   specs: ParsedSpecifications, 
@@ -110,9 +557,6 @@ function processArrayData(
   });
 }
 
-/**
- * Обработать объект данных
- */
 function processObjectData(
   data: Record<string, any>, 
   specs: ParsedSpecifications, 
@@ -134,9 +578,6 @@ function processObjectData(
   });
 }
 
-/**
- * Нормализовать одну характеристику
- */
 function normalizeSpecification(spec: any, config?: ParserConfig): Specification {
   if (typeof spec === "string" || typeof spec === "number") {
     return {
@@ -168,15 +609,11 @@ function normalizeSpecification(spec: any, config?: ParserConfig): Specification
   };
 }
 
-/**
- * Нормализовать значение характеристики
- */
 function normalizeValue(value: any): string | number {
   if (typeof value === 'number') return value;
   
   const strValue = String(value).trim();
   
-  // Попытка извлечь числовое значение из строки
   const numberMatch = strValue.match(/^([\d.,]+)/);
   if (numberMatch) {
     const numberStr = numberMatch[1].replace(',', '.');
@@ -189,13 +626,9 @@ function normalizeValue(value: any): string | number {
   return strValue;
 }
 
-/**
- * Определить категорию характеристики по ключу
- */
 function categorizeSpecKey(key: string): string {
   const keyLower = key.toLowerCase();
 
-  // Двигатель и топливо
   if (
     keyLower.includes("engine") ||
     keyLower.includes("power") ||
@@ -211,7 +644,6 @@ function categorizeSpecKey(key: string): string {
     return "engine";
   }
 
-  // Габариты и вес
   if (
     keyLower.includes("weight") ||
     keyLower.includes("dimension") ||
@@ -231,7 +663,6 @@ function categorizeSpecKey(key: string): string {
     return "dimensions";
   }
 
-  // Производительность
   if (
     keyLower.includes("depth") ||
     keyLower.includes("reach") ||
@@ -250,7 +681,6 @@ function categorizeSpecKey(key: string): string {
     return "performance";
   }
 
-  // Гидравлика
   if (
     keyLower.includes("pressure") ||
     keyLower.includes("flow") ||
@@ -269,23 +699,15 @@ function categorizeSpecKey(key: string): string {
   return "other";
 }
 
-/**
- * Получить приоритет характеристики для сортировки
- */
 function getSpecPriority(key: string): number {
   const priorityMap: Record<string, number> = {
-    // Высокий приоритет
     'power': 1,
     'weight': 2,
     'bucket': 3,
     'engine': 4,
-    
-    // Средний приоритет
     'dimensions': 50,
     'performance': 51,
     'hydraulics': 52,
-    
-    // Низкий приоритет
     'other': 100
   };
 
@@ -297,14 +719,10 @@ function getSpecPriority(key: string): number {
     }
   }
 
-  // Приоритет по категории
   const category = categorizeSpecKey(key);
   return priorityMap[category] || 100;
 }
 
-/**
- * Получить единицу измерения по умолчанию
- */
 function getDefaultUnit(key: string): string {
   const keyLower = key.toLowerCase();
 
@@ -322,13 +740,8 @@ function getDefaultUnit(key: string): string {
   return "";
 }
 
-/**
- * Форматировать ключ в читаемое название
- */
 function formatLabel(key: string): string {
-  // Русско-английский словарь переводов
   const translations: { [key: string]: string } = {
-    // Английские ключи
     'power': 'Мощность',
     'engine': 'Двигатель',
     'weight': 'Вес',
@@ -344,8 +757,6 @@ function formatLabel(key: string): string {
     'flow': 'Расход',
     'speed': 'Скорость',
     'capacity': 'Емкость',
-    
-    // Русские ключи
     'мощность': 'Мощность',
     'двигатель': 'Двигатель',
     'масса': 'Масса',
@@ -365,19 +776,16 @@ function formatLabel(key: string): string {
     'масло': 'Моторное масло'
   };
 
-  // Сначала проверяем точное совпадение
   if (translations[key.toLowerCase()]) {
     return translations[key.toLowerCase()];
   }
 
-  // Проверяем частичные совпадения
   for (const [en, ru] of Object.entries(translations)) {
     if (key.toLowerCase().includes(en)) {
       return ru;
     }
   }
 
-  // Если перевод не найден, форматируем ключ
   const formatted = key
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
@@ -388,9 +796,6 @@ function formatLabel(key: string): string {
   return formatted;
 }
 
-/**
- * Сортировать характеристики по приоритету
- */
 function sortSpecificationsByPriority(specs: ParsedSpecifications): void {
   Object.keys(specs).forEach(category => {
     specs[category as keyof ParsedSpecifications].sort((a, b) => {
@@ -401,9 +806,6 @@ function sortSpecificationsByPriority(specs: ParsedSpecifications): void {
   });
 }
 
-/**
- * Форматировать характеристику для отображения
- */
 export function formatSpecification(spec: Specification): string {
   if (typeof spec.value === 'number') {
     const formattedValue = Number.isInteger(spec.value) 
@@ -423,13 +825,9 @@ export function formatSpecification(spec: Specification): string {
   return String(spec.value);
 }
 
-/**
- * Получить краткую сводку характеристик для списка
- */
 export function getSpecsSummary(specs: ParsedSpecifications): string {
   const summaryParts: string[] = [];
 
-  // Добавить мощность если есть
   const powerSpec = specs.engine.find((s) =>
     s.key.toLowerCase().includes("power") || s.label.toLowerCase().includes("мощность")
   );
@@ -437,7 +835,6 @@ export function getSpecsSummary(specs: ParsedSpecifications): string {
     summaryParts.push(formatSpecification(powerSpec));
   }
 
-  // Добавить вес если есть
   const weightSpec = specs.dimensions.find((s) =>
     s.key.toLowerCase().includes("weight") || 
     s.label.toLowerCase().includes("масса") || 
@@ -447,7 +844,6 @@ export function getSpecsSummary(specs: ParsedSpecifications): string {
     summaryParts.push(formatSpecification(weightSpec));
   }
 
-  // Добавить объем ковша если есть
   const bucketSpec = specs.performance.find((s) =>
     s.key.toLowerCase().includes("bucket") || 
     s.label.toLowerCase().includes("ковш")
@@ -459,9 +855,6 @@ export function getSpecsSummary(specs: ParsedSpecifications): string {
   return summaryParts.join(" | ") || "Характеристики не указаны";
 }
 
-/**
- * Фильтровать характеристики по категории
- */
 export function filterSpecsByCategory(
   specs: ParsedSpecifications, 
   category: keyof ParsedSpecifications
@@ -469,9 +862,6 @@ export function filterSpecsByCategory(
   return specs[category] || [];
 }
 
-/**
- * Найти характеристику по ключу или метке
- */
 export function findSpecification(
   specs: ParsedSpecifications, 
   searchTerm: string
@@ -488,3 +878,133 @@ export function findSpecification(
   
   return undefined;
 }
+
+/**
+ * Вспомогательные функции для AI-парсера
+ */
+
+function normalizeUnit(unit: string): string {
+  const unitMap: Record<string, string> = {
+    'л/мин': 'л/мин',
+    'л': 'л',
+    'бар': 'бар',
+    'литр': 'л',
+    'литров': 'л',
+    'литры': 'л'
+  };
+
+  const lowerUnit = unit.toLowerCase();
+  return unitMap[lowerUnit] || unit;
+}
+
+function filterAndSortAISpecs(specs: AIParsedSpec[]): AIParsedSpec[] {
+  const filtered = specs.filter(spec => spec.confidence > 0.4);
+  const unique = Array.from(new Map(
+    filtered.map(spec => [`${spec.category}_${spec.key}`, spec])
+  ).values());
+
+  return unique.sort((a, b) => {
+    const categoryOrder = ["Гидравлическая система", "Емкости", "Двигатель", "Размеры", "Общие"];
+    const aIndex = categoryOrder.indexOf(a.category);
+    const bIndex = categoryOrder.indexOf(b.category);
+    
+    if (aIndex !== bIndex) {
+      return aIndex - bIndex;
+    }
+    
+    return b.confidence - a.confidence;
+  });
+}
+
+function isLikelyHeader(line: string): boolean {
+  return line.length < 50 && 
+         !line.match(/[\d.,]/) && 
+         (line === line.toUpperCase() ||
+         line.endsWith(':') ||
+         (line.split(' ').length <= 3 && line.length > 5));
+}
+
+function isHeaderLine(line: string): boolean {
+  const headerIndicators = ['характеристики', 'технические', 'спецификации', '===', '---', '###'];
+  const lowerLine = line.toLowerCase();
+  return headerIndicators.some(indicator => lowerLine.includes(indicator));
+}
+
+function generateEnglishKey(russianKey: string): string {
+  const translations: Record<string, string> = {
+    'Производительность насоса': 'pump_flow',
+    'Давление в системе': 'system_pressure',
+    'Топливный бак': 'fuel_tank',
+    'Моторное масло': 'engine_oil',
+    'Система охлаждения': 'cooling_system',
+    'Объем гидросистемы': 'hydraulic_system_volume',
+    'Производитель': 'manufacturer',
+    'Модель': 'model',
+    'Мощность двигателя': 'engine_power',
+    'Рабочий вес': 'operating_weight',
+    'Объем ковша': 'bucket_capacity',
+    'Грузоподъемность': 'load_capacity',
+    'Длина': 'length',
+    'Ширина': 'width',
+    'Высота': 'height'
+  };
+
+  return translations[russianKey] || russianKey
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, '_');
+}
+
+function mapCategoryToEnglish(russianCategory: string): string {
+  const categoryMap: Record<string, string> = {
+    'Двигатель': 'engine',
+    'Гидравлическая система': 'hydraulics',
+    'Емкости': 'other',
+    'Размеры': 'dimensions',
+    'Производительность': 'performance',
+    'Общие': 'other'
+  };
+
+  return categoryMap[russianCategory] || 'other';
+}
+
+/**
+ * Тестовая функция для демонстрации
+ */
+export function testAIParserWithText() {
+  const testText = `
+Предварительная система
+Производительность насосов: 180 л/мин
+Диапазон: 250 бар
+
+Блокиры
+Техническая база: 150 л
+Напряжение насоса: 12,8 л
+Система пользователя: 16,2 л
+Следопоставляя: 97 л
+  `;
+
+  console.log('🔍 AI-ПАРСИНГ ТЕКСТА С ХАРАКТЕРИСТИКАМИ');
+  console.log('=' .repeat(50));
+  
+  const specs = parseSpecificationsFromText(testText, { useAI: true });
+  
+  Object.entries(specs).forEach(([category, categorySpecs]) => {
+    if (categorySpecs.length > 0) {
+      console.log(`\n📁 ${category.toUpperCase()}:`);
+      categorySpecs.forEach(spec => {
+        const value = formatSpecification(spec);
+        const confidence = spec.confidence ? ` (${Math.round(spec.confidence * 100)}%)` : '';
+        console.log(`   ✅ ${spec.label}: ${value}${confidence}`);
+      });
+    }
+  });
+
+  console.log(`\n📊 ИТОГО: ${Object.values(specs).flat().length} характеристик извлечено`);
+  console.log(`📋 СВОДКА: ${getSpecsSummary(specs)}`);
+  
+  return specs;
+}
+
+// Запуск теста
+// testAIParserWithText();
