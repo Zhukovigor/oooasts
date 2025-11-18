@@ -10,7 +10,7 @@ import { createBrowserClient } from "@supabase/ssr"
 interface TelegramChannel {
   id: string
   bot_token: string
-  channel_id: bigint
+  channel_id: string // Changed from bigint to string for JSON serialization
   channel_name: string
   is_active: boolean
   created_at: string
@@ -97,7 +97,7 @@ export default function PostingClient() {
       const { error } = await supabase.from("telegram_posting_settings").insert({
         channel_name: newChannel.name,
         bot_token: newChannel.token,
-        channel_id: BigInt(newChannel.channelId),
+        channel_id: newChannel.channelId, // Send as string, database converts it
         is_active: true,
       })
 
@@ -233,7 +233,7 @@ export default function PostingClient() {
                     <div key={channel.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">{channel.channel_name}</p>
-                        <p className="text-sm text-gray-600">ID: {channel.channel_id.toString()}</p>
+                        <p className="text-sm text-gray-600">ID: {channel.channel_id}</p>
                       </div>
                       <Button
                         onClick={() => handleDeleteChannel(channel.id)}
@@ -279,7 +279,7 @@ export default function PostingClient() {
                     />
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{channel.channel_name}</p>
-                      <p className="text-sm text-gray-600">ID: {channel.channel_id.toString()}</p>
+                      <p className="text-sm text-gray-600">ID: {channel.channel_id}</p>
                     </div>
                   </div>
                 ))}
