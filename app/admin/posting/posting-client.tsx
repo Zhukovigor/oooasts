@@ -10,8 +10,11 @@ import { createBrowserClient } from "@supabase/ssr"
 interface TelegramChannel {
   id: string
   bot_token: string
-  channel_id: string // Changed from bigint to string for JSON serialization
+  channel_id: string
   channel_name: string
+  thread_id?: number
+  is_thread?: boolean
+  group_url?: string
   is_active: boolean
   created_at: string
 }
@@ -36,7 +39,15 @@ export default function PostingClient() {
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  const [newChannel, setNewChannel] = useState({ name: "", token: "", channelId: "" })
+  const [newChannel, setNewChannel] = useState({ 
+    name: "", 
+    token: "", 
+    channelId: "",
+    threadId: "",
+    isThread: false,
+    groupUrl: ""
+  })
+
   const [addingChannel, setAddingChannel] = useState(false)
 
   const supabase = createBrowserClient(
@@ -86,7 +97,7 @@ export default function PostingClient() {
 
   async function handleAddChannel() {
     if (!newChannel.name || !newChannel.token || !newChannel.channelId) {
-      setMessage({ type: "error", text: "Заполните все поля" })
+      setMessage({ type: "error", text: "Заполните обязательные поля" })
       return
     }
 
@@ -97,14 +108,17 @@ export default function PostingClient() {
       const { error } = await supabase.from("telegram_posting_settings").insert({
         channel_name: newChannel.name,
         bot_token: newChannel.token,
-        channel_id: newChannel.channelId, // Send as string, database converts it
+        channel_id: newChannel.channelId,
+        thread_id: newChannel.isThread ? parseInt(newChannel.threadId) || null : null,
+        is_thread: newChannel.isThread,
+        group_url: newChannel.groupUrl,
         is_active: true,
       })
 
       if (error) throw error
 
       setMessage({ type: "success", text: "Канал добавлен успешно!" })
-      setNewChannel({ name: "", token: "", channelId: "" })
+      setNewChannel({ name: "", token: "", channelId: "", threadId: "", isThread: false, groupUrl: "" })
       loadChannels()
     } catch (error: any) {
       console.error("[v0] Error adding channel:", error)
@@ -199,10 +213,10 @@ export default function PostingClient() {
         <Card>
           <CardContent className="p-6 space-y-6">
             <div>
-              <h3 className="font-semibold text-lg mb-4">Добавить новый канал</h3>
+              <h3 className="font-semibold text-lg mb-4">Добавить новый канал или группу</h3>
               <div className="space-y-3">
                 <Input
-                  placeholder="Название канала"
+                  placeholder="Название канала/группы"
                   value={newChannel.name}
                   onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })}
                 />
@@ -217,6 +231,30 @@ export default function PostingClient() {
                   value={newChannel.channelId}
                   onChange={(e) => setNewChannel({ ...newChannel, channelId: e.target.value })}
                 />
+                <Input
+                  placeholder="Ссылка на группу (например: https://t.me/spros_spectehnika)"
+                  value={newChannel.groupUrl}
+                  onChange={(e) => setNewChannel({ ...newChannel, groupUrl: e.target.value })}
+                />
+                
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={newChannel.isThread}
+                    onChange={(e) => setNewChannel({ ...newChannel, isThread: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label className="text-sm font-medium cursor-pointer">Это группа с темами (Threads)</label>
+                </div>
+
+                {newChannel.isThread && (
+                  <Input
+                    placeholder="ID темы (например: 94801)"
+                    value={newChannel.threadId}
+                    onChange={(e) => setNewChannel({ ...newChannel, threadId: e.target.value })}
+                  />
+                )}
+
                 <Button onClick={handleAddChannel} disabled={addingChannel} className="w-full bg-blue-600">
                   {addingChannel ? "Добавление..." : "Добавить канал"}
                 </Button>
@@ -224,7 +262,7 @@ export default function PostingClient() {
             </div>
 
             <div className="border-t pt-6">
-              <h3 className="font-semibold text-lg mb-4">Активные каналы</h3>
+              <h3 className="font-semibold text-lg mb-4">Активные каналы и группы</h3>
               {channels.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">Нет активных каналов</div>
               ) : (
@@ -234,6 +272,9 @@ export default function PostingClient() {
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">{channel.channel_name}</p>
                         <p className="text-sm text-gray-600">ID: {channel.channel_id}</p>
+                        {channel.is_thread && (
+                          <p className="text-sm text-blue-600">Тема: {channel.thread_id} {channel.group_url && `(${channel.group_url})`}</p>
+                        )}
                       </div>
                       <Button
                         onClick={() => handleDeleteChannel(channel.id)}

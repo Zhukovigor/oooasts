@@ -3,11 +3,11 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, ImageIcon, Settings, FileText } from "lucide-react"
+import { ArrowLeft, ImageIcon, Settings, FileText } from 'lucide-react'
 import Link from "next/link"
 import { createBrowserClient } from "@/lib/supabase/client"
 
@@ -40,6 +40,8 @@ export default function EquipmentEditClient({ id }: { id: string }) {
   const [formData, setFormData] = useState<Equipment | null>(null)
   const [activeTab, setActiveTab] = useState<"basic" | "specs" | "gallery">("basic")
   const [parsedSpecs, setParsedSpecs] = useState<Record<string, any>>({})
+  const [channels, setChannels] = useState<any[]>([])
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
 
   useEffect(() => {
     fetchData()
@@ -57,6 +59,18 @@ export default function EquipmentEditClient({ id }: { id: string }) {
       setFormData(equipmentResult.data)
     }
     setCategories(categoriesResult.data || [])
+    
+    try {
+      const channelsResponse = await fetch("/api/telegram/channels")
+      const channelsData = await channelsResponse.json()
+      if (channelsData.channels) {
+        setChannels(channelsData.channels)
+        setSelectedChannels(channelsData.channels.map((ch: any) => ch.id))
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching channels:", error)
+    }
+    
     setLoading(false)
   }
 
@@ -102,7 +116,6 @@ export default function EquipmentEditClient({ id }: { id: string }) {
     if (!formData || !formData.id) return
 
     try {
-      // ИСПРАВЛЕНИЕ: находим slug категории из уже загруженных категорий
       const category = categories.find(cat => cat.id === formData.category_id)
       
       if (!category) {
@@ -110,7 +123,12 @@ export default function EquipmentEditClient({ id }: { id: string }) {
         return
       }
 
-      const response = await fetch("/api/telegram/post-to-channel", {
+      if (selectedChannels.length === 0) {
+        alert("Выберите хотя бы один канал для публикации")
+        return
+      }
+
+      const response = await fetch("/api/telegram/post-to-channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -118,17 +136,20 @@ export default function EquipmentEditClient({ id }: { id: string }) {
           description: formData.description || "Новое оборудование в нашем каталоге",
           imageUrl: formData.main_image,
           postUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/katalog/${category.slug}/${formData.slug}`,
+          contentType: "equipment",
+          contentId: formData.id,
           withInlineButton: true,
-          buttonText: "📖 Заказать"
+          buttonText: "📖 Заказать",
+          channelIds: selectedChannels,
         }),
       })
 
       const result = await response.json()
 
-      if (response.ok) {
-        alert("Техника успешно опубликована в Telegram канал!")
+      if (response.ok && result.success) {
+        alert(`Техника успешно опубликована в ${result.results.length} каналов!`)
       } else {
-        alert(`Ошибка при публикации: ${result.error}`)
+        alert(`Ошибка при публикации: ${result.error || "Неизвестная ошибка"}`)
       }
     } catch (error) {
       console.error("[v0] Error publishing to telegram:", error)
@@ -467,6 +488,25 @@ export default function EquipmentEditClient({ id }: { id: string }) {
           <Button type="submit" disabled={saving} className="bg-green-600 hover:bg-green-700">
             {saving ? "Сохранение..." : "Сохранить изменения"}
           </Button>
+          
+          {channels.length > 0 && (
+            <div className="flex items-center gap-2">
+              <select
+                multiple
+                value={selectedChannels}
+                onChange={(e) => setSelectedChannels(Array.from(e.target.selectedOptions, option => option.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500"
+                title="Выберите каналы для публикации (Ctrl+Click для выбора нескольких)"
+              >
+                {channels.map((ch) => (
+                  <option key={ch.id} value={ch.id}>
+                    {ch.channel_name} ({ch.channel_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
           <Button
             type="button"
             onClick={handlePublishToTelegram}
