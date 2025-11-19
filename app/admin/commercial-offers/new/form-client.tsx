@@ -81,7 +81,7 @@ export default function CommercialOfferForm() {
         <p className="text-gray-600 mb-8">Заполните данные о технике для автоматического формирования КП</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left side - Input */}
+          {/* Левая часть - Ввод данных */}
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Введите данные</h2>
 
@@ -144,66 +144,81 @@ export default function CommercialOfferForm() {
             </div>
           </div>
 
-          {/* Right side - Preview */}
+          {/* Правая часть - Предпросмотр */}
           {showParsed && parsedData && (
             <div className="bg-white rounded-xl border border-gray-200 p-8 overflow-y-auto max-h-[calc(100vh-200px)]">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр КП</h2>
 
               <div className="space-y-6">
-                {/* Header */}
-                <div className="border-b-2 border-blue-500 pb-4">
-                  <div className="text-xs uppercase tracking-widest text-gray-500 font-bold mb-1">Коммерческое предложение</div>
-                  {parsedData.equipment && <div className="text-sm font-semibold text-gray-600 mb-1">{parsedData.equipment}</div>}
-                  {parsedData.title && <h1 className="text-3xl font-bold text-gray-900">{parsedData.title}</h1>}
+                {/* Заголовок - по центру */}
+                <div className="text-center border-b-2 border-blue-500 pb-4">
+                  <h1 className="text-xl font-bold uppercase mb-2">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
+                  <div className="text-lg font-bold">СЕДЕЛЬНЫЙ ТЯГАЧ</div>
+                  {parsedData.title && <div className="text-xl font-bold text-blue-600 mt-1">{parsedData.title}</div>}
                 </div>
 
-                {/* Image and Price Row */}
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Image */}
+                {/* Основной контент: фото слева, цена справа - книжная раскладка */}
+                <div className="grid grid-cols-2 gap-6 min-h-80">
+                  {/* Левая колонка - фото */}
                   {imageUrl && (
-                    <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-100">
-                      <img src={imageUrl || "/placeholder.svg"} alt="техника" className="w-full h-64 object-cover rounded-lg" />
+                    <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center p-4">
+                      <img 
+                        src={imageUrl} 
+                        alt="техника" 
+                        className="w-full h-auto max-h-72 object-contain rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = "/placeholder.svg"
+                        }}
+                      />
                     </div>
                   )}
 
-                  {/* Price and Conditions Box */}
+                  {/* Правая колонка - цена и условия */}
                   {parsedData.price && (
-                    <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg p-6 text-white flex flex-col justify-between">
+                    <div className="border-2 border-gray-300 rounded-lg bg-white p-6 flex flex-col justify-between">
                       <div>
-                        <div className="text-xs font-bold uppercase tracking-widest opacity-90 mb-2">Стоимость техники</div>
-                        <div className="text-4xl font-bold mb-6">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
+                        <div className="text-base font-bold text-black mb-3">Стоимость техники:</div>
+                        <div className="text-3xl font-bold text-black mb-4">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
+                        <div className="space-y-2 mb-6">
+                          {parsedData.priceWithVat && <div className="text-sm text-black">Стоимость с НДС.</div>}
+                          {parsedData.availability && <div className="text-sm text-black">В наличии.</div>}
+                        </div>
                       </div>
-                      <div className="space-y-2 text-sm">
-                        {parsedData.priceWithVat && <div className="flex items-center gap-2">✓ Стоимость с НДС</div>}
-                        {parsedData.availability && <div className="flex items-center gap-2">✓ {parsedData.availability}</div>}
-                        {parsedData.lease && <div className="flex items-center gap-2">✓ Продажа в лизинг</div>}
-                        {parsedData.paymentType && <div className="flex items-center gap-2">✓ {parsedData.paymentType}</div>}
-                        {parsedData.diagnosticsPassed && <div className="flex items-center gap-2">✓ Диагностика пройдена</div>}
+                      <div className="space-y-2 text-sm text-black">
+                        {parsedData.lease && <div className="flex items-center">• Продажа в лизинг.</div>}
+                        {parsedData.paymentType && <div className="flex items-center">• Безналичная оплата с НДС.</div>}
+                        {parsedData.diagnosticsPassed && <div className="flex items-center">• Диагностика пройдена.</div>}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Specifications Table - 2 columns */}
+                {/* Таблица технических характеристик */}
                 {specsRows.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 border-b-2 border-blue-500 pb-3">Технические характеристики</h3>
-                    <div className="space-y-3">
-                      {specsRows.map((row, rowIndex) => (
-                        <div key={rowIndex} className="grid grid-cols-2 gap-6">
-                          {row.map(([key, value], colIndex) => (
-                            <div key={colIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition">
-                              <div className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">{key}</div>
-                              <div className="text-base font-semibold text-gray-900">{value}</div>
-                            </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 text-center border-b-2 border-blue-500 pb-2">
+                      Технические характеристики
+                    </h3>
+                    <div className="border border-gray-300 rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <tbody>
+                          {specsRows.flat().map(([key, value], index) => (
+                            <tr key={index} className="border-b border-gray-300 last:border-b-0">
+                              <td className="py-3 px-4 border-r border-gray-300 bg-gray-50 font-semibold text-gray-700 w-2/5">
+                                {key}
+                              </td>
+                              <td className="py-3 px-4 text-gray-900 w-3/5">
+                                {value}
+                              </td>
+                            </tr>
                           ))}
-                        </div>
-                      ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
 
-                {/* Buttons */}
+                {/* Кнопки действий */}
                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
                   <Button
                     onClick={handleSave}
