@@ -30,11 +30,46 @@ function transliterate(text: string): string {
     .slice(0, 100)
 }
 
+// Функция для форматирования даты
+function formatDate(dateString: string): string {
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  } catch {
+    return new Date().toLocaleDateString('ru-RU')
+  }
+}
+
+// Функция для обработки изображения
+function handleImageError(imgUrl: string | null): string {
+  if (!imgUrl) return ''
+  
+  try {
+    new URL(imgUrl)
+    return imgUrl
+  } catch {
+    return ''
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Валидация ID
+    const offerId = params.id
+    if (!offerId) {
+      return NextResponse.json(
+        { error: "ID коммерческого предложения обязателен" },
+        { status: 400 }
+      )
+    }
+
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,25 +88,121 @@ export async function GET(
       }
     )
 
+    // Получаем данные предложения
     const { data, error } = await supabase
       .from("commercial_offers")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", offerId)
       .single()
 
     if (error || !data) {
-      return NextResponse.json({ error: "Offer not found" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Коммерческое предложение не найдено" },
+        { status: 404 }
+      )
     }
 
-    const specsEntries = data.specifications ? Object.entries(data.specifications) : []
+    // Подготавливаем данные
+    const {
+      title = "Коммерческое предложение",
+      equipment,
+      price,
+      price_with_vat,
+      availability,
+      payment_type,
+      lease,
+      diagnostics_passed,
+      image_url,
+      specifications,
+      created_at
+    } = data
+
+    const specsEntries = specifications ? Object.entries(specifications) : []
+    const formattedDate = formatDate(created_at)
+    const safeImageUrl = handleImageError(image_url)
     
-    const htmlContent = `
+    const htmlContent = generateHTMLContent({
+      title,
+      equipment,
+      price,
+      price_with_vat,
+      availability,
+      payment_type,
+      lease,
+      diagnostics_passed,
+      image_url: safeImageUrl,
+      specsEntries,
+      formattedDate
+    })
+
+    const safeFilename = transliterate(title)
+
+    // Определяем тип ответа на основе query параметров
+    const url = new URL(request.url)
+    const download = url.searchParams.get('download')
+    const format = url.searchParams.get('format')
+
+    const headers: Record<string, string> = {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, immutable"
+    }
+
+    if (download === 'true' || format === 'html') {
+      headers["Content-Disposition"] = `attachment; filename="${safeFilename}.html"`
+    } else {
+      headers["Content-Disposition"] = `inline; filename="${safeFilename}.html"`
+    }
+
+    return new NextResponse(htmlContent, { headers })
+
+  } catch (error) {
+    console.error("Error generating offer HTML:", error)
+    
+    return NextResponse.json(
+      { error: "Внутренняя ошибка сервера при генерации документа" }, 
+      { status: 500 }
+    )
+  }
+}
+
+// Интерфейс для данных HTML контента
+interface HTMLContentData {
+  title: string;
+  equipment?: string;
+  price?: number;
+  price_with_vat?: number;
+  availability?: string;
+  payment_type?: string;
+  lease?: string;
+  diagnostics_passed?: boolean;
+  image_url?: string;
+  specsEntries: [string, string][];
+  formattedDate: string;
+}
+
+// Функция генерации HTML контента
+function generateHTMLContent(data: HTMLContentData): string {
+  const {
+    title,
+    equipment,
+    price,
+    price_with_vat,
+    availability,
+    payment_type,
+    lease,
+    diagnostics_passed,
+    image_url,
+    specsEntries,
+    formattedDate
+  } = data
+
+  return `
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${data.title} - Коммерческое предложение</title>
+    <title>${escapeHtml(title)} - Коммерческое предложение</title>
     <style>
         * {
             margin: 0;
@@ -80,10 +211,12 @@ export async function GET(
         }
         
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Arial', 'Helvetica', sans-serif;
             background-color: #f5f5f5;
             color: #333;
             line-height: 1.6;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
         
         .container {
@@ -93,6 +226,7 @@ export async function GET(
             padding: 40px 30px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             min-height: 1122px;
+            position: relative;
         }
         
         /* Заголовок - по центру */
@@ -109,6 +243,7 @@ export async function GET(
             text-transform: uppercase;
             margin-bottom: 10px;
             color: #000;
+            letter-spacing: 1px;
         }
         
         .header .subtitle {
@@ -122,6 +257,7 @@ export async function GET(
             font-size: 18px;
             font-weight: bold;
             color: #0066cc;
+            margin-top: 5px;
         }
         
         /* Секция с фото и ценой - книжная раскладка */
@@ -147,15 +283,22 @@ export async function GET(
             align-items: center;
             justify-content: center;
             height: 100%;
+            min-height: 300px;
         }
         
         .image-container img {
             max-width: 100%;
-            max-height: 300px;
+            max-height: 280px;
             height: auto;
             display: block;
             border-radius: 4px;
             object-fit: contain;
+        }
+        
+        .no-image {
+            color: #999;
+            font-style: italic;
+            font-size: 14px;
         }
         
         /* Правая колонка - цена и условия */
@@ -169,6 +312,7 @@ export async function GET(
             flex-direction: column;
             justify-content: space-between;
             border: 2px solid #e0e0e0;
+            min-height: 300px;
         }
         
         .price-label {
@@ -228,16 +372,23 @@ export async function GET(
             margin-bottom: 15px;
             text-align: center;
             color: #000;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 8px;
         }
         
         .specs-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 12px;
+            border: 1px solid #ddd;
         }
         
         .specs-table tr {
             border-bottom: 1px solid #ddd;
+        }
+        
+        .specs-table tr:nth-child(even) {
+            background-color: #fafafa;
         }
         
         .specs-table td {
@@ -258,6 +409,22 @@ export async function GET(
             color: #333;
         }
         
+        /* Футер */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            color: #666;
+            font-size: 11px;
+        }
+        
+        .footer-info {
+            margin-top: 8px;
+            font-size: 10px;
+            color: #999;
+        }
+        
         /* Стили для печати в книжной ориентации */
         @media print {
             @page {
@@ -274,7 +441,7 @@ export async function GET(
             .container {
                 box-shadow: none;
                 margin: 0;
-                padding: 1.5cm;
+                padding: 0;
                 min-height: auto;
                 max-width: none;
             }
@@ -286,6 +453,27 @@ export async function GET(
             .specs-section {
                 page-break-inside: avoid;
             }
+            
+            .image-container img {
+                max-height: 250px;
+            }
+        }
+        
+        /* Адаптивность для мобильных */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+                margin: 10px;
+            }
+            
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .price-value {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
@@ -294,33 +482,34 @@ export async function GET(
         <!-- Заголовок - по центру -->
         <div class="header">
             <h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
-            <div class="subtitle">СЕДЕЛЬНЫЙ ТЯГАЧ</div>
-            <div class="model">${data.title || 'VOLVO FH 460'}</div>
+            ${equipment ? `<div class="subtitle">${escapeHtml(equipment)}</div>` : ''}
+            <div class="model">${escapeHtml(title)}</div>
         </div>
         
         <!-- Основной контент: фото слева, цена справа - книжная раскладка -->
         <div class="main-content">
             <!-- Левая колонка - фото -->
-            ${data.image_url ? `
             <div class="image-container">
-                <img src="${data.image_url}" alt="${data.title || 'Техника'}" onerror="this.style.display='none'" />
+                ${image_url ? `
+                <img src="${escapeHtml(image_url)}" alt="${escapeHtml(title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                <div class="no-image" style="display: none;">Изображение не доступно</div>
+                ` : '<div class="no-image">Изображение не предоставлено</div>'}
             </div>
-            ` : '<div class="image-container"></div>'}
             
             <!-- Правая колонка - цена и условия -->
             <div class="price-box">
                 <div>
                     <div class="price-label">Стоимость техники:</div>
-                    <div class="price-value">${data.price ? data.price.toLocaleString('ru-RU') : 'Цена не указана'} руб.</div>
+                    <div class="price-value">${price ? price.toLocaleString('ru-RU') : 'Цена не указана'} руб.</div>
                     <div class="price-details">
-                        ${data.price_with_vat ? `<div class="price-detail-item">Стоимость с НДС.</div>` : ''}
-                        ${data.availability ? `<div class="price-detail-item">В наличии.</div>` : ''}
+                        ${price_with_vat ? `<div class="price-detail-item">Стоимость с НДС: ${price_with_vat.toLocaleString('ru-RU')} руб.</div>` : ''}
+                        ${availability ? `<div class="price-detail-item">${escapeHtml(availability)}</div>` : ''}
                     </div>
                 </div>
                 <div class="conditions">
-                    ${data.lease ? `<div class="condition-item">Продажа в лизинг.</div>` : ''}
-                    ${data.payment_type ? `<div class="condition-item">${data.payment_type}.</div>` : ''}
-                    ${data.diagnostics_passed ? `<div class="condition-item">Диагностика пройдена.</div>` : ''}
+                    ${lease ? `<div class="condition-item">${escapeHtml(lease)}</div>` : ''}
+                    ${payment_type ? `<div class="condition-item">${escapeHtml(payment_type)}</div>` : ''}
+                    ${diagnostics_passed ? `<div class="condition-item">Диагностика пройдена</div>` : ''}
                 </div>
             </div>
         </div>
@@ -333,49 +522,33 @@ export async function GET(
                 <tbody>
                     ${specsEntries.map(([key, value]) => `
                     <tr>
-                        <td>${key}</td>
-                        <td>${value}</td>
+                        <td>${escapeHtml(key)}</td>
+                        <td>${escapeHtml(value)}</td>
                     </tr>
                     `).join('')}
                 </tbody>
             </table>
         </div>
         ` : ''}
+        
+        <!-- Футер -->
+        <div class="footer">
+            <div>Коммерческое предложение сформировано автоматически</div>
+            <div class="footer-info">Дата создания: ${escapeHtml(formattedDate)}</div>
+        </div>
     </div>
 </body>
 </html>
 `
+}
 
-    const safeFilename = transliterate(data.title || 'commercial-offer')
-
-    // Определяем тип ответа на основе query параметров
-    const url = new URL(request.url)
-    const download = url.searchParams.get('download')
-    const format = url.searchParams.get('format')
-
-    const headers: Record<string, string> = {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=3600"
-    }
-
-    if (download === 'true' || format === 'html') {
-        headers["Content-Disposition"] = `attachment; filename="${safeFilename}.html"`
-    } else {
-        headers["Content-Disposition"] = `inline; filename="${safeFilename}.html"`
-    }
-
-    return new NextResponse(htmlContent, { headers })
-
-  } catch (error) {
-    console.error("Error generating offer HTML:", error)
-    
-    if (error instanceof Error && error.message.includes("not found")) {
-      return NextResponse.json({ error: "Коммерческое предложение не найдено" }, { status: 404 })
-    }
-    
-    return NextResponse.json(
-      { error: "Внутренняя ошибка сервера при генерации документа" }, 
-      { status: 500 }
-    )
-  }
+// Функция для экранирования HTML
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return ''
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
 }
