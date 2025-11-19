@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import DeleteOfferButton from "@/components/DeleteOfferButton"
 
 export default async function CommercialOffersPage() {
   const cookieStore = await cookies()
@@ -85,14 +86,15 @@ export default async function CommercialOffersPage() {
                   </p>
 
                   <div className="flex gap-2">
-                    <Link href={`/admin/commercial-offers/${offer.id}/pdf`} className="flex-1">
+                    <Link href={`/api/commercial-offers/${offer.id}/pdf`} className="flex-1" target="_blank">
                       <Button variant="outline" className="w-full text-xs">
                         Скачать PDF
                       </Button>
                     </Link>
-                    <Link href={`/admin/commercial-offers/edit/${offer.id}`} className="flex-1">
+                    <Link href={`/admin/commercial-offers/${offer.id}/edit`} className="flex-1">
                       <Button className="w-full text-xs">Редактировать</Button>
                     </Link>
+                    <DeleteOfferButton offerId={offer.id} />
                   </div>
                 </div>
               </div>

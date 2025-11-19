@@ -86,6 +86,31 @@ function generatePDFContent(offer: any): string {
   return Buffer.from(htmlContent).toString("base64")
 }
 
+function transliterate(text: string): string {
+  if (!text) return 'offer'
+  
+  const map: { [key: string]: string } = {
+    // Lowercase
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '',
+    'э': 'e', 'ю': 'yu', 'я': 'ya',
+    // Uppercase
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E', 'Ж': 'ZH', 'З': 'Z', 'И': 'I',
+    'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T',
+    'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'C', 'Ч': 'CH', 'Ш': 'SH', 'Щ': 'SCH', 'Ъ': '', 'Ы': 'Y', 'Ь': '',
+    'Э': 'E', 'Ю': 'YU', 'Я': 'YA'
+  }
+  
+  return text
+    .split('')
+    .map(char => map[char] || (char.charCodeAt(0) > 127 ? '' : char))
+    .join('')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50) || 'offer'
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -226,10 +251,12 @@ export async function GET(
       </html>
     `
 
+    const safeFilename = transliterate(data.title || 'commercial-offer')
+
     return new NextResponse(htmlContent, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `inline; filename="${data.title}.html"`,
+        "Content-Disposition": `inline; filename="${safeFilename}.html"`,
       },
     })
   } catch (error) {
