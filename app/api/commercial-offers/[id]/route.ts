@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { parseCommercialOfferText } from "@/lib/commercial-offer-parser"
+// import { parseCommercialOfferText } from "@/lib/commercial-offer-parser"
 
 // GET - получение конкретного коммерческого предложения
 export async function GET(
