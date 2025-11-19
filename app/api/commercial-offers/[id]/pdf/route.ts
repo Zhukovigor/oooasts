@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
+// Улучшенная функция транслитерации
 function transliterate(text: string): string {
   if (!text) return 'commercial-offer'
   
@@ -30,10 +31,14 @@ function transliterate(text: string): string {
     .slice(0, 100)
 }
 
-// Функция для форматирования даты
+// Улучшенная функция для форматирования даты
 function formatDate(dateString: string): string {
   try {
     const date = new Date(dateString)
+    // Проверяем валидность даты
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date')
+    }
     return date.toLocaleDateString('ru-RU', {
       year: 'numeric',
       month: 'long',
@@ -44,16 +49,46 @@ function formatDate(dateString: string): string {
   }
 }
 
-// Функция для обработки изображения
+// Улучшенная функция для обработки изображения
 function handleImageError(imgUrl: string | null): string {
   if (!imgUrl) return ''
   
   try {
-    new URL(imgUrl)
+    const url = new URL(imgUrl)
+    // Проверяем допустимые протоколы
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return ''
+    }
     return imgUrl
   } catch {
     return ''
   }
+}
+
+// Функция для валидации ID
+function validateOfferId(id: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(id) && id.length > 0 && id.length <= 100
+}
+
+// Функция для безопасного парсинга спецификаций
+function safeParseSpecifications(specs: any): Record<string, string> {
+  if (!specs || typeof specs !== 'object') {
+    return {}
+  }
+  
+  const result: Record<string, string> = {}
+  
+  try {
+    Object.entries(specs).forEach(([key, value]) => {
+      if (typeof key === 'string' && typeof value === 'string') {
+        result[key] = value
+      }
+    })
+  } catch (error) {
+    console.error('Error parsing specifications:', error)
+  }
+  
+  return result
 }
 
 export async function GET(
@@ -63,39 +98,59 @@ export async function GET(
   try {
     // Валидация ID
     const offerId = params.id
-    if (!offerId) {
+    if (!offerId || !validateOfferId(offerId)) {
       return NextResponse.json(
-        { error: "ID коммерческого предложения обязателен" },
+        { error: "Некорректный ID коммерческого предложения" },
         { status: 400 }
       )
     }
 
     const cookieStore = await cookies()
+    
+    // Проверка переменных окружения
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing Supabase environment variables')
+      return NextResponse.json(
+        { error: "Ошибка конфигурации сервера" },
+        { status: 500 }
+      )
+    }
+
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
       {
         cookies: {
           getAll() {
             return cookieStore.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options)
+              })
+            } catch (error) {
+              console.error('Error setting cookies:', error)
+            }
           },
         },
       }
     )
 
-    // Получаем данные предложения
-    const { data, error } = await supabase
-      .from("commercial_offers")
-      .select("*")
-      .eq("id", offerId)
-      .single()
+    // Получаем данные предложения с таймаутом
+    const { data, error } = await Promise.race([
+      supabase
+        .from("commercial_offers")
+        .select("*")
+        .eq("id", offerId)
+        .single(),
+      new Promise<{ data: null; error: any }>((resolve) => 
+        setTimeout(() => resolve({ data: null, error: { message: 'Timeout' } }), 10000)
+      )
+    ]) as { data: any; error: any }
 
     if (error || !data) {
+      console.error('Database error:', error)
       return NextResponse.json(
         { error: "Коммерческое предложение не найдено" },
         { status: 404 }
@@ -117,7 +172,9 @@ export async function GET(
       created_at
     } = data
 
-    const specsEntries = specifications ? Object.entries(specifications) : []
+    // Безопасная обработка спецификаций
+    const safeSpecifications = safeParseSpecifications(specifications)
+    const specsEntries = Object.entries(safeSpecifications)
     const formattedDate = formatDate(created_at)
     const safeImageUrl = handleImageError(image_url)
     
@@ -195,6 +252,10 @@ function generateHTMLContent(data: HTMLContentData): string {
     specsEntries,
     formattedDate
   } = data
+
+  // Форматируем цену
+  const formattedPrice = price ? price.toLocaleString('ru-RU') : 'Цена не указана'
+  const formattedPriceWithVat = price_with_vat ? price_with_vat.toLocaleString('ru-RU') : null
 
   return `
 <!DOCTYPE html>
@@ -500,9 +561,9 @@ function generateHTMLContent(data: HTMLContentData): string {
             <div class="price-box">
                 <div>
                     <div class="price-label">Стоимость техники:</div>
-                    <div class="price-value">${price ? price.toLocaleString('ru-RU') : 'Цена не указана'} руб.</div>
+                    <div class="price-value">${formattedPrice} руб.</div>
                     <div class="price-details">
-                        ${price_with_vat ? `<div class="price-detail-item">Стоимость с НДС: ${price_with_vat.toLocaleString('ru-RU')} руб.</div>` : ''}
+                        ${formattedPriceWithVat ? `<div class="price-detail-item">Стоимость с НДС: ${formattedPriceWithVat} руб.</div>` : ''}
                         ${availability ? `<div class="price-detail-item">${escapeHtml(availability)}</div>` : ''}
                     </div>
                 </div>
