@@ -19,6 +19,17 @@ interface CreateOfferData {
   channelIds?: string[];
 }
 
+// Константы для валидации
+const VALIDATION_LIMITS = {
+  TITLE_MAX_LENGTH: 200,
+  PRICE_MAX: 1000000000,
+  SPECIFICATIONS_MAX_KEYS: 50,
+  CHANNEL_IDS_MAX: 10,
+  SEARCH_MAX_LENGTH: 100,
+  PAGE_MAX: 1000,
+  LIMIT_MAX: 100
+} as const
+
 // Валидация данных создания
 function validateCreateData(data: any): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
@@ -26,25 +37,25 @@ function validateCreateData(data: any): { isValid: boolean; errors: string[] } {
   // Валидация названия
   if (!data.title || !data.title.trim()) {
     errors.push("Название техники обязательно для заполнения")
-  } else if (data.title.length > 200) {
-    errors.push("Название не может превышать 200 символов")
+  } else if (data.title.length > VALIDATION_LIMITS.TITLE_MAX_LENGTH) {
+    errors.push(`Название не может превышать ${VALIDATION_LIMITS.TITLE_MAX_LENGTH} символов`)
   }
 
   // Валидация цены
-  if (!data.price && data.price !== 0) {
+  if (data.price === undefined || data.price === null) {
     errors.push("Цена обязательна для заполнения")
-  } else if (typeof data.price !== 'number' || data.price < 0) {
+  } else if (typeof data.price !== 'number' || isNaN(data.price) || data.price < 0) {
     errors.push("Цена должна быть положительным числом")
-  } else if (data.price > 1000000000) {
-    errors.push("Цена не может превышать 1 000 000 000 руб.")
+  } else if (data.price > VALIDATION_LIMITS.PRICE_MAX) {
+    errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`)
   }
 
   // Валидация цены с НДС
   if (data.priceWithVat !== undefined && data.priceWithVat !== null) {
-    if (typeof data.priceWithVat !== 'number' || data.priceWithVat < 0) {
+    if (typeof data.priceWithVat !== 'number' || isNaN(data.priceWithVat) || data.priceWithVat < 0) {
       errors.push("Цена с НДС должна быть положительным числом")
-    } else if (data.priceWithVat > 1000000000) {
-      errors.push("Цена с НДС не может превышать 1 000 000 000 руб.")
+    } else if (data.priceWithVat > VALIDATION_LIMITS.PRICE_MAX) {
+      errors.push(`Цена с НДС не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`)
     }
   }
 
@@ -56,14 +67,28 @@ function validateCreateData(data: any): { isValid: boolean; errors: string[] } {
   // Валидация спецификаций
   if (data.specifications && typeof data.specifications !== 'object') {
     errors.push("Спецификации должны быть объектом")
-  } else if (data.specifications && Object.keys(data.specifications).length > 50) {
-    errors.push("Слишком много характеристик (максимум 50)")
+  } else if (data.specifications && Object.keys(data.specifications).length > VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS) {
+    errors.push(`Слишком много характеристик (максимум ${VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS})`)
   }
 
   // Валидация channelIds
-  if (data.channelIds && !Array.isArray(data.channelIds)) {
-    errors.push("ChannelIds должен быть массивом")
+  if (data.channelIds) {
+    if (!Array.isArray(data.channelIds)) {
+      errors.push("ChannelIds должен быть массивом")
+    } else if (data.channelIds.length > VALIDATION_LIMITS.CHANNEL_IDS_MAX) {
+      errors.push(`Слишком много каналов (максимум ${VALIDATION_LIMITS.CHANNEL_IDS_MAX})`)
+    } else if (data.channelIds.some((id: any) => typeof id !== 'string' || !id.trim())) {
+      errors.push("Все channelIds должны быть непустыми строками")
+    }
   }
+
+  // Валидация строковых полей
+  const stringFields = ['availability', 'paymentType', 'lease', 'equipment'] as const
+  stringFields.forEach(field => {
+    if (data[field] && typeof data[field] !== 'string') {
+      errors.push(`Поле ${field} должно быть строкой`)
+    }
+  })
 
   return {
     isValid: errors.length === 0,
@@ -71,52 +96,91 @@ function validateCreateData(data: any): { isValid: boolean; errors: string[] } {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
+// Функция для безопасной инициализации Supabase клиента
+function createSupabaseClient() {
+  const cookieStore = cookies()
+  
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Missing required environment variables")
+  }
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
             })
-          },
+          } catch (error) {
+            console.error('Error setting cookies:', error)
+          }
         },
-      }
+      },
+    }
+  )
+}
+
+export async function POST(request: NextRequest) {
+  let supabase;
+  
+  try {
+    supabase = createSupabaseClient()
+  } catch (error) {
+    console.error("Supabase client initialization error:", error)
+    return NextResponse.json(
+      { error: "Ошибка инициализации базы данных" },
+      { status: 500 }
     )
+  }
 
-    // Получение и валидация тела запроса
-    let body: CreateOfferData;
-    try {
-      body = await request.json()
-    } catch (parseError) {
+  // Получение и валидация тела запроса
+  let body: CreateOfferData;
+  try {
+    const text = await request.text()
+    if (!text.trim()) {
       return NextResponse.json(
-        { error: "Неверный формат JSON в теле запроса" },
+        { error: "Тело запроса не может быть пустым" },
         { status: 400 }
       )
     }
+    body = JSON.parse(text)
+  } catch (parseError) {
+    return NextResponse.json(
+      { error: "Неверный формат JSON в теле запроса" },
+      { status: 400 }
+    )
+  }
 
-    // Расширенная валидация данных
-    const validation = validateCreateData(body)
-    if (!validation.isValid) {
-      return NextResponse.json(
-        { error: validation.errors.join(", ") },
-        { status: 400 }
-      )
-    }
+  // Расширенная валидация данных
+  const validation = validateCreateData(body)
+  if (!validation.isValid) {
+    return NextResponse.json(
+      { error: validation.errors.join(", ") },
+      { status: 400 }
+    )
+  }
 
+  try {
     // Проверка дубликатов по названию
-    const { data: existingOffers } = await supabase
+    const { data: existingOffers, error: checkError } = await supabase
       .from("commercial_offers")
       .select("id")
       .ilike("title", body.title.trim())
       .limit(1)
+
+    if (checkError) {
+      console.error("Supabase duplicate check error:", checkError)
+      return NextResponse.json(
+        { error: "Ошибка при проверке дубликатов" },
+        { status: 500 }
+      )
+    }
 
     if (existingOffers && existingOffers.length > 0) {
       return NextResponse.json(
@@ -136,18 +200,17 @@ export async function POST(request: NextRequest) {
       vat_included: Boolean(body.vatIncluded),
       diagnostics_passed: Boolean(body.diagnosticsPassed),
       image_url: body.imageUrl?.trim() || null,
-      specifications: body.specifications || null,
+      specifications: body.specifications || {},
       currency: "RUB",
       equipment: body.equipment?.trim() || null,
       lease: body.lease?.trim() || null,
       created_at: now,
       updated_at: now,
-      // Дополнительные поля
       is_active: true,
       is_featured: false,
-      // Поля для Telegram
       post_to_telegram: Boolean(body.postToTelegram),
-      channel_ids: Array.isArray(body.channelIds) ? body.channelIds : [],
+      channel_ids: Array.isArray(body.channelIds) ? 
+        body.channelIds.filter(id => typeof id === 'string' && id.trim()).slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX) : [],
       telegram_posted: false,
       telegram_message_id: null
     }
@@ -233,7 +296,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 })
 
   } catch (error) {
-    console.error("Error creating commercial offer:", error)
+    console.error("Unexpected error creating commercial offer:", error)
     
     return NextResponse.json(
       { error: "Внутренняя ошибка сервера при создании коммерческого предложения" },
@@ -252,36 +315,21 @@ async function publishToTelegram(offerId: string, channelIds: string[], origin: 
       },
       body: JSON.stringify({
         offerId: offerId,
-        channelIds: channelIds
+        channelIds: channelIds.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
       })
     })
 
     if (!telegramResponse.ok) {
-      throw new Error(`Telegram API responded with status: ${telegramResponse.status}`)
+      const errorText = await telegramResponse.text()
+      throw new Error(`Telegram API responded with status: ${telegramResponse.status} - ${errorText}`)
     }
 
     const result = await telegramResponse.json()
     
     // Обновляем статус публикации в базе данных
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          },
-        },
-      }
-    )
+    const supabase = createSupabaseClient()
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('commercial_offers')
       .update({
         telegram_posted: true,
@@ -289,6 +337,10 @@ async function publishToTelegram(offerId: string, channelIds: string[], origin: 
         updated_at: new Date().toISOString()
       })
       .eq('id', offerId)
+
+    if (updateError) {
+      console.error('Error updating Telegram status:', updateError)
+    }
 
     console.log(`Telegram publication successful for offer: ${offerId}`)
 
@@ -298,43 +350,34 @@ async function publishToTelegram(offerId: string, channelIds: string[], origin: 
   }
 }
 
-// Вспомогательная функция для валидации URL
-function isValidUrl(url: string): boolean {
-  if (!url) return false
-  try {
-    const urlObj = new URL(url)
-    return ['http:', 'https:'].includes(urlObj.protocol)
-  } catch {
-    return false
-  }
-}
-
 // GET для получения списка предложений с фильтрацией
 export async function GET(request: NextRequest) {
+  let supabase;
+  
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          },
-        },
-      }
+    supabase = createSupabaseClient()
+  } catch (error) {
+    console.error("Supabase client initialization error:", error)
+    return NextResponse.json(
+      { error: "Ошибка инициализации базы данных" },
+      { status: 500 }
     )
+  }
 
+  try {
     const url = new URL(request.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'))
-    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '10')))
+    
+    // Валидация параметров пагинации
+    const page = Math.max(1, Math.min(VALIDATION_LIMITS.PAGE_MAX, parseInt(url.searchParams.get('page') || '1')))
+    const limit = Math.max(1, Math.min(VALIDATION_LIMITS.LIMIT_MAX, parseInt(url.searchParams.get('limit') || '10')))
     const offset = (page - 1) * limit
-    const search = url.searchParams.get('search')?.trim()
+    
+    // Валидация поискового запроса
+    let search = url.searchParams.get('search')?.trim() || null
+    if (search && search.length > VALIDATION_LIMITS.SEARCH_MAX_LENGTH) {
+      search = search.substring(0, VALIDATION_LIMITS.SEARCH_MAX_LENGTH)
+    }
+
     const isActive = url.searchParams.get('is_active')
     const isFeatured = url.searchParams.get('is_featured')
 
@@ -387,7 +430,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: data,
+      data: data || [],
       pagination: {
         page,
         limit,
@@ -397,17 +440,42 @@ export async function GET(request: NextRequest) {
         hasPrev: page > 1
       },
       filters: {
-        search: search || null,
+        search: search,
         isActive: isActive || null,
         isFeatured: isFeatured || null
       }
     })
 
   } catch (error) {
-    console.error("Error fetching commercial offers:", error)
+    console.error("Unexpected error fetching commercial offers:", error)
     return NextResponse.json(
       { error: "Внутренняя ошибка сервера при получении списка предложений" },
       { status: 500 }
     )
+  }
+}
+
+// Вспомогательная функция для валидации URL
+function isValidUrl(url: string): boolean {
+  if (!url) return false
+  try {
+    const urlObj = new URL(url)
+    const allowedProtocols = ['http:', 'https:']
+    const allowedDomains = ['localhost'] // Добавьте нужные домены при необходимости
+    
+    if (!allowedProtocols.includes(urlObj.protocol)) {
+      return false
+    }
+    
+    // Дополнительная проверка домена (опционально)
+    if (!allowedDomains.includes(urlObj.hostname) && 
+        !urlObj.hostname.includes('.') && 
+        urlObj.hostname !== 'localhost') {
+      return false
+    }
+    
+    return true
+  } catch {
+    return false
   }
 }
