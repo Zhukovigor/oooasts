@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { parseCommercialOfferText, CommercialOfferData } from "@/lib/commercial-offer-parser"
+import { parseCommercialOfferText } from "@/lib/commercial-offer-parser"
+
+// Расширяем интерфейс для включения imageUrl
+interface ExtendedCommercialOfferData extends ReturnType<typeof parseCommercialOfferText> {
+  imageUrl?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,16 +31,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Поддержка двух режимов: прямой ввод данных или парсинг из текста
-    let offerData: CommercialOfferData
+    let offerData: ExtendedCommercialOfferData
 
     if (body.rawText) {
       // Режим парсинга из текста
-      offerData = parseCommercialOfferText(body.rawText)
+      offerData = {
+        ...parseCommercialOfferText(body.rawText),
+        imageUrl: body.imageUrl
+      }
       
       // Дополнительные данные из запроса имеют приоритет над распарсенными
       if (body.title) offerData.title = body.title
       if (body.price) offerData.price = body.price
-      if (body.imageUrl) offerData.imageUrl = body.imageUrl
     } else {
       // Прямой ввод данных
       offerData = {
@@ -50,6 +57,7 @@ export async function POST(request: NextRequest) {
         vatIncluded: body.vatIncluded,
         diagnosticsPassed: body.diagnosticsPassed,
         specifications: body.specifications,
+        imageUrl: body.imageUrl,
       }
     }
 
@@ -71,18 +79,18 @@ export async function POST(request: NextRequest) {
     // Подготовка данных для вставки
     const insertData = {
       title: offerData.title,
-      description: offerData.equipment || "", // Используем equipment как описание
+      description: offerData.equipment || "",
       equipment: offerData.equipment,
       model: offerData.model,
       price: offerData.price,
-      price_with_vat: offerData.priceWithVat ?? true, // По умолчанию с НДС
+      price_with_vat: offerData.priceWithVat ?? true,
       currency: "RUB",
       availability: offerData.availability || "В наличии",
       payment_type: offerData.paymentType || "Безналичная оплата",
       lease: offerData.lease ?? false,
       vat_included: offerData.vatIncluded ?? true,
       diagnostics_passed: offerData.diagnosticsPassed ?? false,
-      image_url: body.imageUrl || null,
+      image_url: offerData.imageUrl || body.imageUrl || null,
       specifications: offerData.specifications || {},
       is_active: true,
       is_featured: false,
@@ -104,13 +112,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Логирование успешного создания
     console.log(`[Commercial Offers] Created offer: ${data.id} - ${data.title}`)
 
     return NextResponse.json({ 
       success: true,
       data,
-      parsedData: body.rawText ? offerData : undefined // Возвращаем распарсенные данные для отладки
+      parsedData: body.rawText ? offerData : undefined
     })
 
   } catch (error) {
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Добавляем GET для получения списка коммерческих предложений
+// GET для получения списка коммерческих предложений
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies()

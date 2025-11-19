@@ -12,6 +12,7 @@ export interface CommercialOfferData {
   vatIncluded?: boolean;
   diagnosticsPassed?: boolean;
   specifications?: Record<string, string>;
+  imageUrl?: string;
 }
 
 // Расширенный словарь для распознавания различных типов техники и характеристик
