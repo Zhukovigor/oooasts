@@ -5,152 +5,84 @@ export interface CommercialOfferData {
   equipment?: string;
   model?: string;
   price?: number;
-  priceWithVat?: number;
+  priceWithVat?: boolean;
   availability?: string;
   paymentType?: string;
+  lease?: boolean;
   vatIncluded?: boolean;
   diagnosticsPassed?: boolean;
-  specifications?: Record<string, any>;
-  engine?: Record<string, string>;
-  wheelFormula?: string;
-  suspension?: string;
-  year?: number;
-  mileage?: string;
+  specifications?: Record<string, string>;
 }
 
-const categories = {
-  engine: ['двигатель', 'двигатель', 'мощность', 'мощностьдвигателя', 'топливо', 'типтоплива'],
-  specifications: ['модель', 'марка', 'год', 'годвыпуска', 'пробег', 'тип', 'типкабины', 'цвет', 'цветкузова'],
-  suspension: ['подвеска', 'типподвески', 'колеснаяформула'],
-  brakes: ['тормоза', 'типтормозов'],
-  transmission: ['коробка', 'типкпп', 'кпп'],
+const categoryKeywords = {
+  engine: ['двигатель', 'мощность', 'топливо', 'евро'],
+  basic: ['модель', 'марка', 'год', 'пробег', 'тип'],
+  chassis: ['колеснаяформула', 'подвеска', 'тормоза', 'кпп'],
+  cabin: ['кабина', 'цвет', 'место'],
 }
 
 export function parseCommercialOfferText(text: string): CommercialOfferData {
   const data: CommercialOfferData = {
     specifications: {},
-    engine: {},
   }
 
-  // Remove extra whitespace and normalize
   const normalizedText = text.replace(/\s+/g, ' ').toLowerCase().trim()
-
-  // Parse title (first line usually)
   const lines = text.split('\n').filter(l => l.trim())
+
+  // Извлечение названия и типа техники
   if (lines.length > 0) {
-    data.title = lines[0].trim()
+    data.title = lines.find(l => l.toLowerCase().includes('volvo') || l.toLowerCase().includes('кomatsu') || l.toLowerCase().includes('fh') || l.toLowerCase().includes('cam'))?.trim() || lines[0].trim()
   }
 
-  // Parse price
+  // Извлечение типа техники
+  const equipmentLine = lines.find(l => l.toLowerCase().includes('тягач') || l.toLowerCase().includes('экскаватор') || l.toLowerCase().includes('погрузчик'))
+  if (equipmentLine) {
+    data.equipment = equipmentLine.trim()
+  }
+
+  // Извлечение цены
   const priceMatch = normalizedText.match(/стоимость[^:]*:\s*([\d\s]+)\s*руб/i)
   if (priceMatch) {
     data.price = parseInt(priceMatch[1].replace(/\s/g, ''))
   }
 
-  // Parse price with VAT
-  const priceVatMatch = normalizedText.match(/стоимостьсндс[^:]*:\s*([\d\s]+)\s*руб/i)
-  if (priceVatMatch) {
-    data.priceWithVat = parseInt(priceVatMatch[1].replace(/\s/g, ''))
-  }
+  // Условия покупки
+  if (normalizedText.includes('сндс')) data.priceWithVat = true
+  if (normalizedText.includes('вналичии')) data.availability = 'В наличии'
+  if (normalizedText.includes('лизинг')) data.lease = true
+  if (normalizedText.includes('безналичная')) data.paymentType = 'Безналичная'
+  if (normalizedText.includes('диагностикапройдена')) data.diagnosticsPassed = true
 
-  // Parse availability
-  if (normalizedText.includes('вналичии')) {
-    data.availability = 'В наличии'
-  } else if (normalizedText.includes('заказ')) {
-    data.availability = 'На заказ'
-  }
-
-  // Parse payment type
-  if (normalizedText.includes('лизинг')) {
-    data.paymentType = 'Лизинг'
-  }
-  if (normalizedText.includes('безналичная')) {
-    data.paymentType = 'Безналичные'
-  }
-
-  // Parse VAT
-  data.vatIncluded = normalizedText.includes('сндс')
-
-  // Parse diagnostics
-  data.diagnosticsPassed = normalizedText.includes('диагностикапройдена')
-
-  // Parse specifications - extract key:value pairs
-  const specRegex = /([а-яёa-z\s]+):\s*([^\n:]+)(?=\n|$)/gi
+  // Парсинг характеристик
+  const specRegex = /([а-яё\s]+):\s*([^\n:]+)(?=\n|$)/gi
   let match
-  
+  const specs: Record<string, string> = {}
+
   while ((match = specRegex.exec(text)) !== null) {
-    const key = match[1].trim().toLowerCase().replace(/\s+/g, '')
+    const key = match[1].trim()
     const value = match[2].trim()
-
-    // Categorize the specification
-    if (categories.engine.some(c => key.includes(c))) {
-      data.engine![key] = value
-    } else {
-      data.specifications![key] = value
+    
+    if (key && value && value.length < 100) {
+      specs[key] = value
     }
-
-    // Extract specific fields
-    if (key.includes('модель')) data.model = value
-    if (key.includes('марка')) data.equipment = value
-    if (key.includes('год')) data.year = parseInt(value)
-    if (key.includes('пробег')) data.mileage = value
-    if (key.includes('колеснаяформула')) data.wheelFormula = value
-    if (key.includes('типподвески')) data.suspension = value
   }
 
+  data.specifications = specs
   return data
 }
 
-export function formatSpecificationsForDisplay(
-  specs: Record<string, any>
-): { category: string; items: Array<{ key: string; value: string }> }[] {
-  const result: { category: string; items: Array<{ key: string; value: string }> }[] = []
-
-  const categoryMap: Record<string, string[]> = {
-    'Двигатель': ['двигатель', 'мощность', 'топливо', 'мощностьдвигателя', 'типтоплива'],
-    'Основные параметры': ['модель', 'марка', 'год', 'пробег', 'тип'],
-    'Ходовая часть': ['колеснаяформула', 'подвеска', 'типподвески', 'тормоза'],
-    'Кабина': ['типкабины', 'цвет', 'цветкузова'],
-    'КПП': ['кпп', 'типкпп'],
-  }
-
-  for (const [category, keys] of Object.entries(categoryMap)) {
-    const items: Array<{ key: string; value: string }> = []
-
-    for (const key of keys) {
-      for (const [specKey, specValue] of Object.entries(specs)) {
-        if (specKey.toLowerCase().includes(key.toLowerCase())) {
-          items.push({
-            key: humanizeKey(specKey),
-            value: String(specValue),
-          })
-        }
-      }
+export function formatSpecsForTable(specs: Record<string, string>): Array<[string, string][]> {
+  const entries = Object.entries(specs)
+  const rows: Array<[string, string][]> = []
+  
+  for (let i = 0; i < entries.length; i += 2) {
+    const row: [string, string][] = []
+    row.push(entries[i])
+    if (i + 1 < entries.length) {
+      row.push(entries[i + 1])
     }
-
-    if (items.length > 0) {
-      result.push({ category, items })
-    }
+    rows.push(row)
   }
-
-  return result
-}
-
-function humanizeKey(key: string): string {
-  const humanMap: Record<string, string> = {
-    модель: 'Модель',
-    марка: 'Марка',
-    год: 'Год выпуска',
-    пробег: 'Пробег',
-    типкабины: 'Тип кабины',
-    цветкузова: 'Цвет кузова',
-    мощностьдвигателя: 'Мощность двигателя',
-    типтоплива: 'Тип топлива',
-    колеснаяформула: 'Колесная формула',
-    типподвески: 'Тип подвески',
-    тормоза: 'Тормоза',
-    типкпп: 'Тип КПП',
-  }
-
-  return humanMap[key.toLowerCase()] || key.charAt(0).toUpperCase() + key.slice(1)
+  
+  return rows
 }

@@ -1,10 +1,12 @@
+// Добавлена таблица на два столбца для характеристик
+
 "use client"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { parseCommercialOfferText } from "@/app/lib/commercial-offer-parser"
+import { parseCommercialOfferText, formatSpecsForTable } from "@/app/lib/commercial-offer-parser"
 import type { CommercialOfferData } from "@/app/lib/commercial-offer-parser"
 
 export default function CommercialOfferForm() {
@@ -72,6 +74,8 @@ export default function CommercialOfferForm() {
     window.open(`/api/commercial-offers/${offerId}/pdf`, "_blank")
   }
 
+  const specsRows = parsedData ? formatSpecsForTable(parsedData.specifications || {}) : []
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
@@ -89,7 +93,7 @@ export default function CommercialOfferForm() {
                 <Textarea
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Вставьте полный текст с информацией о технике, ценой, оплатой и характеристиками..."
+                  placeholder="Вставьте полный текст с информацией о технике..."
                   className="min-h-80 p-4 border border-gray-300 rounded-lg font-mono text-sm resize-none"
                 />
               </div>
@@ -144,58 +148,55 @@ export default function CommercialOfferForm() {
 
           {/* Right side - Preview */}
           {showParsed && parsedData && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр</h2>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр КП</h2>
 
               <div className="space-y-6">
-                {/* Title */}
-                {parsedData.title && (
-                  <div>
-                    <h3 className="text-3xl font-bold text-gray-900 leading-tight">{parsedData.title}</h3>
-                  </div>
-                )}
+                {/* Header */}
+                <div className="border-b-2 border-gray-300 pb-4">
+                  <div className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-1">Коммерческое предложение</div>
+                  {parsedData.equipment && <div className="text-lg font-bold text-gray-700 mb-2">{parsedData.equipment}</div>}
+                  {parsedData.title && <div className="text-2xl font-bold text-gray-900">{parsedData.title}</div>}
+                </div>
 
-                {/* Price Box */}
-                {parsedData.price && (
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-200">
-                    <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-2">Стоимость техники:</div>
-                    <div className="text-4xl font-bold text-blue-900 mb-2">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
-                    {parsedData.priceWithVat && (
-                      <div className="text-sm text-blue-700">Стоимость с НДС: <span className="font-semibold">{parsedData.priceWithVat.toLocaleString('ru-RU')} руб.</span></div>
-                    )}
-                  </div>
-                )}
-
-                {/* Conditions */}
-                <div className="space-y-2">
-                  {parsedData.availability && (
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-600">Наличие:</span>
-                      <span className="text-sm font-semibold text-gray-900">{parsedData.availability}</span>
+                {/* Image and Price Row */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Image */}
+                  {imageUrl && (
+                    <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+                      <img src={imageUrl || "/placeholder.svg"} alt="техника" className="w-full h-64 object-cover" />
                     </div>
                   )}
-                  {parsedData.paymentType && (
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-600">Оплата:</span>
-                      <span className="text-sm font-semibold text-gray-900">{parsedData.paymentType}</span>
-                    </div>
-                  )}
-                  {parsedData.diagnosticsPassed && (
-                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-200">
-                      <span className="text-sm font-medium text-green-700">✓ Диагностика пройдена</span>
+
+                  {/* Price Box */}
+                  {parsedData.price && (
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-300 flex flex-col justify-center">
+                      <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-2">Стоимость техники</div>
+                      <div className="text-3xl font-bold text-blue-900 mb-4">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
+                      <div className="space-y-2 text-sm text-blue-800">
+                        {parsedData.priceWithVat && <div>✓ Стоимость с НДС</div>}
+                        {parsedData.availability && <div>✓ {parsedData.availability}</div>}
+                        {parsedData.lease && <div>✓ Продажа в лизинг</div>}
+                        {parsedData.paymentType && <div>✓ {parsedData.paymentType}</div>}
+                        {parsedData.diagnosticsPassed && <div>✓ Диагностика пройдена</div>}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Specifications */}
-                {parsedData.specifications && Object.keys(parsedData.specifications).length > 0 && (
+                {/* Specifications Table - 2 columns */}
+                {specsRows.length > 0 && (
                   <div>
-                    <h4 className="text-lg font-bold text-gray-900 mb-3">Характеристики</h4>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {Object.entries(parsedData.specifications).map(([key, value]) => (
-                        <div key={key} className="flex justify-between py-2 px-3 border-b border-gray-200">
-                          <span className="text-sm text-gray-600">{key}:</span>
-                          <span className="text-sm font-semibold text-gray-900">{String(value)}</span>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-300 pb-2">Технические характеристики</h3>
+                    <div className="space-y-3">
+                      {specsRows.map((row, rowIndex) => (
+                        <div key={rowIndex} className="grid grid-cols-2 gap-6">
+                          {row.map(([key, value], colIndex) => (
+                            <div key={colIndex} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{key}</div>
+                              <div className="text-sm font-semibold text-gray-900">{value}</div>
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>
@@ -203,7 +204,7 @@ export default function CommercialOfferForm() {
                 )}
 
                 {/* Buttons */}
-                <div className="flex flex-col gap-3 pt-4">
+                <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
                   <Button
                     onClick={handleSave}
                     disabled={loading}
@@ -216,7 +217,7 @@ export default function CommercialOfferForm() {
                       onClick={handleDownloadPDF}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
                     >
-                      📥 Скачать PDF
+                      Скачать PDF
                     </Button>
                   )}
                 </div>
