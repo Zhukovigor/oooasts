@@ -12,169 +12,183 @@ export interface CommercialOfferData {
   vatIncluded?: boolean;
   diagnosticsPassed?: boolean;
   specifications?: Record<string, string>;
-  photoUrl?: string;
 }
 
-// Расширенные паттерны для лучшего покрытия
+// Расширенные ключевые слова для лучшего распознавания
+const categoryKeywords = {
+  engine: ['двигатель', 'мощность', 'топливо', 'евро', 'объем', 'л.с.', 'крутящий'],
+  basic: ['модель', 'марка', 'год', 'пробег', 'тип', 'состояние', 'vin'],
+  chassis: ['колесная', 'подвеска', 'тормоза', 'кпп', 'коробка', 'трансмиссия', 'мост'],
+  cabin: ['кабина', 'цвет', 'место', 'спальное', 'кондиционер', 'круиз', 'обогрев'],
+  dimensions: ['габариты', 'длина', 'ширина', 'высота', 'масса', 'грузоподъемность']
+}
+
+// Улучшенные регулярные выражения
 const patterns = {
-  title: /(?:КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ|КОРПЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ)[\s\S]*?([^\n]+(?:\n[^\n]+){0,2})/i,
-  price: /(?:стоимость|цена)[^:\d]*:?\s*([\d\s]+(?:\s?руб)?)/i,
-  priceExact: /([\d\s]{4,})\s*руб/i,
-  priceWithVat: /(?:с\s*ндс|ндс\s*включен|цена\s*с\s*ндс|стоимость\s*с\s*ндс)/i,
+  price: /(?:стоимость|цена)[^:\d]*:?\s*([\d\s]+)\s*руб/i,
+  priceWithVat: /(?:с\s*ндс|ндс\s*включен|цена\s*с\s*ндс)/i,
   availability: /(?:в\s*наличии|доступн|готов\s*к\s*отгрузке)/i,
   lease: /(?:лизинг|аренда|рассрочк)/i,
   paymentType: /(?:безналичн|нал\s*\/\s*безнал|перевод|карт)/i,
   diagnostics: /(?:диагностика\s*пройдена|проверен|тех\s*осмотр)/i,
-  equipment: /(?:седельный\s*тягач|экскаватор|погрузчик|бетонораспределитель|самосвал|кран)/i,
-  year: /(?:год|г\.?в?\.?)[^:\d]*:?\s*(\d{4})/i,
-  mileage: /(?:пробег|километраж)[^:\d]*:?\s*([\d\s]+)\s*км/i,
-  photoUrl: /(https?:\/\/[^\s]+)/i
-} as const;
-
-const COMMON_BRANDS = ['volvo', 'scania', 'man', 'daf', 'renault', 'iveco', 'mercedes', 'kamaz'];
-const COMMON_SPECS = [
-  'год выпуска', 'пробег', 'тип кабины', 'двигатель', 'мощность двигателя', 
-  'вид топлива', 'колесная формула', 'тип подвески', 'тормоза', 'тип кпп',
-  'марка', 'модель', 'кабина', 'топливо', 'мощность', 'подвеска', 'кпп'
-];
+  year: /(?:год|г\.в\.|выпуск)[^:\d]*:?\s*(\d{4})/i,
+  mileage: /(?:пробег|километраж)[^:\d]*:?\s*([\d\s]+)\s*(?:км|km)/i,
+  model: /(?:модель)[^:]*:?\s*([^\n,|]+)/i,
+  brand: /(?:марка)[^:]*:?\s*([^\n,|]+)/i,
+  equipment: /(?:седельный\s*тягач|экскаватор|погрузчик|бетонораспределитель|самосвал|кран)/i
+}
 
 export function parseCommercialOfferText(text: string): CommercialOfferData {
   const data: CommercialOfferData = {
     specifications: {},
-  };
-
-  const normalizedText = text.replace(/\s+/g, ' ').toLowerCase().trim();
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l && l !== 'я' && l.length > 1);
-
-  // Извлечение всех данных
-  extractTitleAndEquipment(data, lines, normalizedText);
-  extractPricingAndConditions(data, normalizedText, text);
-  extractSpecifications(data, text, lines);
-  extractPhotoUrl(data, text);
-
-  // Валидация обязательных полей для сохранения в БД
-  validateRequiredFields(data);
-
-  return data;
-}
-
-function extractTitleAndEquipment(data: CommercialOfferData, lines: string[], normalizedText: string) {
-  // Поиск в заголовке
-  const titleMatch = normalizedText.match(patterns.title);
-  if (titleMatch && titleMatch[1]) {
-    data.title = titleMatch[1].trim();
   }
 
-  // Поиск оборудования
-  const equipmentMatch = normalizedText.match(patterns.equipment);
-  if (equipmentMatch) {
-    data.equipment = equipmentMatch[0];
-  }
+  const normalizedText = text.replace(/\s+/g, ' ').toLowerCase().trim()
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l && l !== 'я')
 
-  // Поиск по брендам в строках
-  const brandLine = lines.find(line => 
-    COMMON_BRANDS.some(brand => line.toLowerCase().includes(brand))
-  );
+  // Извлечение основных данных
+  extractBasicInfo(data, lines, normalizedText)
   
-  if (brandLine && !data.title) {
-    data.title = brandLine.trim();
+  // Извлечение цены и условий
+  extractPricingInfo(data, normalizedText)
+  
+  // Извлечение характеристик
+  extractSpecifications(data, text)
+
+  return data
+}
+
+function extractBasicInfo(data: CommercialOfferData, lines: string[], normalizedText: string) {
+  // Поиск оборудования/типа техники
+  const equipmentMatch = normalizedText.match(patterns.equipment)
+  if (equipmentMatch) {
+    data.equipment = equipmentMatch[0]
   }
 
-  // Извлечение модели из заголовка
-  if (data.title) {
-    const modelMatch = data.title.match(/(volvo|scania|man|daf|renault|iveco|mercedes|kamaz)\s+([a-z0-9\s\-]+)/i);
-    if (modelMatch) {
-      data.model = modelMatch[2].trim();
+  // Поиск в первых строках для названия
+  const firstLines = lines.slice(0, 3)
+  
+  // Популярные бренды для поиска
+  const brands = [
+    'volvo', 'komatsu', 'cat', 'caterpillar', 'scania', 'man', 'daf', 'renault', 
+    'iveco', 'mercedes', 'benz', 'bmw', 'audi', 'toyota', 'nissan', 'mitsubishi'
+  ]
+
+  // Поиск бренда и модели в первых строках
+  for (const line of firstLines) {
+    const lowerLine = line.toLowerCase()
+    
+    // Проверяем на наличие брендов
+    for (const brand of brands) {
+      if (lowerLine.includes(brand)) {
+        data.title = line.trim()
+        
+        // Пытаемся извлечь модель
+        const modelParts = line.split(/\s+/)
+        const brandIndex = modelParts.findIndex(part => part.toLowerCase().includes(brand))
+        if (brandIndex !== -1 && brandIndex + 1 < modelParts.length) {
+          data.model = modelParts[brandIndex + 1]
+        }
+        break
+      }
     }
+    
+    if (data.title) break
   }
 
-  // Если заголовка нет, используем первую значимую строку
+  // Если не нашли бренд, используем первую строку как заголовок
   if (!data.title && lines.length > 0) {
-    data.title = lines.find(line => line.length > 5 && !line.includes('---')) || lines[0];
+    data.title = lines[0].trim()
+  }
+
+  // Если есть оборудование но нет в заголовке, добавляем
+  if (data.equipment && data.title && !data.title.toLowerCase().includes(data.equipment.toLowerCase())) {
+    data.title = `${data.equipment} ${data.title}`
   }
 }
 
-function extractPricingAndConditions(data: CommercialOfferData, normalizedText: string, originalText: string) {
-  // Извлечение цены - сначала точный поиск
-  const priceExactMatch = originalText.match(patterns.priceExact);
-  if (priceExactMatch) {
-    const priceStr = priceExactMatch[1].replace(/\s/g, '');
-    if (priceStr && priceStr !== '1' && parseInt(priceStr) > 1000) {
-      data.price = parseInt(priceStr);
+function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
+  // Извлечение цены
+  const priceMatch = normalizedText.match(patterns.price)
+  if (priceMatch) {
+    const priceStr = priceMatch[1].replace(/\s/g, '')
+    if (priceStr && priceStr !== '1') { // Игнорируем явно ошибочную цену 1 рубль
+      data.price = parseInt(priceStr)
     }
   }
 
-  // Если точный поиск не сработал, используем общий паттерн
+  // Альтернативные форматы цены
   if (!data.price) {
-    const priceMatch = normalizedText.match(patterns.price);
-    if (priceMatch && priceMatch[1]) {
-      const priceStr = priceMatch[1].replace(/\s/g, '');
-      if (priceStr && priceStr !== '1' && parseInt(priceStr) > 1000) {
-        data.price = parseInt(priceStr);
+    const altPriceMatch = normalizedText.match(/([\d\s]+)\s*руб/i)
+    if (altPriceMatch && !normalizedText.includes('пробег')) {
+      const priceStr = altPriceMatch[1].replace(/\s/g, '')
+      if (priceStr && priceStr !== '1') {
+        data.price = parseInt(priceStr)
       }
     }
   }
 
   // Условия покупки
-  data.priceWithVat = patterns.priceWithVat.test(normalizedText);
-  data.vatIncluded = data.priceWithVat;
+  if (patterns.priceWithVat.test(normalizedText)) {
+    data.priceWithVat = true
+    data.vatIncluded = true
+  }
   
   if (patterns.availability.test(normalizedText)) {
-    data.availability = 'В наличии';
+    data.availability = 'В наличии'
   }
   
-  data.lease = patterns.lease.test(normalizedText);
+  if (patterns.lease.test(normalizedText)) {
+    data.lease = true
+  }
   
   if (patterns.paymentType.test(normalizedText)) {
-    data.paymentType = 'Безналичная оплата с НДС';
+    data.paymentType = 'Безналичная оплата с НДС'
   }
   
-  data.diagnosticsPassed = patterns.diagnostics.test(normalizedText);
+  if (patterns.diagnostics.test(normalizedText)) {
+    data.diagnosticsPassed = true
+  }
 }
 
-function extractSpecifications(data: CommercialOfferData, text: string, lines: string[]) {
-  const specs: Record<string, string> = {};
+function extractSpecifications(data: CommercialOfferData, text: string) {
+  const specs: Record<string, string> = {}
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l && l !== 'я')
   
-  // 1. Парсинг характеристик через regex
-  const specRegex = /([а-яё\s\-]+):\s*([^\n:]+)(?=\n|$)/gi;
-  let match;
+  // Сначала извлекаем табличные данные
+  extractTableData(specs, lines)
   
-  while ((match = specRegex.exec(text)) !== null) {
-    const key = match[1].trim().toLowerCase();
-    const value = match[2].trim();
-    
-    if (isValidSpec(key) && isValidValue(value)) {
-      const normalizedKey = normalizeSpecKey(key);
-      specs[normalizedKey] = value;
-    }
-  }
+  // Затем обычные ключ-значения
+  extractKeyValueFromText(specs, lines)
+  
+  // И через регулярки
+  extractWithRegex(specs, text)
+  
+  data.specifications = specs
+}
 
-  // 2. Парсинг табличных данных
-  for (const line of lines) {
+function extractTableData(specs: Record<string, string>, lines: string[]) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    
+    // Обработка строк таблицы вида "Марка | VOLVO"
     if (line.includes('|')) {
-      const parts = line.split('|').map(p => p.trim()).filter(p => p);
-      
-      if (parts.length === 2) {
-        const key = parts[0].toLowerCase();
-        const value = parts[1];
-        if (isValidSpec(key) && isValidValue(value)) {
-          const normalizedKey = normalizeSpecKey(key);
-          if (!specs[normalizedKey]) {
-            specs[normalizedKey] = value;
-          }
+      const tableParts = line.split('|').map(part => part.trim()).filter(part => part)
+      if (tableParts.length >= 2) {
+        const key = tableParts[0]
+        const value = tableParts[1]
+        if (isValidKey(key) && isValidValue(value) && !specs[key]) {
+          specs[key] = value
         }
-      }
-      
-      // Обработка пар ключ-значение в одной строке
-      if (parts.length >= 4) {
-        for (let i = 0; i < parts.length; i += 2) {
-          if (i + 1 < parts.length) {
-            const key = parts[i].toLowerCase();
-            const value = parts[i + 1];
-            if (isValidSpec(key) && isValidValue(value)) {
-              const normalizedKey = normalizeSpecKey(key);
-              if (!specs[normalizedKey]) {
-                specs[normalizedKey] = value;
+        
+        // Обработка пар в одной строке таблицы
+        if (tableParts.length >= 4) {
+          for (let j = 0; j < tableParts.length; j += 2) {
+            if (j + 1 < tableParts.length) {
+              const tableKey = tableParts[j]
+              const tableValue = tableParts[j + 1]
+              if (isValidKey(tableKey) && isValidValue(tableValue) && !specs[tableKey]) {
+                specs[tableKey] = tableValue
               }
             }
           }
@@ -182,143 +196,166 @@ function extractSpecifications(data: CommercialOfferData, text: string, lines: s
       }
     }
   }
+}
 
-  // 3. Извлечение специфических характеристик
-  const yearMatch = text.match(patterns.year);
-  if (yearMatch && yearMatch[1]) {
-    specs['Год выпуска'] = yearMatch[1];
+function extractKeyValueFromText(specs: Record<string, string>, lines: string[]) {
+  for (let i = 0; i < lines.length; i++) {
+    const keyValue = extractKeyValue(lines, i)
+    if (keyValue && !specs[keyValue.key]) {
+      specs[keyValue.key] = keyValue.value
+      i = keyValue.nextIndex
+    }
   }
+}
 
-  const mileageMatch = text.match(patterns.mileage);
-  if (mileageMatch && mileageMatch[1]) {
-    specs['Пробег'] = mileageMatch[1].replace(/\s/g, '') + ' км';
+function extractKeyValue(lines: string[], startIndex: number): { key: string; value: string; nextIndex: number } | null {
+  if (startIndex >= lines.length) return null
+  
+  const line = lines[startIndex]
+  
+  // Сначала пробуем из одной строки
+  const singleLineMatch = extractFromSingleLine(line)
+  if (singleLineMatch) {
+    return {
+      key: singleLineMatch.key,
+      value: singleLineMatch.value,
+      nextIndex: startIndex
+    }
   }
-
-  // 4. Дополнительный поиск в строках
-  for (const line of lines) {
-    for (const spec of COMMON_SPECS) {
-      if (line.toLowerCase().includes(spec) && !specs[normalizeSpecKey(spec)]) {
-        const value = extractValueAfterColon(line, spec);
-        if (value && isValidValue(value)) {
-          specs[normalizeSpecKey(spec)] = value;
-        }
+  
+  // Затем из двух строк
+  if (startIndex < lines.length - 1) {
+    const key = line
+    const value = lines[startIndex + 1]
+    
+    if (isValidKey(key) && isValidValue(value)) {
+      return {
+        key: key.trim(),
+        value: value.trim(),
+        nextIndex: startIndex + 1
       }
     }
   }
-
-  data.specifications = specs;
+  
+  return null
 }
 
-function extractPhotoUrl(data: CommercialOfferData, text: string) {
-  const urlMatch = text.match(patterns.photoUrl);
-  if (urlMatch && urlMatch[1].includes('http')) {
-    data.photoUrl = urlMatch[1];
-  }
-}
-
-function extractValueAfterColon(line: string, key: string): string | null {
-  const lowerLine = line.toLowerCase();
-  const keyIndex = lowerLine.indexOf(key);
-  if (keyIndex !== -1) {
-    const afterKey = line.substring(keyIndex + key.length);
-    const colonIndex = afterKey.indexOf(':');
-    if (colonIndex !== -1) {
-      return afterKey.substring(colonIndex + 1).trim();
+function extractFromSingleLine(line: string): { key: string; value: string } | null {
+  const separators = [':', '|', ' - ', ' — ', ' • ', '   ']
+  
+  for (const separator of separators) {
+    const parts = line.split(separator).map(part => part.trim())
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      const key = parts[0]
+      const value = parts.slice(1).join(separator).trim()
+      
+      if (isValidKey(key) && isValidValue(value)) {
+        return { key, value }
+      }
     }
   }
-  return null;
+  
+  return null
 }
 
-function normalizeSpecKey(key: string): string {
-  const keyMap: Record<string, string> = {
-    'год': 'Год выпуска',
-    'пробег': 'Пробег',
-    'кабина': 'Тип кабины',
-    'двигатель': 'Двигатель',
-    'мощность': 'Мощность двигателя',
-    'топливо': 'Вид топлива',
-    'колесная формула': 'Колесная формула',
-    'подвеска': 'Тип подвески',
-    'тормоза': 'Тормоза',
-    'кпп': 'Тип КПП',
-    'марка': 'Марка',
-    'модель': 'Модель'
-  };
+function extractWithRegex(specs: Record<string, string>, text: string) {
+  const normalizedText = text.toLowerCase()
   
-  const normalized = key.toLowerCase().trim();
-  return keyMap[normalized] || key.charAt(0).toUpperCase() + key.slice(1);
+  // Извлечение года
+  const yearMatch = normalizedText.match(patterns.year)
+  if (yearMatch && !specs['Год выпуска']) {
+    specs['Год выпуска'] = yearMatch[1]
+  }
+  
+  // Извлечение пробега
+  const mileageMatch = normalizedText.match(patterns.mileage)
+  if (mileageMatch && !specs['Пробег']) {
+    specs['Пробег'] = mileageMatch[1].replace(/\s/g, '') + ' км'
+  }
+  
+  // Извлечение модели
+  const modelMatch = normalizedText.match(patterns.model)
+  if (modelMatch && !specs['Модель']) {
+    specs['Модель'] = modelMatch[1].trim()
+  }
+  
+  // Извлечение марки
+  const brandMatch = normalizedText.match(patterns.brand)
+  if (brandMatch && !specs['Марка']) {
+    specs['Марка'] = brandMatch[1].trim()
+  }
+  
+  // Дополнительные характеристики из текста
+  const additionalSpecs = [
+    { pattern: /двигатель\s*([^,\n]+)/i, key: 'Двигатель' },
+    { pattern: /мощность\s*([^,\n]+)/i, key: 'Мощность двигателя' },
+    { pattern: /подвеск[аи]\s*([^,\n]+)/i, key: 'Тип подвески' },
+    { pattern: /тормоз[аы]\s*([^,\n]+)/i, key: 'Тормоза' },
+    { pattern: /кабин[аы]\s*([^,\n]+)/i, key: 'Тип кабины' },
+    { pattern: /цвет\s*([^,\n]+)/i, key: 'Цвет кузова' },
+    { pattern: /топлив[оа]\s*([^,\n]+)/i, key: 'Вид топлива' },
+    { pattern: /колесная\s*формула\s*([^,\n]+)/i, key: 'Колесная формула' }
+  ]
+  
+  for (const spec of additionalSpecs) {
+    const match = normalizedText.match(spec.pattern)
+    if (match && !specs[spec.key]) {
+      specs[spec.key] = match[1].trim()
+    }
+  }
 }
 
-function isValidSpec(key: string): boolean {
-  if (!key || key.length < 2 || key.length > 50) return false;
-  if (key.match(/^\d+$/)) return false;
-  if (!key.match(/[а-яёa-z]/i)) return false;
+function isValidKey(key: string): boolean {
+  if (!key || key.length < 1 || key.length > 100) return false
+  if (key.match(/^\d+$/)) return false
+  if (!key.match(/[а-яёa-z]/i)) return false
+  if (key.toLowerCase().includes('коммерческое')) return false
+  if (key.toLowerCase().includes('стоимость')) return false
+  if (key.toLowerCase().includes('руб')) return false
+  if (key === 'я') return false
   
-  const invalidKeys = [
-    'я', 'коммерческое', 'предложение', 'стоимость', 'цена',
-    'руб', 'характеристики', 'техника', 'описание', 'сохранить',
-    'опубликовать', 'предпросмотр'
-  ];
-  
-  const lowerKey = key.toLowerCase();
-  return !invalidKeys.some(invalid => lowerKey.includes(invalid));
+  return true
 }
 
 function isValidValue(value: string): boolean {
-  if (!value || value.length < 1 || value.length > 100) return false;
-  if (value.toLowerCase().includes('характеристики')) return false;
-  if (value.toLowerCase().includes('техники')) return false;
-  if (value === 'я') return false;
-  if (value.match(/^[\.\,\-\s]+$/)) return false;
+  if (!value || value.length < 1 || value.length > 150) return false
+  if (value.toLowerCase().includes('характеристики')) return false
+  if (value.toLowerCase().includes('техники')) return false
+  if (value === 'я') return false
   
-  return true;
+  return true
 }
 
-function validateRequiredFields(data: CommercialOfferData): void {
-  // Добавляем обязательные поля, если они отсутствуют
-  if (!data.title && data.equipment && data.model) {
-    data.title = `${data.equipment} ${data.model}`;
-  }
-  
-  if (!data.specifications) {
-    data.specifications = {};
-  }
-}
-
-export function formatSpecsForTable(specs: Record<string, string>): Array<[string, string][]> {
-  if (!specs || Object.keys(specs).length === 0) {
-    return [];
-  }
-
-  const priorityKeys = ['Марка', 'Модель', 'Год выпуска', 'Пробег', 'Двигатель', 'Мощность двигателя'];
-  
+export function formatSpecsForTable(specs: Record<string, string>): Array<Array<[string, string]>> {
   const entries = Object.entries(specs)
     .filter(([k, v]) => k && v && k.trim() && v.trim())
-    .sort(([keyA], [keyB]) => {
-      const indexA = priorityKeys.indexOf(keyA);
-      const indexB = priorityKeys.indexOf(keyB);
+    .sort(([a], [b]) => {
+      const getCategory = (key: string) => {
+        const lowerKey = key.toLowerCase()
+        for (const [category, keywords] of Object.entries(categoryKeywords)) {
+          if (keywords.some(kw => lowerKey.includes(kw))) {
+            return category
+          }
+        }
+        return 'other'
+      }
       
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
-      
-      return keyA.localeCompare(keyB);
-    });
-
-  const rows: Array<[string, string][]> = [];
+      const categoryOrder = ['basic', 'engine', 'chassis', 'cabin', 'dimensions', 'other']
+      const catA = categoryOrder.indexOf(getCategory(a))
+      const catB = categoryOrder.indexOf(getCategory(b))
+      return catA - catB
+    })
+  
+  const rows: Array<Array<[string, string]>> = []
   
   for (let i = 0; i < entries.length; i += 2) {
-    const row: [string, string][] = [entries[i]];
+    const row: Array<[string, string]> = []
+    row.push(entries[i])
     if (i + 1 < entries.length) {
-      row.push(entries[i + 1]);
+      row.push(entries[i + 1])
     }
-    rows.push(row);
+    rows.push(row)
   }
   
-  return rows;
-}
-
-// Функция для проверки готовности данных к сохранению в БД
-export function isDataReadyForSave(data: CommercialOfferData): boolean {
-  return !!(data.title && data.price && data.specifications && Object.keys(data.specifications).length > 0);
+  return rows
 }
