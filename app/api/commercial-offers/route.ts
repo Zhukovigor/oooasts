@@ -293,11 +293,12 @@ class DataTransformer {
       is_active: data.isActive !== undefined ? Boolean(data.isActive) : true,
       is_featured: Boolean(data.isFeatured) || false,
       post_to_telegram: Boolean(data.postToTelegram),
+      // ИСПРАВЛЕНИЕ: используем пустой массив вместо null для text[]
       channel_ids: Array.isArray(data.channelIds) && data.channelIds.length > 0
         ? data.channelIds
             .filter((id: any) => typeof id === 'string' && id.trim())
             .slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
-        : null,
+        : [], // ← ВАЖНО: пустой массив вместо null
       telegram_posted: false,
       telegram_message_id: null
     };

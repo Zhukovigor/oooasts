@@ -14,7 +14,7 @@ export interface CommercialOfferData {
   specifications?: Record<string, string>;
 }
 
-// Только базовые паттерны для основных полей
+// Базовые паттерны для основных полей
 const patterns = {
   price: /(?:стоимость|цена)[^:\d]*:?\s*([\d\s]+(?:\s?\d{3})*)\s*руб/i,
   priceWithVat: /(?:с\s*ндс|ндс\s*включен|цена\s*с\s*ндс)/i,
@@ -38,7 +38,7 @@ export function parseCommercialOfferText(text: string): CommercialOfferData {
   extractPricingInfo(data, normalizedText);
   
   // УНИВЕРСАЛЬНОЕ извлечение ВСЕХ характеристик
-  extractAllSpecifications(data, lines, text);
+  extractAllSpecifications(data, text);
 
   return data;
 }
@@ -70,27 +70,34 @@ function extractBasicInfo(data: CommercialOfferData, lines: string[], normalized
   // Поиск оборудования
   const equipmentMatch = normalizedText.match(patterns.equipment);
   if (equipmentMatch) {
-    data.equipment = equipmentMatch[0];
+    data.equipment = capitalizeFirst(equipmentMatch[0]);
   }
 
-  // Поиск заголовка в первых строках
-  const firstLines = lines.slice(0, 5);
-  
-  for (const line of firstLines) {
-    if (line.length > 5 && line.length < 100 && !containsOnlySpecials(line)) {
+  // Поиск заголовка - ищем строку с брендом и моделью
+  for (const line of lines.slice(0, 5)) {
+    if (containsBrandAndModel(line)) {
       data.title = line.trim();
       break;
     }
   }
 
-  // Если не нашли заголовок, используем первую непустую строку
+  // Если не нашли подходящий заголовок, используем первую значимую строку
   if (!data.title && lines.length > 0) {
     data.title = lines[0].trim();
   }
+
+  // Извлекаем модель из заголовка
+  if (data.title) {
+    const modelMatch = data.title.match(/(volvo|scania|man|daf|renault|iveco|mercedes|kamaz)\s+([a-z0-9\s]+)/i);
+    if (modelMatch) {
+      data.model = modelMatch[2].trim();
+    }
+  }
 }
 
-function containsOnlySpecials(text: string): boolean {
-  return /^[^a-zA-Zа-яА-Я0-9]+$/.test(text);
+function containsBrandAndModel(line: string): boolean {
+  const brands = ['volvo', 'scania', 'man', 'daf', 'renault', 'iveco', 'mercedes', 'kamaz'];
+  return brands.some(brand => line.toLowerCase().includes(brand));
 }
 
 function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
@@ -100,17 +107,6 @@ function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
     const priceStr = priceMatch[1].replace(/\s/g, '');
     if (isValidPrice(priceStr)) {
       data.price = parseInt(priceStr);
-    }
-  }
-
-  // Альтернативные форматы цены
-  if (!data.price) {
-    const altPriceMatch = normalizedText.match(/([\d\s]+(?:\s?\d{3})*)\s*руб(?!.*пробег)/i);
-    if (altPriceMatch) {
-      const priceStr = altPriceMatch[1].replace(/\s/g, '');
-      if (isValidPrice(priceStr)) {
-        data.price = parseInt(priceStr);
-      }
     }
   }
 
@@ -137,146 +133,122 @@ function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
   }
 }
 
-function extractAllSpecifications(data: CommercialOfferData, lines: string[], originalText: string) {
+function extractAllSpecifications(data: CommercialOfferData, text: string) {
   const specs: Record<string, string> = {};
   
-  // 1. Извлечение из табличного формата
-  extractTableSpecifications(specs, lines);
+  // 1. Извлечение из JSON-подобных структур (если есть в тексте)
+  extractFromJsonLike(specs, text);
   
-  // 2. Извлечение из пар ключ-значение
-  extractKeyValueSpecifications(specs, lines);
+  // 2. Извлечение пар ключ-значение с различными разделителями
+  extractKeyValuePairs(specs, text);
   
   // 3. Извлечение из структурированного текста
-  extractStructuredSpecifications(specs, originalText);
+  extractFromStructuredText(specs, text);
   
-  // 4. Универсальное извлечение из всех строк
-  extractUniversalSpecifications(specs, lines);
+  // 4. Извлечение технических характеристик по паттернам
+  extractTechnicalSpecs(specs, text);
   
   data.specifications = cleanSpecifications(specs);
 }
 
-function extractTableSpecifications(specs: Record<string, string>, lines: string[]) {
-  for (const line of lines) {
-    // Различные разделители таблицы
-    const separators = ['\t', '|', '  ', ' - ', ' — '];
-    
-    for (const separator of separators) {
-      if (line.includes(separator)) {
-        const parts = line.split(separator).map(part => part.trim()).filter(part => part);
-        
-        // Обработка всех возможных пар
-        for (let i = 0; i < parts.length - 1; i++) {
-          const key = parts[i];
-          const value = parts[i + 1];
-          
-          if (isValidSpecKey(key) && isValidSpecValue(value)) {
-            // Нормализуем ключ (убираем лишние символы)
-            const cleanKey = normalizeKey(key);
-            if (!specs[cleanKey]) {
-              specs[cleanKey] = value;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-function extractKeyValueSpecifications(specs: Record<string, string>, lines: string[]) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Пытаемся найти пару ключ:значение в одной строке
-    const singleLineMatch = extractKeyValueFromLine(line);
-    if (singleLineMatch) {
-      const cleanKey = normalizeKey(singleLineMatch.key);
-      if (!specs[cleanKey]) {
-        specs[cleanKey] = singleLineMatch.value;
-      }
-      continue;
-    }
-    
-    // Пытаемся найти пару из двух строк (ключ на одной, значение на следующей)
-    if (i < lines.length - 1) {
-      const potentialKey = line;
-      const potentialValue = lines[i + 1];
-      
-      if (isValidSpecKey(potentialKey) && isValidSpecValue(potentialValue)) {
-        const cleanKey = normalizeKey(potentialKey);
-        if (!specs[cleanKey]) {
-          specs[cleanKey] = potentialValue;
-          i++; // Пропускаем следующую строку
-        }
-      }
-    }
-  }
-}
-
-function extractKeyValueFromLine(line: string): { key: string; value: string } | null {
-  const separators = [':', ' - ', ' — ', ' • '];
-  
-  for (const separator of separators) {
-    const index = line.indexOf(separator);
-    if (index > 0) {
-      const key = line.substring(0, index).trim();
-      const value = line.substring(index + separator.length).trim();
-      
-      if (isValidSpecKey(key) && isValidSpecValue(value)) {
-        return { key, value };
-      }
-    }
-  }
-  
-  return null;
-}
-
-function extractStructuredSpecifications(specs: Record<string, string>, text: string) {
-  // Ищем паттерны типа "Характеристика: значение" по всему тексту
-  const keyValueRegex = /([^:\n]+?)\s*[:]\s*([^\n]+)/g;
+function extractFromJsonLike(specs: Record<string, string>, text: string) {
+  // Ищем JSON-подобные структуры: "ключ": "значение"
+  const jsonLikeRegex = /"([^"]+)"\s*:\s*"([^"]+)"/g;
   let match;
   
-  while ((match = keyValueRegex.exec(text)) !== null) {
+  while ((match = jsonLikeRegex.exec(text)) !== null) {
     const key = match[1].trim();
     const value = match[2].trim();
     
     if (isValidSpecKey(key) && isValidSpecValue(value)) {
-      const cleanKey = normalizeKey(key);
-      if (!specs[cleanKey]) {
-        specs[cleanKey] = value;
+      specs[key] = value;
+    }
+  }
+}
+
+function extractKeyValuePairs(specs: Record<string, string>, text: string) {
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    // Различные форматы ключ-значение
+    const formats = [
+      /([^:]+?)\s*:\s*([^\n]+)/,                    // ключ: значение
+      /([^\-]+?)\s*-\s*([^\n]+)/,                   // ключ - значение
+      /([^\|]+?)\s*\|\s*([^\n]+)/,                  // ключ | значение
+      /([^•]+?)\s*•\s*([^\n]+)/,                    // ключ • значение
+    ];
+    
+    for (const format of formats) {
+      const match = line.match(format);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+        
+        if (isValidSpecKey(key) && isValidSpecValue(value) && !specs[key]) {
+          specs[key] = value;
+          break;
+        }
       }
     }
   }
 }
 
-function extractUniversalSpecifications(specs: Record<string, string>, lines: string[]) {
-  // Обрабатываем каждую строку как потенциальную характеристику
-  for (const line of lines) {
-    // Пропускаем строки, которые явно не являются характеристиками
-    if (isGeneralInfoLine(line)) continue;
-    
-    // Пытаемся разбить строку на части и найти характеристики
-    const words = line.split(/\s+/).filter(word => word.length > 1);
-    
-    if (words.length >= 2) {
-      // Пытаемся найти в строке числовые значения с единицами измерения
-      extractMeasurements(specs, line);
-      
-      // Пытаемся найти булевые характеристики
-      extractBooleanSpecs(specs, line);
+function extractFromStructuredText(specs: Record<string, string>, text: string) {
+  // Извлечение характеристик из описательного текста
+  const descriptivePatterns = [
+    { regex: /пробег[^\d]*(\d[\d\s]*)\s*км/i, key: 'Пробег', transform: (v: string) => `${v.replace(/\s/g, '')} км` },
+    { regex: /год[^\d]*(\d{4})/i, key: 'Год выпуска' },
+    { regex: /двигатель[^.]*?([a-z0-9\sё]+?)(?=\.|,|$)/i, key: 'Двигатель' },
+    { regex: /мощность[^.]*?(\d+)\s*л\.?с?/i, key: 'Мощность', transform: (v: string) => `${v} л.с.` },
+    { regex: /коробка[^.]*?([а-яё\s]+?)(?=\.|,|$)/i, key: 'Коробка передач' },
+    { regex: /кабин[аы][^.]*?([а-яё\s\d]+?)(?=\.|,|$)/i, key: 'Тип кабины' },
+    { regex: /топлив[оа][^.]*?([а-яё\s]+?)(?=\.|,|$)/i, key: 'Вид топлива' },
+    { regex: /цвет[^.]*?([а-яё\s]+?)(?=\.|,|$)/i, key: 'Цвет кузова' },
+    { regex: /подвеск[аи][^.]*?([а-яё\s\-]+?)(?=\.|,|$)/i, key: 'Тип подвески' },
+    { regex: /тормоз[аы][^.]*?([а-яё\s]+?)(?=\.|,|$)/i, key: 'Тормоза' },
+    { regex: /колесная[^.]*?формула[^.]*?([\dx]+)/i, key: 'Колесная формула' },
+  ];
+  
+  for (const pattern of descriptivePatterns) {
+    const match = text.match(pattern.regex);
+    if (match && !specs[pattern.key]) {
+      let value = match[1].trim();
+      if (pattern.transform) {
+        value = pattern.transform(value);
+      }
+      specs[pattern.key] = value;
     }
   }
 }
 
+function extractTechnicalSpecs(specs: Record<string, string>, text: string) {
+  // Автоматическое извлечение технических характеристик
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    // Пропускаем строки с общими фразами
+    if (isGeneralInfoLine(line)) continue;
+    
+    // Извлечение характеристик с единицами измерения
+    extractMeasurements(specs, line);
+    
+    // Извлечение булевых характеристик
+    extractBooleanSpecs(specs, line);
+    
+    // Извлечение характеристик оборудования
+    extractEquipmentSpecs(specs, line);
+  }
+}
+
 function extractMeasurements(specs: Record<string, string>, line: string) {
-  // Паттерны для числовых характеристик с единицами измерения
   const measurementPatterns = [
-    { regex: /(\d+(?:\s?\d{3})*)\s*(?:км|km)/, key: 'Пробег', suffix: ' км' },
-    { regex: /(\d{4})\s*(?:г\.?|год)/, key: 'Год выпуска', suffix: '' },
-    { regex: /(\d+)\s*(?:л\.?с?\.?| horsepower)/, key: 'Мощность', suffix: ' л.с.' },
-    { regex: /(\d+)\s*(?:кг|kg)/, key: 'Масса', suffix: ' кг' },
-    { regex: /(\d+)\s*(?:т|ton)/, key: 'Грузоподъемность', suffix: ' т' },
-    { regex: /(\d+)\s*(?:л|liter)/, key: 'Объем', suffix: ' л' },
-    { regex: /(\d+)\s*(?:квт|kw)/, key: 'Мощность', suffix: ' кВт' },
+    { regex: /(\d[\d\s]*)\s*км\b/, key: 'Пробег', suffix: ' км' },
+    { regex: /(\d{4})\s*г\.?/, key: 'Год выпуска', suffix: '' },
+    { regex: /(\d+)\s*л\.?с?\.?/, key: 'Мощность', suffix: ' л.с.' },
+    { regex: /(\d+)\s*кг\b/, key: 'Масса', suffix: ' кг' },
+    { regex: /(\d+)\s*т\b/, key: 'Грузоподъемность', suffix: ' т' },
+    { regex: /(\d+)\s*л\b/, key: 'Объем', suffix: ' л' },
+    { regex: /([\dx]+)\s*колесная/, key: 'Колесная формула', suffix: '' },
   ];
   
   for (const pattern of measurementPatterns) {
@@ -292,12 +264,13 @@ function extractBooleanSpecs(specs: Record<string, string>, line: string) {
   const lowerLine = line.toLowerCase();
   
   const booleanSpecs = [
-    { pattern: /кондиционер|climate control/, key: 'Кондиционер', value: 'Есть' },
-    { pattern: /круиз-?контроль|cruise control/, key: 'Круиз-контроль', value: 'Есть' },
-    { pattern: /абс|abs/, key: 'ABS', value: 'Есть' },
-    { pattern: /подушки? безопасности|airbag/, key: 'Подушки безопасности', value: 'Есть' },
-    { pattern: /гидроусилитель|power steering/, key: 'ГУР', value: 'Есть' },
-    { pattern: /спальное место|sleeper/, key: 'Спальное место', value: 'Есть' },
+    { pattern: /кондиционер/, key: 'Кондиционер', value: 'Есть' },
+    { pattern: /круиз-?контроль/, key: 'Круиз-контроль', value: 'Есть' },
+    { pattern: /\bабс\b/, key: 'ABS', value: 'Есть' },
+    { pattern: /подушки? безопасности/, key: 'Подушки безопасности', value: 'Есть' },
+    { pattern: /гидроусилитель/, key: 'ГУР', value: 'Есть' },
+    { pattern: /спальное место/, key: 'Спальное место', value: 'Есть' },
+    { pattern: /диагностика пройдена/, key: 'Диагностика', value: 'Пройдена' },
   ];
   
   for (const spec of booleanSpecs) {
@@ -307,12 +280,29 @@ function extractBooleanSpecs(specs: Record<string, string>, line: string) {
   }
 }
 
-function normalizeKey(key: string): string {
-  return key
-    .replace(/^[^a-zA-Zа-яА-Я]*/, '') // Убираем спецсимволы в начале
-    .replace(/[^a-zA-Zа-яА-Я0-9\s]$/, '') // Убираем спецсимволы в конце
-    .replace(/\s+/g, ' ')
-    .trim();
+function extractEquipmentSpecs(specs: Record<string, string>, line: string) {
+  const equipmentKeywords = {
+    'Тип кабины': ['кабина', 'местная', 'спальная'],
+    'Вид топлива': ['дизель', 'бензин', 'газ', 'топливо'],
+    'Коробка передач': ['автоматическая', 'механическая', 'робот', 'кпп'],
+    'Тормоза': ['дисковые', 'барабанные', 'тормоз'],
+    'Подвеска': ['пневмо', 'рессорная', 'подвеска'],
+  };
+  
+  const lowerLine = line.toLowerCase();
+  
+  for (const [key, keywords] of Object.entries(equipmentKeywords)) {
+    if (keywords.some(kw => lowerLine.includes(kw)) && !specs[key]) {
+      // Пытаемся извлечь значение из контекста
+      const contextMatch = line.match(new RegExp(`(${keywords.join('|')})[^.,]*?([^.,]+)`, 'i'));
+      if (contextMatch && contextMatch[2]) {
+        specs[key] = contextMatch[2].trim();
+      } else if (!specs[key]) {
+        // Если не нашли конкретное значение, ставим маркер
+        specs[key] = 'Есть';
+      }
+    }
+  }
 }
 
 function cleanSpecifications(specs: Record<string, string>): Record<string, string> {
@@ -322,7 +312,7 @@ function cleanSpecifications(specs: Record<string, string>): Record<string, stri
   for (const [key, value] of Object.entries(specs)) {
     if (isValidSpecKey(key) && isValidSpecValue(value)) {
       const cleanKey = normalizeKey(key);
-      const cleanValue = value.trim();
+      const cleanValue = cleanValue(value);
       
       // Убираем дубликаты (нормализованные ключи)
       if (!seenKeys.has(cleanKey.toLowerCase())) {
@@ -333,6 +323,22 @@ function cleanSpecifications(specs: Record<string, string>): Record<string, stri
   }
   
   return cleaned;
+}
+
+function normalizeKey(key: string): string {
+  return key
+    .replace(/^[^a-zA-Zа-яА-Я]*/, '')
+    .replace(/[^a-zA-Zа-яА-Я0-9\s]$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanValue(value: string): string {
+  return value
+    .replace(/^[^a-zA-Zа-яА-Я0-9]*/, '')
+    .replace(/[^a-zA-Zа-яА-Я0-9]$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function isGeneralInfoLine(line: string): boolean {
@@ -359,8 +365,8 @@ function isValidPrice(priceStr: string): boolean {
 
 function isValidSpecKey(key: string): boolean {
   if (!key || key.length < 2 || key.length > 50) return false;
-  if (key.match(/^\d+$/)) return false; // Только цифры
-  if (!key.match(/[а-яёa-z]/i)) return false; // Должны быть буквы
+  if (key.match(/^\d+$/)) return false;
+  if (!key.match(/[а-яёa-z]/i)) return false;
   
   const invalidKeys = [
     'я', 'коммерческое', 'предложение', 'стоимость', 'цена',
@@ -383,14 +389,34 @@ function isValidSpecValue(value: string): boolean {
   return !invalidValues.some(invalid => lowerValue.includes(invalid));
 }
 
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 export function formatSpecsForTable(specs: Record<string, string>): Array<Array<[string, string]>> {
   if (!specs || Object.keys(specs).length === 0) {
     return [];
   }
 
-  // Просто преобразуем все спецификации в строки таблицы
+  // Сортируем характеристики для лучшего отображения
+  const priorityKeys = [
+    'Марка', 'Модель', 'Год выпуска', 'Пробег',
+    'Двигатель', 'Мощность', 'Коробка передач',
+    'Тип кабины', 'Колесная формула', 'Тип подвески'
+  ];
+  
   const entries = Object.entries(specs)
-    .filter(([k, v]) => k && v && k.trim() && v.trim());
+    .filter(([k, v]) => k && v && k.trim() && v.trim())
+    .sort(([keyA], [keyB]) => {
+      const indexA = priorityKeys.indexOf(keyA);
+      const indexB = priorityKeys.indexOf(keyB);
+      
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      
+      return keyA.localeCompare(keyB);
+    });
 
   const rows: Array<Array<[string, string]>> = [];
   
