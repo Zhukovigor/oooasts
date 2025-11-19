@@ -1,6 +1,8 @@
+// Добавлена таблица на два столбца для характеристик
+
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,9 +18,8 @@ export default function CommercialOfferForm() {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([])
   const [offerId, setOfferId] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string>("")
 
-  useEffect(() => {
+  useState(() => {
     const loadChannels = async () => {
       try {
         const response = await fetch("/api/telegram/channels")
@@ -34,30 +35,19 @@ export default function CommercialOfferForm() {
   }, [])
 
   const handleParseText = () => {
-    console.log("Parsing text:", rawText);
     const parsed = parseCommercialOfferText(rawText)
-    console.log("Parsed data:", parsed);
     setParsedData(parsed)
     setShowParsed(true)
   }
 
   const handleSave = async () => {
-    if (!parsedData) {
-      setSaveMessage("Ошибка: нет данных для сохранения");
-      return;
-    }
+    if (!parsedData) return
 
     setLoading(true)
-    setSaveMessage("")
-    
     try {
-      console.log("Saving data:", parsedData);
-      
       const response = await fetch("/api/commercial-offers", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...parsedData,
           imageUrl,
@@ -66,64 +56,40 @@ export default function CommercialOfferForm() {
         }),
       })
 
-      const result = await response.json()
-      console.log("Save response:", result);
-
       if (response.ok) {
+        const result = await response.json()
         setOfferId(result.id)
-        setSaveMessage("✅ Коммерческое предложение успешно создано!")
-        // Можно очистить форму после успешного сохранения
-        // setRawText("");
-        // setParsedData(null);
-        // setShowParsed(false);
-      } else {
-        setSaveMessage(`❌ Ошибка: ${result.error || "Неизвестная ошибка"}`)
+        alert("Коммерческое предложение создано успешно!")
       }
     } catch (error) {
       console.error("Error saving offer:", error)
-      setSaveMessage("❌ Ошибка при сохранении КП")
+      alert("Ошибка при сохранении КП")
     } finally {
       setLoading(false)
     }
   }
 
   const handleDownloadPDF = () => {
-    if (!offerId) {
-      setSaveMessage("❌ Сначала сохраните предложение");
-      return;
-    }
+    if (!offerId) return
     window.open(`/api/commercial-offers/${offerId}/pdf`, "_blank")
   }
 
   const specsRows = parsedData ? formatSpecsForTable(parsedData.specifications || {}) : []
 
   return (
-    <div className="min-h-screen bg-white py-8">
+    <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Создание коммерческого предложения</h1>
         <p className="text-gray-600 mb-8">Заполните данные о технике для автоматического формирования КП</p>
 
-        {/* Сообщения о статусе */}
-        {saveMessage && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            saveMessage.includes("✅") 
-              ? "bg-green-100 text-green-800 border border-green-200" 
-              : "bg-red-100 text-red-800 border border-red-200"
-          }`}>
-            {saveMessage}
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Левая часть - Ввод данных */}
-          <div className="bg-white rounded-xl border border-gray-200 p-8">
+          {/* Left side - Input */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Введите данные</h2>
 
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Текст с характеристиками *
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Текст с характеристиками</label>
                 <Textarea
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
@@ -172,7 +138,6 @@ export default function CommercialOfferForm() {
               <div className="flex gap-3">
                 <Button
                   onClick={handleParseText}
-                  disabled={!rawText.trim()}
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition"
                 >
                   Распарсить характеристики
@@ -181,89 +146,64 @@ export default function CommercialOfferForm() {
             </div>
           </div>
 
-          {/* Правая часть - Предпросмотр */}
+          {/* Right side - Preview */}
           {showParsed && parsedData && (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 overflow-y-auto max-h-[calc(100vh-200px)]">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр КП</h2>
 
               <div className="space-y-6">
-                {/* Отладочная информация */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-800 mb-2">Отладочная информация:</h3>
-                  <pre className="text-xs text-yellow-700 overflow-auto">
-                    {JSON.stringify(parsedData, null, 2)}
-                  </pre>
+                {/* Header */}
+                <div className="border-b-2 border-gray-300 pb-4">
+                  <div className="text-sm uppercase tracking-wide text-gray-500 font-semibold mb-1">Коммерческое предложение</div>
+                  {parsedData.equipment && <div className="text-lg font-bold text-gray-700 mb-2">{parsedData.equipment}</div>}
+                  {parsedData.title && <div className="text-2xl font-bold text-gray-900">{parsedData.title}</div>}
                 </div>
 
-                {/* Заголовок - по центру */}
-                <div className="text-center border-b-2 border-blue-500 pb-4">
-                  <h1 className="text-xl font-bold uppercase mb-2">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
-                  <div className="text-lg font-bold">СЕДЕЛЬНЫЙ ТЯГАЧ</div>
-                  {parsedData.title && <div className="text-xl font-bold text-blue-600 mt-1">{parsedData.title}</div>}
-                </div>
-
-                {/* Основной контент: фото слева, цена справа */}
-                <div className="grid grid-cols-2 gap-6 min-h-80">
-                  {/* Левая колонка - фото */}
+                {/* Image and Price Row */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Image */}
                   {imageUrl && (
-                    <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center p-4">
-                      <img 
-                        src={imageUrl} 
-                        alt="техника" 
-                        className="w-full h-auto max-h-72 object-contain rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = "/placeholder.svg"
-                        }}
-                      />
+                    <div className="border border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+                      <img src={imageUrl || "/placeholder.svg"} alt="техника" className="w-full h-64 object-cover" />
                     </div>
                   )}
 
-                  {/* Правая колонка - цена и условия */}
+                  {/* Price Box */}
                   {parsedData.price && (
-                    <div className="border-2 border-gray-300 rounded-lg bg-white p-6 flex flex-col justify-between">
-                      <div>
-                        <div className="text-base font-bold text-black mb-3">Стоимость техники:</div>
-                        <div className="text-3xl font-bold text-black mb-4">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
-                        <div className="space-y-2 mb-6">
-                          {parsedData.priceWithVat && <div className="text-sm text-black">Стоимость с НДС.</div>}
-                          {parsedData.availability && <div className="text-sm text-black">{parsedData.availability}.</div>}
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-sm text-black">
-                        {parsedData.lease && <div className="flex items-center">• Продажа в лизинг.</div>}
-                        {parsedData.paymentType && <div className="flex items-center">• {parsedData.paymentType}.</div>}
-                        {parsedData.diagnosticsPassed && <div className="flex items-center">• Диагностика пройдена.</div>}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-300 flex flex-col justify-center">
+                      <div className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-2">Стоимость техники</div>
+                      <div className="text-3xl font-bold text-blue-900 mb-4">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
+                      <div className="space-y-2 text-sm text-blue-800">
+                        {parsedData.priceWithVat && <div>✓ Стоимость с НДС</div>}
+                        {parsedData.availability && <div>✓ {parsedData.availability}</div>}
+                        {parsedData.lease && <div>✓ Продажа в лизинг</div>}
+                        {parsedData.paymentType && <div>✓ {parsedData.paymentType}</div>}
+                        {parsedData.diagnosticsPassed && <div>✓ Диагностика пройдена</div>}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Таблица технических характеристик */}
+                {/* Specifications Table - 2 columns */}
                 {specsRows.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 text-center border-b-2 border-blue-500 pb-2">
-                      Технические характеристики
-                    </h3>
-                    <div className="border border-gray-300 rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <tbody>
-                          {specsRows.flat().map(([key, value], index) => (
-                            <tr key={index} className="border-b border-gray-300 last:border-b-0">
-                              <td className="py-3 px-4 border-r border-gray-300 bg-gray-50 font-semibold text-gray-700 w-2/5">
-                                {key}
-                              </td>
-                              <td className="py-3 px-4 text-gray-900 w-3/5">
-                                {value}
-                              </td>
-                            </tr>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-300 pb-2">Технические характеристики</h3>
+                    <div className="space-y-3">
+                      {specsRows.map((row, rowIndex) => (
+                        <div key={rowIndex} className="grid grid-cols-2 gap-6">
+                          {row.map(([key, value], colIndex) => (
+                            <div key={colIndex} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{key}</div>
+                              <div className="text-sm font-semibold text-gray-900">{value}</div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Кнопки действий */}
+                {/* Buttons */}
                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
                   <Button
                     onClick={handleSave}
@@ -272,7 +212,6 @@ export default function CommercialOfferForm() {
                   >
                     {loading ? "Сохранение..." : "Сохранить КП"}
                   </Button>
-                  
                   {offerId && (
                     <Button
                       onClick={handleDownloadPDF}

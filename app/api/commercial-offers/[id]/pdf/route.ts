@@ -1,298 +1,261 @@
-// app/api/commercial-offers/[id]/pdf/route.ts - УПРОЩЕННАЯ РАБОЧАЯ ВЕРСИЯ
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
+import { NextRequest, NextResponse } from "next/server"
+
+// Helper to create PDF content as base64
+function generatePDFContent(offer: any): string {
+  const title = offer.title || "Коммерческое предложение"
+  const price = offer.price?.toLocaleString("ru-RU") || "N/A"
+  const priceWithVat = offer.price_with_vat?.toLocaleString("ru-RU") || price
+  const availability = offer.availability || ""
+  const paymentType = offer.payment_type || ""
+
+  // Simple PDF generation - returns base64 encoded PDF
+  // For production, use a library like jsPDF or pdfkit
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { font-size: 24px; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+          .section { margin-bottom: 20px; }
+          .section-title { font-size: 16px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #333; }
+          .content { margin-left: 10px; line-height: 1.6; }
+          .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+          .label { font-weight: bold; color: #555; }
+          .value { color: #333; }
+          .price-box { background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 20px; }
+          .footer { margin-top: 40px; font-size: 12px; color: #999; text-align: center; border-top: 1px solid #ddd; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">${title}</div>
+        
+        <div class="section">
+          <div class="price-box">
+            <div class="row">
+              <span class="label">Стоимость:</span>
+              <span class="value">${price} руб.</span>
+            </div>
+            <div class="row">
+              <span class="label">С НДС:</span>
+              <span class="value">${priceWithVat} руб.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Условия</div>
+          <div class="content">
+            <div class="row">
+              <span class="label">Наличие:</span>
+              <span class="value">${availability}</span>
+            </div>
+            <div class="row">
+              <span class="label">Способ оплаты:</span>
+              <span class="value">${paymentType}</span>
+            </div>
+          </div>
+        </div>
+
+        ${
+          offer.specifications
+            ? `
+          <div class="section">
+            <div class="section-title">Технические характеристики</div>
+            <div class="content">
+              ${Object.entries(offer.specifications)
+                .map(([key, value]) => `<div class="row"><span class="label">${key}:</span><span class="value">${value}</span></div>`)
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="footer">
+          <p>Коммерческое предложение сформировано ${new Date().toLocaleDateString("ru-RU")}</p>
+        </div>
+      </body>
+    </html>
+  `
+
+  return Buffer.from(htmlContent).toString("base64")
+}
+
+function transliterate(text: string): string {
+  if (!text) return 'offer'
+  
+  const map: { [key: string]: string } = {
+    // Lowercase
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '',
+    'э': 'e', 'ю': 'yu', 'я': 'ya',
+    // Uppercase
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E', 'Ж': 'ZH', 'З': 'Z', 'И': 'I',
+    'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T',
+    'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'C', 'Ч': 'CH', 'Ш': 'SH', 'Щ': 'SCH', 'Ъ': '', 'Ы': 'Y', 'Ь': '',
+    'Э': 'E', 'Ю': 'YU', 'Я': 'YA'
+  }
+  
+  return text
+    .split('')
+    .map(char => map[char] || (char.charCodeAt(0) > 127 ? '' : char))
+    .join('')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50) || 'offer'
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  console.log("🔍 PDF GENERATION STARTED");
-  
   try {
-    const offerId = params.id;
-    console.log("📄 Generating PDF for offer:", offerId);
-    
-    if (!offerId) {
-      return NextResponse.json({ error: "ID предложения обязателен" }, { status: 400 });
-    }
-
-    // Получение данных предложения
-    const cookieStore = cookies();
+    const cookieStore = await cookies()
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || "",
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            return cookieStore.getAll()
           },
-          setAll() {
-            // Игнорируем запись кук
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
           },
         },
       }
-    );
+    )
 
-    console.log("🔍 Fetching offer data from Supabase...");
     const { data, error } = await supabase
       .from("commercial_offers")
       .select("*")
-      .eq("id", offerId)
-      .single();
+      .eq("id", params.id)
+      .single()
 
     if (error || !data) {
-      console.error('❌ Supabase error:', error);
-      return NextResponse.json(
-        { error: "Коммерческое предложение не найдено" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Offer not found" }, { status: 404 })
     }
 
-    console.log("✅ Found offer:", data.title);
+    const specsEntries = data.specifications ? Object.entries(data.specifications) : []
+    const specsRows: Array<Array<[string, string]>> = []
+    for (let i = 0; i < specsEntries.length; i += 2) {
+      const row = [specsEntries[i]]
+      if (i + 1 < specsEntries.length) row.push(specsEntries[i + 1])
+      specsRows.push(row)
+    }
 
-    // Временно возвращаем HTML вместо PDF для тестирования
-    const htmlContent = generateSimpleHTML(data);
-    
-    // Если нужно реальное PDF, можно использовать сервис вроде Gotenberg или API
-    // Но для начала вернем HTML чтобы убедиться что данные работают
-    
-    return new NextResponse(htmlContent, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': `inline; filename="offer-${offerId}.html"`,
-      },
-    });
-
-  } catch (error: any) {
-    console.error("💥 PDF generation error:", error);
-    return NextResponse.json(
-      { error: "Внутренняя ошибка сервера: " + error.message },
-      { status: 500 }
-    );
-  }
-}
-
-function generateSimpleHTML(data: any): string {
-  const specs = data.specifications || {};
-  const specsEntries = Object.entries(specs);
-  
-  // Форматируем спецификации в таблицу
-  const specsHTML = specsEntries.map(([key, value]) => 
-    `<tr><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #f9f9f9;">${escapeHtml(key)}</td><td style="padding: 8px; border: 1px solid #ddd;">${escapeHtml(String(value))}</td></tr>`
-  ).join('');
-
-  const formattedDate = new Date(data.created_at).toLocaleDateString('ru-RU');
-  const formattedPrice = data.price ? data.price.toLocaleString('ru-RU') : 'Не указана';
-  const formattedPriceWithVat = data.price_with_vat ? data.price_with_vat.toLocaleString('ru-RU') : null;
-
-  return `
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(data.title)} - Коммерческое предложение</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #333;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #0066cc;
-            padding-bottom: 20px;
-        }
-        .header h1 {
-            font-size: 24px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin: 0 0 10px 0;
-            color: #000;
-        }
-        .header h2 {
-            font-size: 20px;
-            margin: 10px 0;
-            color: #0066cc;
-        }
-        .price-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            text-align: center;
-        }
-        .price-main {
-            font-size: 28px;
-            font-weight: bold;
-            color: #0066cc;
-            margin: 10px 0;
-        }
-        .price-secondary {
-            font-size: 16px;
-            color: #666;
-            margin: 5px 0;
-        }
-        .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin: 20px 0;
-        }
-        .details-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            background: #fff;
-        }
-        .specs-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        .specs-table th {
-            background: #0066cc;
-            color: white;
-            padding: 12px;
-            text-align: left;
-        }
-        .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            background: #28a745;
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            margin: 2px;
-        }
-        @media print {
-            body { margin: 0; padding: 0; }
-            .container { box-shadow: none; padding: 0; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
-            ${data.equipment ? `<h3>${escapeHtml(data.equipment)}</h3>` : ''}
-            <h2>${escapeHtml(data.title || 'Без названия')}</h2>
-        </div>
-
-        <div class="price-section">
-            <div class="price-main">${formattedPrice} руб.</div>
-            ${formattedPriceWithVat ? `<div class="price-secondary">С НДС: ${formattedPriceWithVat} руб.</div>` : ''}
-            ${data.availability ? `<div class="badge">${escapeHtml(data.availability)}</div>` : ''}
-            ${data.diagnostics_passed ? `<div class="badge">Диагностика пройдена</div>` : ''}
-        </div>
-
-        ${data.description ? `
-        <div class="details-card">
-            <h3>Описание</h3>
-            <p>${escapeHtml(data.description)}</p>
-        </div>
-        ` : ''}
-
-        <div class="details-grid">
-            ${data.payment_type ? `
-            <div class="details-card">
-                <h4>💳 Способ оплаты</h4>
-                <p>${escapeHtml(data.payment_type)}</p>
-            </div>
-            ` : ''}
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${data.title}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Arial', sans-serif; background-color: #f5f5f5; }
+            .container { max-width: 900px; margin: 20px auto; background: white; padding: 50px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
             
-            ${data.lease ? `
-            <div class="details-card">
-                <h4>📋 Условия</h4>
-                <p>${escapeHtml(data.lease)}</p>
+            .header { margin-bottom: 30px; border-bottom: 3px solid #0066cc; padding-bottom: 15px; }
+            .header-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #999; margin-bottom: 5px; font-weight: bold; }
+            .header-subheader { font-size: 16px; color: #666; margin-bottom: 8px; }
+            .header h1 { font-size: 32px; font-weight: bold; color: #1a1a1a; }
+            
+            .content-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; align-items: start; }
+            
+            .image-box { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: #f9f9f9; }
+            .image-box img { width: 100%; height: auto; display: block; }
+            
+            .price-box { background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); color: white; padding: 30px; border-radius: 8px; }
+            .price-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; margin-bottom: 10px; }
+            .price-value { font-size: 38px; font-weight: bold; margin-bottom: 20px; }
+            .conditions-list { space-y: 12px; }
+            .condition { font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; }
+            .condition:before { content: '✓'; margin-right: 8px; font-weight: bold; }
+            
+            .specs-section { grid-column: 1 / -1; }
+            .specs-title { font-size: 18px; font-weight: bold; color: #0066cc; margin-bottom: 20px; border-left: 4px solid #0066cc; padding-left: 15px; }
+            
+            .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+            .spec-item { border: 1px solid #e0e0e0; padding: 15px; border-radius: 6px; background: #f9f9f9; }
+            .spec-label { font-size: 12px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+            .spec-value { font-size: 14px; color: #1a1a1a; font-weight: 600; }
+            
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px; }
+            
+            @media print { 
+              body { background: white; } 
+              .container { box-shadow: none; margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="header-label">Коммерческое предложение</div>
+              ${data.equipment ? `<div class="header-subheader">${data.equipment}</div>` : ""}
+              <h1>${data.title}</h1>
             </div>
-            ` : ''}
-        </div>
 
-        ${specsEntries.length > 0 ? `
-        <div class="details-card">
-            <h3>🔧 Технические характеристики</h3>
-            <table class="specs-table">
-                <tbody>
-                    ${specsHTML}
-                </tbody>
-            </table>
-        </div>
-        ` : '<p style="text-align: center; color: #666; padding: 20px;">Технические характеристики не указаны</p>'}
+            <div class="content-section">
+              ${data.image_url ? `
+                <div class="image-box">
+                  <img src="${data.image_url}" alt="${data.title}" />
+                </div>
+              ` : ""}
 
-        ${data.image_url ? `
-        <div class="details-card" style="text-align: center;">
-            <h3>🖼️ Изображение</h3>
-            <img src="${escapeHtml(data.image_url)}" alt="${escapeHtml(data.title)}" 
-                 style="max-width: 100%; max-height: 300px; border-radius: 8px;"
-                 onerror="this.style.display='none'">
-        </div>
-        ` : ''}
+              <div class="price-box">
+                <div class="price-label">Стоимость техники</div>
+                <div class="price-value">${data.price ? data.price.toLocaleString('ru-RU') : 'N/A'} руб.</div>
+                <div class="conditions-list">
+                  ${data.price_with_vat ? `<div class="condition">Стоимость с НДС</div>` : ""}
+                  ${data.availability ? `<div class="condition">${data.availability}</div>` : ""}
+                  ${data.payment_type ? `<div class="condition">${data.payment_type}</div>` : ""}
+                  ${data.diagnostics_passed ? `<div class="condition">Диагностика пройдена</div>` : ""}
+                </div>
+              </div>
+            </div>
 
-        <div class="footer">
-            <p>Коммерческое предложение сформировано автоматически</p>
-            <p><strong>Дата создания:</strong> ${formattedDate} | <strong>ID:</strong> ${data.id}</p>
-            <p style="font-size: 12px; color: #999;">Действительно в течение 30 дней с даты создания</p>
-        </div>
-    </div>
-</body>
-</html>
-`;
-}
+            ${specsRows.length > 0 ? `
+              <div class="specs-section">
+                <div class="specs-title">Технические характеристики</div>
+                <div class="specs-grid">
+                  ${specsRows.map(row => row.map(([key, value]) => `
+                    <div class="spec-item">
+                      <div class="spec-label">${key}</div>
+                      <div class="spec-value">${value}</div>
+                    </div>
+                  `).join('')).join('')}
+                </div>
+              </div>
+            ` : ""}
 
-// Вспомогательная функция для экранирования HTML
-function escapeHtml(unsafe: string): string {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+            <div class="footer">
+              <p>Коммерческое предложение</p>
+              <p>Дата создания: ${new Date(data.created_at).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
 
-// Опционально: POST метод для генерации PDF с кастомными параметрами
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const offerId = params.id;
-    
-    if (!offerId) {
-      return NextResponse.json(
-        { error: "Некорректный ID коммерческого предложения" },
-        { status: 400 }
-      );
-    }
+    const safeFilename = transliterate(data.title || 'commercial-offer')
 
-    // Редирект на GET
-    return NextResponse.redirect(new URL(`/api/commercial-offers/${offerId}/pdf`, request.url), 307);
-
+    return new NextResponse(htmlContent, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Disposition": `inline; filename="${safeFilename}.html"`,
+      },
+    })
   } catch (error) {
-    console.error("Ошибка в POST обработчике PDF:", error);
-    return NextResponse.json(
-      { error: "Внутренняя ошибка сервера" },
-      { status: 500 }
-    );
+    console.error("[v0] Error generating PDF:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

@@ -72,7 +72,7 @@ export default function ConcretePumpsClient() {
 
   const advantages = [
     {
-      title: "Прямы�� поставки от производителей",
+      title: "Прямые поставки от производителей",
       description: "Работаем напрямую с заводами SANY и Zoomlion, что позволяет предлагать лучшие цены на рынке",
       icon: <TrendingDown className="w-8 h-8" />,
     },
