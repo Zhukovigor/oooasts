@@ -160,75 +160,76 @@ export async function GET(
           <title>${data.title}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Arial', sans-serif; background-color: #f5f5f5; }
-            .container { max-width: 900px; margin: 20px auto; background: white; padding: 50px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; }
+            .page { max-width: 900px; margin: 30px auto; background: white; padding: 60px 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
             
-            .header { margin-bottom: 30px; border-bottom: 3px solid #0066cc; padding-bottom: 15px; }
-            .header-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #999; margin-bottom: 5px; font-weight: bold; }
-            .header-subheader { font-size: 16px; color: #666; margin-bottom: 8px; }
-            .header h1 { font-size: 32px; font-weight: bold; color: #1a1a1a; }
+            .header { margin-bottom: 40px; border-bottom: 3px solid #0066cc; padding-bottom: 20px; }
+            .header-label { font-size: 11px; text-transform: uppercase; letter-spacing: 2.5px; color: #888; margin-bottom: 8px; font-weight: 700; }
+            .header-type { font-size: 15px; color: #666; margin-bottom: 10px; font-weight: 600; }
+            .header h1 { font-size: 36px; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
             
-            .content-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; align-items: start; }
+            .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 50px; align-items: flex-start; }
             
-            .image-box { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: #f9f9f9; }
-            .image-box img { width: 100%; height: auto; display: block; }
+            .image-container { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: #fafafa; }
+            .image-container img { width: 100%; height: auto; display: block; max-height: 400px; object-fit: cover; }
             
-            .price-box { background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); color: white; padding: 30px; border-radius: 8px; }
-            .price-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.9; margin-bottom: 10px; }
-            .price-value { font-size: 38px; font-weight: bold; margin-bottom: 20px; }
-            .conditions-list { space-y: 12px; }
-            .condition { font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; }
-            .condition:before { content: '✓'; margin-right: 8px; font-weight: bold; }
+            .price-container { background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); color: white; padding: 35px; border-radius: 10px; }
+            .price-label { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.95; margin-bottom: 12px; font-weight: 700; }
+            .price-value { font-size: 44px; font-weight: 700; margin-bottom: 25px; }
+            .conditions { font-size: 14px; line-height: 1.8; }
+            .condition-item { margin-bottom: 10px; display: flex; align-items: center; }
+            .condition-item:before { content: '✓'; font-weight: 700; margin-right: 10px; font-size: 16px; }
             
-            .specs-section { grid-column: 1 / -1; }
-            .specs-title { font-size: 18px; font-weight: bold; color: #0066cc; margin-bottom: 20px; border-left: 4px solid #0066cc; padding-left: 15px; }
+            .specs-container { grid-column: 1 / -1; }
+            .specs-title { font-size: 18px; font-weight: 700; color: #0066cc; margin-bottom: 25px; border-left: 5px solid #0066cc; padding-left: 18px; }
             
             .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-            .spec-item { border: 1px solid #e0e0e0; padding: 15px; border-radius: 6px; background: #f9f9f9; }
-            .spec-label { font-size: 12px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 5px; }
-            .spec-value { font-size: 14px; color: #1a1a1a; font-weight: 600; }
+            .spec-box { border: 1px solid #e0e0e0; padding: 18px; border-radius: 8px; background: #f9f9f9; }
+            .spec-label { font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+            .spec-value { font-size: 15px; color: #1a1a1a; font-weight: 600; }
             
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px; }
+            .footer { margin-top: 50px; padding-top: 25px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px; }
             
             @media print { 
               body { background: white; } 
-              .container { box-shadow: none; margin: 0; }
+              .page { box-shadow: none; margin: 0; padding: 40px; }
             }
           </style>
         </head>
         <body>
-          <div class="container">
+          <div class="page">
             <div class="header">
               <div class="header-label">Коммерческое предложение</div>
-              ${data.equipment ? `<div class="header-subheader">${data.equipment}</div>` : ""}
+              ${data.equipment ? `<div class="header-type">${data.equipment}</div>` : ""}
               <h1>${data.title}</h1>
             </div>
 
-            <div class="content-section">
+            <div class="main-content">
               ${data.image_url ? `
-                <div class="image-box">
+                <div class="image-container">
                   <img src="${data.image_url}" alt="${data.title}" />
                 </div>
               ` : ""}
 
-              <div class="price-box">
+              <div class="price-container">
                 <div class="price-label">Стоимость техники</div>
                 <div class="price-value">${data.price ? data.price.toLocaleString('ru-RU') : 'N/A'} руб.</div>
-                <div class="conditions-list">
-                  ${data.price_with_vat ? `<div class="condition">Стоимость с НДС</div>` : ""}
-                  ${data.availability ? `<div class="condition">${data.availability}</div>` : ""}
-                  ${data.payment_type ? `<div class="condition">${data.payment_type}</div>` : ""}
-                  ${data.diagnostics_passed ? `<div class="condition">Диагностика пройдена</div>` : ""}
+                <div class="conditions">
+                  ${data.price_with_vat ? `<div class="condition-item">Стоимость с НДС</div>` : ""}
+                  ${data.availability ? `<div class="condition-item">${data.availability}</div>` : ""}
+                  ${data.lease ? `<div class="condition-item">Продажа в лизинг</div>` : ""}
+                  ${data.payment_type ? `<div class="condition-item">${data.payment_type}</div>` : ""}
+                  ${data.diagnostics_passed ? `<div class="condition-item">Диагностика пройдена</div>` : ""}
                 </div>
               </div>
             </div>
 
             ${specsRows.length > 0 ? `
-              <div class="specs-section">
+              <div class="specs-container">
                 <div class="specs-title">Технические характеристики</div>
                 <div class="specs-grid">
                   ${specsRows.map(row => row.map(([key, value]) => `
-                    <div class="spec-item">
+                    <div class="spec-box">
                       <div class="spec-label">${key}</div>
                       <div class="spec-value">${value}</div>
                     </div>

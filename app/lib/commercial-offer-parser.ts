@@ -31,11 +31,11 @@ export function parseCommercialOfferText(text: string): CommercialOfferData {
 
   // Извлечение названия и типа техники
   if (lines.length > 0) {
-    data.title = lines.find(l => l.toLowerCase().includes('volvo') || l.toLowerCase().includes('кomatsu') || l.toLowerCase().includes('fh') || l.toLowerCase().includes('cam'))?.trim() || lines[0].trim()
+    data.title = lines.find(l => l.toLowerCase().includes('volvo') || l.toLowerCase().includes('komatsu') || l.toLowerCase().includes('fh') || l.toLowerCase().includes('cam'))?.trim() || lines[0].trim()
   }
 
   // Извлечение типа техники
-  const equipmentLine = lines.find(l => l.toLowerCase().includes('тягач') || l.toLowerCase().includes('экскаватор') || l.toLowerCase().includes('погрузчик'))
+  const equipmentLine = lines.find(l => l.toLowerCase().includes('тягач') || l.toLowerCase().includes('экскаватор') || l.toLowerCase().includes('погрузчик') || l.toLowerCase().includes('бетонораспределитель'))
   if (equipmentLine) {
     data.equipment = equipmentLine.trim()
   }
@@ -50,20 +50,23 @@ export function parseCommercialOfferText(text: string): CommercialOfferData {
   if (normalizedText.includes('сндс')) data.priceWithVat = true
   if (normalizedText.includes('вналичии')) data.availability = 'В наличии'
   if (normalizedText.includes('лизинг')) data.lease = true
-  if (normalizedText.includes('безналичная')) data.paymentType = 'Безналичная'
+  if (normalizedText.includes('безналичная')) data.paymentType = 'Безналичная оплата с НДС'
   if (normalizedText.includes('диагностикапройдена')) data.diagnosticsPassed = true
 
-  // Парсинг характеристик
-  const specRegex = /([а-яё\s]+):\s*([^\n:]+)(?=\n|$)/gi
-  let match
   const specs: Record<string, string> = {}
-
-  while ((match = specRegex.exec(text)) !== null) {
-    const key = match[1].trim()
-    const value = match[2].trim()
+  const lines_for_specs = text.split('\n').map(l => l.trim()).filter(l => l)
+  
+  for (let i = 0; i < lines_for_specs.length - 1; i++) {
+    const key = lines_for_specs[i]
+    const value = lines_for_specs[i + 1]
     
-    if (key && value && value.length < 100) {
+    // Пропускаем строки которые это явно заголовки или числа
+    const isKeyLike = key && key.length < 50 && !key.match(/^\d+/) && key.match(/[а-яёА-ЯЁ]/)
+    const isValueLike = value && value.length < 100 && !value.toLowerCase().includes('характеристики') && !value.toLowerCase().includes('техники')
+    
+    if (isKeyLike && isValueLike && !key.toLowerCase().includes('коммерческое') && !key.toLowerCase().includes('стоимость')) {
       specs[key] = value
+      i++ // Пропускаем следующую строку т.к. она была использована как значение
     }
   }
 
@@ -71,12 +74,12 @@ export function parseCommercialOfferText(text: string): CommercialOfferData {
   return data
 }
 
-export function formatSpecsForTable(specs: Record<string, string>): Array<[string, string][]> {
-  const entries = Object.entries(specs)
-  const rows: Array<[string, string][]> = []
+export function formatSpecsForTable(specs: Record<string, string>): Array<Array<[string, string]>> {
+  const entries = Object.entries(specs).filter(([k, v]) => k && v)
+  const rows: Array<Array<[string, string]>> = []
   
   for (let i = 0; i < entries.length; i += 2) {
-    const row: [string, string][] = []
+    const row: Array<[string, string]> = []
     row.push(entries[i])
     if (i + 1 < entries.length) {
       row.push(entries[i + 1])
