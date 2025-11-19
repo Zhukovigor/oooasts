@@ -1,3 +1,4 @@
+// app/api/commercial-offers/route.ts
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -5,168 +6,216 @@ import { NextRequest, NextResponse } from "next/server";
 // Константы для валидации
 const VALIDATION_LIMITS = {
   TITLE_MAX_LENGTH: 200,
+  DESCRIPTION_MAX_LENGTH: 2000,
   PRICE_MAX: 1000000000,
   SPECIFICATIONS_MAX_KEYS: 50,
   CHANNEL_IDS_MAX: 10,
+  SEARCH_MAX_LENGTH: 100,
   PAGE_MAX: 1000,
   LIMIT_MAX: 100,
-  STRING_FIELD_MAX_LENGTH: 500
+  STRING_FIELD_MAX_LENGTH: 500,
+  IMAGE_URL_MAX_LENGTH: 2000
 } as const;
 
-// Валидация данных создания
-function validateCreateData(body: any): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
+// Единый интерфейс данных
+interface CommercialOfferData {
+  title: string;
+  price: number;
+  priceWithVat?: number;
+  availability?: string;
+  paymentType?: string;
+  lease?: string;
+  vatIncluded?: boolean;
+  diagnosticsPassed?: boolean;
+  imageUrl?: string;
+  specifications?: Record<string, string>;
+  equipment?: string;
+  description?: string;
+  postToTelegram?: boolean;
+  channelIds?: string[];
+}
 
-  if (!body.title || !body.title.trim()) {
-    errors.push("Название техники обязательно для заполнения");
-  } else if (body.title.length > VALIDATION_LIMITS.TITLE_MAX_LENGTH) {
-    errors.push(`Название не может превышать ${VALIDATION_LIMITS.TITLE_MAX_LENGTH} символов`);
-  }
+// Улучшенная валидация
+class OfferValidator {
+  static validateCreateData(data: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
 
-  if (body.price === undefined || body.price === null) {
-    errors.push("Цена обязательна для заполнения");
-  } else if (typeof body.price !== 'number' || isNaN(body.price) || body.price < 0) {
-    errors.push("Цена должна быть положительным числом");
-  } else if (body.price > VALIDATION_LIMITS.PRICE_MAX) {
-    errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`);
-  }
-
-  if (body.priceWithVat !== undefined && body.priceWithVat !== null) {
-    if (typeof body.priceWithVat !== 'number' || isNaN(body.priceWithVat) || body.priceWithVat < 0) {
-      errors.push("Цена с НДС должна быть положительным числом");
-    } else if (body.priceWithVat > VALIDATION_LIMITS.PRICE_MAX) {
-      errors.push(`Цена с НДС не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`);
+    // Валидация названия
+    if (!data.title || !data.title.trim()) {
+      errors.push("Название техники обязательно для заполнения");
+    } else if (data.title.length > VALIDATION_LIMITS.TITLE_MAX_LENGTH) {
+      errors.push(`Название не может превышать ${VALIDATION_LIMITS.TITLE_MAX_LENGTH} символов`);
     }
-  }
 
-  if (body.imageUrl && !isValidImageUrl(body.imageUrl)) {
-    errors.push("Некорректный URL изображения");
-  }
-
-  if (body.specifications && typeof body.specifications !== 'object') {
-    errors.push("Спецификации должны быть объектом");
-  } else if (body.specifications && Object.keys(body.specifications).length > VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS) {
-    errors.push(`Слишком много характеристик (максимум ${VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS})`);
-  }
-
-  if (body.channelIds) {
-    if (!Array.isArray(body.channelIds)) {
-      errors.push("ChannelIds должен быть массивом");
-    } else if (body.channelIds.length > VALIDATION_LIMITS.CHANNEL_IDS_MAX) {
-      errors.push(`Слишком много каналов (максимум ${VALIDATION_LIMITS.CHANNEL_IDS_MAX})`);
-    } else if (body.channelIds.some((id: any) => typeof id !== 'string' || !id.trim())) {
-      errors.push("Все channelIds должны быть непустыми строками");
+    // Валидация цены
+    if (data.price === undefined || data.price === null) {
+      errors.push("Цена обязательна для заполнения");
+    } else if (typeof data.price !== 'number' || isNaN(data.price) || data.price < 0) {
+      errors.push("Цена должна быть положительным числом");
+    } else if (data.price > VALIDATION_LIMITS.PRICE_MAX) {
+      errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`);
     }
-  }
 
-  const stringFields = ['availability', 'paymentType', 'lease', 'equipment'] as const;
-  stringFields.forEach(field => {
-    if (body[field] !== undefined && body[field] !== null) {
-      if (typeof body[field] !== 'string') {
-        errors.push(`Поле ${field} должно быть строкой`);
-      } else if (body[field].length > VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH) {
-        errors.push(`Поле ${field} не может превышать ${VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH} символов`);
+    // Валидация цены с НДС
+    if (data.priceWithVat !== undefined && data.priceWithVat !== null) {
+      if (typeof data.priceWithVat !== 'number' || isNaN(data.priceWithVat) || data.priceWithVat < 0) {
+        errors.push("Цена с НДС должна быть положительным числом");
+      } else if (data.priceWithVat > VALIDATION_LIMITS.PRICE_MAX) {
+        errors.push(`Цена с НДС не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString('ru-RU')} руб.`);
       }
     }
-  });
 
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-}
+    // Валидация URL изображения
+    if (data.imageUrl && !this.isValidImageUrl(data.imageUrl)) {
+      errors.push("Некорректный URL изображения");
+    }
 
-// Упрощённая и корректная валидация URL изображения
-function isValidImageUrl(url: string): boolean {
-  if (!url) return false;
-  try {
-    const urlObj = new URL(url);
-    return ['http:', 'https:'].includes(urlObj.protocol);
-  } catch {
-    return false;
-  }
-}
+    // Валидация спецификаций
+    if (data.specifications && typeof data.specifications !== 'object') {
+      errors.push("Спецификации должны быть объектом");
+    } else if (data.specifications && Object.keys(data.specifications).length > VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS) {
+      errors.push(`Слишком много характеристик (максимум ${VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS})`);
+    }
 
-// Создание Supabase клиента — вызывается ТОЛЬКО внутри POST/GET
-function createSupabaseClient() {
-  const cookieStore = cookies(); // ✅ допустимо внутри обработчика
+    // Валидация каналов Telegram
+    if (data.channelIds) {
+      if (!Array.isArray(data.channelIds)) {
+        errors.push("ChannelIds должен быть массивом");
+      } else if (data.channelIds.length > VALIDATION_LIMITS.CHANNEL_IDS_MAX) {
+        errors.push(`Слишком много каналов (максимум ${VALIDATION_LIMITS.CHANNEL_IDS_MAX})`);
+      } else if (data.channelIds.some((id: any) => typeof id !== 'string' || !id.trim())) {
+        errors.push("Все channelIds должны быть непустыми строками");
+      }
+    }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Отсутствуют переменные окружения Supabase");
-  }
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // Игнорируем запись кук — не нужна при использовании service role key
+    // Валидация строковых полей
+    const stringFields = [
+      'availability', 'paymentType', 'lease', 'equipment', 'description'
+    ] as const;
+    
+    stringFields.forEach(field => {
+      if (data[field] !== undefined && data[field] !== null) {
+        if (typeof data[field] !== 'string') {
+          errors.push(`Поле ${field} должно быть строкой`);
+        } else {
+          const maxLength = field === 'description' 
+            ? VALIDATION_LIMITS.DESCRIPTION_MAX_LENGTH 
+            : VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH;
+          
+          if (data[field].length > maxLength) {
+            errors.push(`Поле ${field} не может превышать ${maxLength} символов`);
+          }
         }
       }
-    }
-  );
-}
-
-// Фоновая публикация в Telegram (БЕЗ доступа к Supabase!)
-async function publishToTelegram(offerId: string, channelIds: string[], origin: string) {
-  try {
-    const response = await fetch(`${origin}/api/telegram/post`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        offerId,
-        channelIds: channelIds.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
-      })
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Telegram API error (${response.status}): ${text}`);
+    return { isValid: errors.length === 0, errors };
+  }
+
+  static isValidImageUrl(url: string): boolean {
+    if (!url || url.length > VALIDATION_LIMITS.IMAGE_URL_MAX_LENGTH) return false;
+    try {
+      const urlObj = new URL(url);
+      return ['http:', 'https:'].includes(urlObj.protocol);
+    } catch {
+      return false;
     }
+  }
 
-    const result = await response.json();
-    console.log(`✅ Telegram: предложение ${offerId} успешно опубликовано`);
-    return result;
-
-  } catch (error) {
-    console.error('❌ Ошибка при публикации в Telegram:', error);
-    // Ошибка не пробрасывается — основной ответ уже отправлен
+  static validateId(id: string): boolean {
+    return /^[a-zA-Z0-9_-]+$/.test(id) && id.length > 0 && id.length <= 100;
   }
 }
 
-// === POST: Создание коммерческого предложения ===
-export async function POST(request: NextRequest) {
-  let supabase;
-  try {
-    supabase = createSupabaseClient(); // ✅ Вызывается внутри обработчика
-  } catch (error) {
-    console.error("Ошибка инициализации Supabase:", error);
-    return NextResponse.json({ error: "Ошибка базы данных" }, { status: 500 });
-  }
+// Утилиты для работы с Supabase
+class SupabaseUtils {
+  static createClient() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Отсутствуют переменные окружения Supabase");
+    }
 
-  // Парсинг тела запроса
-  let body: any;
+    const cookieStore = cookies();
+
+    return createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll() {
+            // Игнорируем запись кук
+          }
+        }
+      }
+    );
+  }
+}
+
+// Сервис для работы с Telegram
+class TelegramService {
+  static async publishOffer(offerId: string, channelIds: string[], origin: string) {
+    try {
+      const response = await fetch(`${origin}/api/telegram/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offerId,
+          channelIds: channelIds.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
+        })
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Telegram API error (${response.status}): ${text}`);
+      }
+
+      const result = await response.json();
+      console.log(`✅ Успешная публикация в Telegram для предложения ${offerId}`);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Ошибка при публикации в Telegram:', error);
+      // Не пробрасываем ошибку, чтобы не влиять на основной поток
+    }
+  }
+}
+
+// POST: Создание коммерческого предложения
+export async function POST(request: NextRequest) {
   try {
+    // Парсинг и валидация тела запроса
     const text = await request.text();
     if (!text.trim()) {
-      return NextResponse.json({ error: "Тело запроса не может быть пустым" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Тело запроса не может быть пустым" },
+        { status: 400 }
+      );
     }
-    body = JSON.parse(text);
-  } catch {
-    return NextResponse.json({ error: "Неверный формат JSON" }, { status: 400 });
-  }
 
-  // Валидация
-  const validation = validateCreateData(body);
-  if (!validation.isValid) {
-    return NextResponse.json({ error: validation.errors.join("; ") }, { status: 400 });
-  }
+    let body: CommercialOfferData;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return NextResponse.json(
+        { error: "Неверный формат JSON" },
+        { status: 400 }
+      );
+    }
 
-  try {
+    // Валидация данных
+    const validation = OfferValidator.validateCreateData(body);
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.errors.join("; ") },
+        { status: 400 }
+      );
+    }
+
+    // Создание клиента Supabase
+    const supabase = SupabaseUtils.createClient();
+
     // Проверка дубликатов
     const { data: existing, error: checkError } = await supabase
       .from("commercial_offers")
@@ -176,13 +225,17 @@ export async function POST(request: NextRequest) {
 
     if (checkError) throw checkError;
     if (existing?.length > 0) {
-      return NextResponse.json({ error: "Коммерческое предложение с таким названием уже существует" }, { status: 409 });
+      return NextResponse.json(
+        { error: "Коммерческое предложение с таким названием уже существует" },
+        { status: 409 }
+      );
     }
 
-    // Подготовка данных
+    // Подготовка данных для вставки
     const now = new Date().toISOString();
     const insertData = {
       title: body.title.trim(),
+      description: body.description?.trim() || null,
       price: Math.round(body.price),
       price_with_vat: body.priceWithVat ? Math.round(body.priceWithVat) : null,
       availability: body.availability?.trim() || null,
@@ -197,42 +250,48 @@ export async function POST(request: NextRequest) {
       created_at: now,
       updated_at: now,
       is_active: true,
+      is_featured: false,
       post_to_telegram: Boolean(body.postToTelegram),
       channel_ids: Array.isArray(body.channelIds)
-        ? body.channelIds.filter((id: any) => typeof id === 'string' && id.trim()).slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
+        ? body.channelIds.filter((id: any) => typeof id === 'string' && id.trim())
+            .slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
         : [],
       telegram_posted: false,
       telegram_message_id: null
     };
 
-    // Вставка
+    // Вставка данных
     const { data, error } = await supabase
       .from("commercial_offers")
       .insert([insertData])
       .select(`
-        id, title, price, price_with_vat, availability, payment_type,
-        vat_included, diagnostics_passed, image_url, specifications,
-        currency, equipment, lease, created_at, updated_at,
-        post_to_telegram, channel_ids, telegram_posted
+        id, title, description, price, price_with_vat, availability, 
+        payment_type, vat_included, diagnostics_passed, image_url, 
+        specifications, currency, equipment, lease, created_at, 
+        updated_at, is_active, is_featured, post_to_telegram, 
+        channel_ids, telegram_posted
       `)
       .single();
 
     if (error) {
       console.error("Ошибка вставки в Supabase:", error);
       if (error.code === '23505') {
-        return NextResponse.json({ error: "Предложение уже существует" }, { status: 409 });
+        return NextResponse.json(
+          { error: "Предложение уже существует" },
+          { status: 409 }
+        );
       }
-      return NextResponse.json({ error: "Ошибка базы данных" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Ошибка базы данных" },
+        { status: 500 }
+      );
     }
 
     console.log(`✅ Создано коммерческое предложение: ${data.id} - ${data.title}`);
 
-    // Асинхронная публикация в Telegram (НЕ БЛОКИРУЕТ ответ)
+    // Асинхронная публикация в Telegram
     if (body.postToTelegram && body.channelIds?.length) {
-      // Используем микрозадачу — выполняется после отправки ответа
-      queueMicrotask(() => {
-        publishToTelegram(data.id, body.channelIds, request.nextUrl.origin);
-      });
+      TelegramService.publishOffer(data.id, body.channelIds, request.nextUrl.origin);
     }
 
     return NextResponse.json({
@@ -244,47 +303,61 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error("Критическая ошибка при создании предложения:", error);
-    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Внутренняя ошибка сервера" },
+      { status: 500 }
+    );
   }
 }
 
-// === GET: Получение списка предложений ===
+// GET: Получение списка предложений
 export async function GET(request: NextRequest) {
-  let supabase;
   try {
-    supabase = createSupabaseClient(); // ✅ внутри обработчика
-  } catch (error) {
-    return NextResponse.json({ error: "Ошибка базы данных" }, { status: 500 });
-  }
-
-  try {
+    const supabase = SupabaseUtils.createClient();
     const url = new URL(request.url);
-    const page = Math.max(1, Math.min(VALIDATION_LIMITS.PAGE_MAX, parseInt(url.searchParams.get('page') || '1', 10)));
-    const limit = Math.max(1, Math.min(VALIDATION_LIMITS.LIMIT_MAX, parseInt(url.searchParams.get('limit') || '10', 10)));
+
+    // Параметры пагинации
+    const page = Math.max(1, Math.min(
+      VALIDATION_LIMITS.PAGE_MAX, 
+      parseInt(url.searchParams.get('page') || '1', 10)
+    ));
+    const limit = Math.max(1, Math.min(
+      VALIDATION_LIMITS.LIMIT_MAX, 
+      parseInt(url.searchParams.get('limit') || '10', 10)
+    ));
     const offset = (page - 1) * limit;
 
+    // Параметры фильтрации
     let search = url.searchParams.get('search')?.trim() || null;
-    if (search && search.length > VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH) {
-      search = search.substring(0, VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH);
+    if (search && search.length > VALIDATION_LIMITS.SEARCH_MAX_LENGTH) {
+      search = search.substring(0, VALIDATION_LIMITS.SEARCH_MAX_LENGTH);
     }
 
     const isActive = url.searchParams.get('is_active');
+    const isFeatured = url.searchParams.get('is_featured');
 
+    // Построение запроса
     let query = supabase
       .from("commercial_offers")
       .select(`
-        id, title, price, price_with_vat, availability, image_url,
-        created_at, updated_at, telegram_posted, is_active, equipment
-      `, { count: 'exact' })
-      .eq('is_active', true); // по умолчанию — только активные
+        id, title, description, price, price_with_vat, availability, 
+        image_url, created_at, updated_at, telegram_posted, 
+        is_active, is_featured, equipment, payment_type, lease,
+        diagnostics_passed, vat_included
+      `, { count: 'exact' });
 
+    // Применение фильтров
     if (search) {
-      query = query.or(`title.ilike.%${search}%,equipment.ilike.%${search}%`);
+      query = query.or(`title.ilike.%${search}%,equipment.ilike.%${search}%,description.ilike.%${search}%`);
     }
     if (isActive !== null) {
       query = query.eq('is_active', isActive === 'true');
     }
+    if (isFeatured !== null) {
+      query = query.eq('is_featured', isFeatured === 'true');
+    }
 
+    // Выполнение запроса
     const { data, error, count } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -307,12 +380,16 @@ export async function GET(request: NextRequest) {
       },
       filters: {
         search,
-        isActive: isActive || null
+        isActive: isActive || null,
+        isFeatured: isFeatured || null
       }
     });
 
   } catch (error) {
     console.error("Ошибка получения списка предложений:", error);
-    return NextResponse.json({ error: "Ошибка сервера при получении данных" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Ошибка сервера при получении данных" },
+      { status: 500 }
+    );
   }
 }
