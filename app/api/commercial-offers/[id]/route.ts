@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-// import { parseCommercialOfferText } from "@/lib/commercial-offer-parser"
+// import { parseCommercialOfferText } from "@/lib/commercial-offer-parser" // ← Закомментируем на время
 
 // GET - получение конкретного коммерческого предложения
 export async function GET(
@@ -92,19 +92,19 @@ export async function PUT(
       )
     }
 
-    // Поддержка парсинга при обновлении
+    // Временно убираем логику парсинга
     let updateData = { ...body }
     
-    if (body.rawText) {
-      const parsedData = parseCommercialOfferText(body.rawText)
-      
-      // Объединяем распарсенные данные с переданными (переданные имеют приоритет)
-      updateData = {
-        ...parsedData,
-        ...body,
-        rawText: undefined // Убираем сырой текст из данных для обновления
-      }
-    }
+    // if (body.rawText) {
+    //   const parsedData = parseCommercialOfferText(body.rawText)
+    //   
+    //   // Объединяем распарсенные данные с переданными (переданные имеют приоритет)
+    //   updateData = {
+    //     ...parsedData,
+    //     ...body,
+    //     rawText: undefined
+    //   }
+    // }
 
     // Подготавливаем данные для обновления
     const preparedData = {
@@ -155,8 +155,8 @@ export async function PUT(
     
     return NextResponse.json({ 
       success: true, 
-      data,
-      parsedData: body.rawText ? updateData : undefined
+      data
+      // parsedData: body.rawText ? updateData : undefined // ← временно убираем
     })
 
   } catch (error) {
