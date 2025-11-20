@@ -6,23 +6,19 @@ import DeleteOfferButton from "@/components/DeleteOfferButton"
 
 export default async function CommercialOffersPage() {
   const cookieStore = await cookies()
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
+
+  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
       },
-    }
-  )
+    },
+  })
 
   const { data: offers = [] } = await supabase
-    .from('commercial_offers')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .from("commercial_offers")
+    .select("*")
+    .order("created_at", { ascending: false })
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -51,15 +47,13 @@ export default async function CommercialOffersPage() {
                 <div className="p-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{offer.title}</h3>
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">{offer.description}</p>
-                  
+
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-2xl font-bold text-blue-600">
-                        {offer.price?.toLocaleString('ru-RU')} {offer.currency || 'руб.'}
+                        {offer.price?.toLocaleString("ru-RU")} {offer.currency || "руб."}
                       </p>
-                      {offer.vat_included && (
-                        <p className="text-xs text-gray-500">Стоимость с НДС</p>
-                      )}
+                      {offer.vat_included && <p className="text-xs text-gray-500">Стоимость с НДС</p>}
                     </div>
                   </div>
 
@@ -70,9 +64,7 @@ export default async function CommercialOffersPage() {
                       </span>
                     )}
                     {offer.payment_type && (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {offer.payment_type}
-                      </span>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{offer.payment_type}</span>
                     )}
                     {offer.diagnostics_passed && (
                       <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
@@ -81,13 +73,11 @@ export default async function CommercialOffersPage() {
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-400 mb-4">
-                    {new Date(offer.created_at).toLocaleDateString('ru-RU')}
-                  </p>
+                  <p className="text-xs text-gray-400 mb-4">{new Date(offer.created_at).toLocaleDateString("ru-RU")}</p>
 
                   <div className="flex gap-2">
                     <Link href={`/api/commercial-offers/${offer.id}/pdf`} className="flex-1" target="_blank">
-                      <Button variant="outline" className="w-full text-xs">
+                      <Button variant="outline" className="w-full text-xs bg-transparent">
                         Скачать PDF
                       </Button>
                     </Link>

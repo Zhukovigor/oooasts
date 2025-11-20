@@ -34,28 +34,28 @@ export default function CommercialOfferForm() {
   }, [])
 
   const handleParseText = () => {
-    console.log("Parsing text:", rawText);
+    console.log("Parsing text:", rawText)
     const parsed = parseCommercialOfferText(rawText)
-    console.log("Parsed data:", parsed);
+    console.log("Parsed data:", parsed)
     setParsedData(parsed)
     setShowParsed(true)
   }
 
   const handleSave = async () => {
     if (!parsedData) {
-      setSaveMessage("Ошибка: нет данных для сохранения");
-      return;
+      setSaveMessage("Ошибка: нет данных для сохранения")
+      return
     }
 
     setLoading(true)
     setSaveMessage("")
-    
+
     try {
-      console.log("Saving data:", parsedData);
-      
+      console.log("Saving data:", parsedData)
+
       const response = await fetch("/api/commercial-offers", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -67,7 +67,7 @@ export default function CommercialOfferForm() {
       })
 
       const result = await response.json()
-      console.log("Save response:", result);
+      console.log("Save response:", result)
 
       if (response.ok) {
         setOfferId(result.id)
@@ -89,8 +89,8 @@ export default function CommercialOfferForm() {
 
   const handleDownloadPDF = () => {
     if (!offerId) {
-      setSaveMessage("❌ Сначала сохраните предложение");
-      return;
+      setSaveMessage("❌ Сначала сохраните предложение")
+      return
     }
     window.open(`/api/commercial-offers/${offerId}/pdf`, "_blank")
   }
@@ -105,11 +105,13 @@ export default function CommercialOfferForm() {
 
         {/* Сообщения о статусе */}
         {saveMessage && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            saveMessage.includes("✅") 
-              ? "bg-green-100 text-green-800 border border-green-200" 
-              : "bg-red-100 text-red-800 border border-red-200"
-          }`}>
+          <div
+            className={`mb-6 p-4 rounded-lg ${
+              saveMessage.includes("✅")
+                ? "bg-green-100 text-green-800 border border-green-200"
+                : "bg-red-100 text-red-800 border border-red-200"
+            }`}
+          >
             {saveMessage}
           </div>
         )}
@@ -121,9 +123,7 @@ export default function CommercialOfferForm() {
 
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Текст с характеристиками *
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Текст с характеристиками *</label>
                 <Textarea
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
@@ -149,7 +149,10 @@ export default function CommercialOfferForm() {
                     <p className="text-sm text-gray-500">Каналы не добавлены</p>
                   ) : (
                     channels.map((channel) => (
-                      <label key={channel.id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 p-2 rounded">
+                      <label
+                        key={channel.id}
+                        className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 p-2 rounded"
+                      >
                         <input
                           type="checkbox"
                           checked={selectedChannels.includes(channel.id)}
@@ -190,9 +193,7 @@ export default function CommercialOfferForm() {
                 {/* Отладочная информация */}
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <h3 className="font-semibold text-yellow-800 mb-2">Отладочная информация:</h3>
-                  <pre className="text-xs text-yellow-700 overflow-auto">
-                    {JSON.stringify(parsedData, null, 2)}
-                  </pre>
+                  <pre className="text-xs text-yellow-700 overflow-auto">{JSON.stringify(parsedData, null, 2)}</pre>
                 </div>
 
                 {/* Заголовок - по центру */}
@@ -207,9 +208,9 @@ export default function CommercialOfferForm() {
                   {/* Левая колонка - фото */}
                   {imageUrl && (
                     <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center p-4">
-                      <img 
-                        src={imageUrl} 
-                        alt="техника" 
+                      <img
+                        src={imageUrl || "/placeholder.svg"}
+                        alt="техника"
                         className="w-full h-auto max-h-72 object-contain rounded-lg"
                         onError={(e) => {
                           e.currentTarget.src = "/placeholder.svg"
@@ -223,16 +224,22 @@ export default function CommercialOfferForm() {
                     <div className="border-2 border-gray-300 rounded-lg bg-white p-6 flex flex-col justify-between">
                       <div>
                         <div className="text-base font-bold text-black mb-3">Стоимость техники:</div>
-                        <div className="text-3xl font-bold text-black mb-4">{parsedData.price.toLocaleString('ru-RU')} руб.</div>
+                        <div className="text-3xl font-bold text-black mb-4">
+                          {parsedData.price.toLocaleString("ru-RU")} руб.
+                        </div>
                         <div className="space-y-2 mb-6">
                           {parsedData.priceWithVat && <div className="text-sm text-black">Стоимость с НДС.</div>}
-                          {parsedData.availability && <div className="text-sm text-black">{parsedData.availability}.</div>}
+                          {parsedData.availability && (
+                            <div className="text-sm text-black">{parsedData.availability}.</div>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-2 text-sm text-black">
                         {parsedData.lease && <div className="flex items-center">• Продажа в лизинг.</div>}
                         {parsedData.paymentType && <div className="flex items-center">• {parsedData.paymentType}.</div>}
-                        {parsedData.diagnosticsPassed && <div className="flex items-center">• Диагностика пройдена.</div>}
+                        {parsedData.diagnosticsPassed && (
+                          <div className="flex items-center">• Диагностика пройдена.</div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -252,9 +259,7 @@ export default function CommercialOfferForm() {
                               <td className="py-3 px-4 border-r border-gray-300 bg-gray-50 font-semibold text-gray-700 w-2/5">
                                 {key}
                               </td>
-                              <td className="py-3 px-4 text-gray-900 w-3/5">
-                                {value}
-                              </td>
+                              <td className="py-3 px-4 text-gray-900 w-3/5">{value}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -272,7 +277,7 @@ export default function CommercialOfferForm() {
                   >
                     {loading ? "Сохранение..." : "Сохранить КП"}
                   </Button>
-                  
+
                   {offerId && (
                     <Button
                       onClick={handleDownloadPDF}
