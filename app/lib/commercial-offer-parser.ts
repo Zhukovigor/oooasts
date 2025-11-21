@@ -5,10 +5,10 @@ export interface CommercialOfferData {
   equipment?: string
   model?: string
   price?: number
-  priceWithVat?: boolean
+  priceWithVat?: number
   availability?: string
   paymentType?: string
-  lease?: boolean
+  lease?: string
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   specifications?: Record<string, string>
@@ -108,10 +108,12 @@ function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
     }
   }
 
-  // Условия покупки
   if (patterns.priceWithVat.test(normalizedText)) {
-    data.priceWithVat = true
     data.vatIncluded = true
+    // Calculate price with VAT if we have base price
+    if (data.price) {
+      data.priceWithVat = Math.round(data.price * 1.18)
+    }
   }
 
   if (patterns.availability.test(normalizedText)) {
@@ -119,7 +121,7 @@ function extractPricingInfo(data: CommercialOfferData, normalizedText: string) {
   }
 
   if (patterns.lease.test(normalizedText)) {
-    data.lease = true
+    data.lease = "Продажа в лизинг"
   }
 
   if (patterns.paymentType.test(normalizedText)) {
