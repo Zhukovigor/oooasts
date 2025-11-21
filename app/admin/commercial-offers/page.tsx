@@ -81,6 +81,11 @@ export default async function CommercialOffersPage() {
                         Скачать PDF
                       </Button>
                     </Link>
+                    <Link href={`/api/commercial-offers/${offer.id}/export`} className="flex-1" target="_blank">
+                      <Button variant="outline" className="w-full text-xs bg-transparent">
+                        JSON
+                      </Button>
+                    </Link>
                     <Link href={`/admin/commercial-offers/${offer.id}/edit`} className="flex-1">
                       <Button className="w-full text-xs">Редактировать</Button>
                     </Link>
