@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -14,24 +13,67 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
   const [isLoading, setIsLoading] = useState(false)
   const [offer, setOffer] = useState(initialOffer)
 
+  const [titleFontSize, setTitleFontSize] = useState(28)
+  const [equipmentFontSize, setEquipmentFontSize] = useState(13)
+  const [priceBlockOffset, setPriceBlockOffset] = useState(0) // смещение в right (пиксели)
+  const [photoScale, setPhotoScale] = useState(100) // масштаб фото в процентах
+
   const handleSave = async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/commercial-offers/${offer.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(offer),
+        body: JSON.stringify({
+          ...offer,
+          titleFontSize,
+          equipmentFontSize,
+          priceBlockOffset,
+          photoScale,
+        }),
       })
+
+      const data = await response.json()
 
       if (response.ok) {
         alert("Коммерческое предложение обновлено")
         router.push("/admin/commercial-offers")
       } else {
-        alert("Ошибка при сохранении")
+        alert(`Ошибка при сохранении: ${data.message || data.error}`)
+        console.error("[v0] Save error:", data)
       }
     } catch (error) {
       console.error("[v0] Error saving offer:", error)
       alert("Ошибка при сохранении")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm("Вы уверены что хотите удалить это коммерческое предложение?")) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/commercial-offers/${offer.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert("Коммерческое предложение удалено")
+        router.push("/admin/commercial-offers")
+      } else {
+        alert(`Ошибка при удалении: ${data.message || data.error}`)
+        console.error("[v0] Delete error:", data)
+      }
+    } catch (error) {
+      console.error("[v0] Error deleting offer:", error)
+      alert("Ошибка при удалении")
     } finally {
       setIsLoading(false)
     }
@@ -114,11 +156,39 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Размер шрифта названия: {titleFontSize}px
+              </label>
+              <input
+                type="range"
+                min="16"
+                max="48"
+                value={titleFontSize}
+                onChange={(e) => setTitleFontSize(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Категория (оборудование)</label>
               <Input
                 value={offer.equipment || ""}
                 onChange={(e) => setOffer({ ...offer, equipment: e.target.value })}
                 placeholder="Например: СЕДЕЛЬНЫЙ ТЯГАЧ"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Размер шрифта категории: {equipmentFontSize}px
+              </label>
+              <input
+                type="range"
+                min="10"
+                max="24"
+                value={equipmentFontSize}
+                onChange={(e) => setEquipmentFontSize(Number(e.target.value))}
+                className="w-full"
               />
             </div>
 
@@ -159,6 +229,32 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
                 value={offer.image_url || ""}
                 onChange={(e) => setOffer({ ...offer, image_url: e.target.value })}
                 placeholder="URL фото"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Масштаб фото: {photoScale}%</label>
+              <input
+                type="range"
+                min="50"
+                max="150"
+                value={photoScale}
+                onChange={(e) => setPhotoScale(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Смещение ценового блока вправо: {priceBlockOffset}px
+              </label>
+              <input
+                type="range"
+                min="-100"
+                max="200"
+                value={priceBlockOffset}
+                onChange={(e) => setPriceBlockOffset(Number(e.target.value))}
+                className="w-full"
               />
             </div>
 
@@ -255,14 +351,16 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
               <Button onClick={handleSave} disabled={isLoading} className="flex-1 bg-blue-600 hover:bg-blue-700">
                 {isLoading ? "Сохранение..." : "Сохранить"}
               </Button>
-              <Button onClick={handleExportJSON} variant="outline" className="flex-1 bg-transparent">
-                Экспортировать JSON
+              <Button onClick={handleDelete} disabled={isLoading} variant="destructive" className="flex-1">
+                Удалить
               </Button>
-              {/* Import JSON button */}
+              <Button onClick={handleExportJSON} variant="outline" className="flex-1 bg-transparent">
+                JSON
+              </Button>
               <label className="flex-1 cursor-pointer">
                 <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
                 <div className="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium text-gray-700 text-center">
-                  Импортировать JSON
+                  Загрузить JSON
                 </div>
               </label>
             </div>
@@ -272,25 +370,15 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-8 h-fit max-h-[calc(100vh-100px)] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Предпросмотр</h2>
             <iframe
-              srcDoc={generatePreview(offer)}
+              srcDoc={generatePreview(offer, { titleFontSize, equipmentFontSize, priceBlockOffset, photoScale })}
               className="w-full h-[600px] border border-gray-200 rounded"
               title="Preview"
             />
-            <div className="mt-4 flex gap-2">
-              <a
-                href={`/api/commercial-offers/${offer.id}/view`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
+            <div className="mt-4 flex gap-2 flex-col">
+              <a href={`/api/commercial-offers/${offer.id}/view`} target="_blank" rel="noopener noreferrer">
                 <Button className="w-full bg-green-600 hover:bg-green-700">Открыть в браузере</Button>
               </a>
-              <a
-                href={`/api/commercial-offers/${offer.id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
+              <a href={`/api/commercial-offers/${offer.id}/pdf`} target="_blank" rel="noopener noreferrer">
                 <Button className="w-full bg-orange-600 hover:bg-orange-700">Скачать PDF</Button>
               </a>
             </div>
@@ -301,7 +389,7 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
   )
 }
 
-function generatePreview(offer: any): string {
+function generatePreview(offer: any, styling: any): string {
   const specs = offer.specifications || {}
   const specsArray = Object.entries(specs)
 
@@ -328,11 +416,12 @@ function generatePreview(offer: any): string {
     .page { padding: 0; }
     .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #000; padding-bottom: 15px; }
     .header-small-text { font-size: 11px; letter-spacing: 1px; color: #666; margin-bottom: 5px; }
-    .header-category { font-size: 13px; color: #999; margin-bottom: 8px; }
-    .header-title { font-size: 28px; font-weight: bold; color: #000; }
+    .header-category { font-size: ${styling.equipmentFontSize}px; color: #999; margin-bottom: 8px; }
+    .header-title { font-size: ${styling.titleFontSize}px; font-weight: bold; color: #000; }
     .content { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
     .image-box { display: flex; align-items: center; justify-content: center; background: #f5f5f5; min-height: 250px; }
-    .image-box img { max-width: 100%; max-height: 250px; object-fit: contain; }
+    .image-box img { max-width: 100%; max-height: 250px; object-fit: contain; transform: scale(${styling.photoScale / 100}); }
+    .price-section { margin-right: ${styling.priceBlockOffset}px; }
     .price-label { font-size: 12px; color: #999; margin-bottom: 10px; }
     .price-value { font-size: 28px; font-weight: bold; margin-bottom: 15px; }
     .conditions-list { list-style: none; font-size: 12px; line-height: 1.8; }
@@ -355,7 +444,7 @@ function generatePreview(offer: any): string {
       <div class="image-box">
         ${offer.image_url ? `<img src="${escapeHtml(offer.image_url)}" onerror="this.style.display='none'">` : "<div style='color: #999;'>Нет изображения</div>"}
       </div>
-      <div>
+      <div class="price-section">
         <div class="price-label">Стоимость техники:</div>
         <div class="price-value">${formattedPrice} руб.</div>
         ${offer.vat_included ? `<div style="font-size: 12px; color: #666; margin-bottom: 15px;">Стоимость с НДС.</div>` : ""}

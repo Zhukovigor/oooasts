@@ -237,6 +237,43 @@ function extractTechnicalSpecs(specs: Record<string, string>, text: string) {
 
     // Извлечение характеристик оборудования
     extractEquipmentSpecs(specs, line)
+
+    extractAdditionalSpecs(specs, line)
+  }
+}
+
+function extractAdditionalSpecs(specs: Record<string, string>, line: string) {
+  const additionalPatterns = [
+    { regex: /грузоподъемность[^0-9]*(\d+)\s*т/i, key: "Грузоподъемность", suffix: " т" },
+    { regex: /объем[^0-9]*(\d+)\s*(?:л|литр)/i, key: "Объем бака", suffix: " л" },
+    { regex: /вместимость[^0-9]*(\d+)\s*(?:л|литр)/i, key: "Вместимость", suffix: " л" },
+    { regex: /высота[^0-9]*(\d+)\s*(?:мм|м\.м\.)/i, key: "Высота", suffix: " мм" },
+    { regex: /длина[^0-9]*(\d+)\s*(?:мм|м\.м\.)/i, key: "Длина", suffix: " мм" },
+    { regex: /ширина[^0-9]*(\d+)\s*(?:мм|м\.м\.)/i, key: "Ширина", suffix: " мм" },
+    { regex: /глубина[^0-9]*(\d+)\s*(?:мм|м\.м\.)/i, key: "Глубина", suffix: " мм" },
+    { regex: /масса[^0-9]*(\d+)\s*кг/i, key: "Масса", suffix: " кг" },
+    { regex: /скорость[^0-9]*(\d+(?:\.\d+)?)\s*(?:км\/ч|кмч)/i, key: "Максимальная скорость", suffix: " км/ч" },
+    { regex: /давление[^0-9]*(\d+)\s*(?:бар|атм)/i, key: "Давление", suffix: " бар" },
+    { regex: /производительность[^0-9]*(\d+)\s*(?:м3|куб|кубометр)/i, key: "Производительность", suffix: " м³" },
+    { regex: /расход[^0-9]*(\d+(?:\.\d+)?)\s*(?:л\/ч|л\/мин)/i, key: "Расход", suffix: " л/ч" },
+    { regex: /оборот[^0-9]*(\d+)\s*(?:об\/мин|rpm|оборотов)/i, key: "Обороты двигателя", suffix: " об/мин" },
+    { regex: /крутящий\s+момент[^0-9]*(\d+)\s*(?:н\.?м|нм)/i, key: "Крутящий момент", suffix: " Н·м" },
+    { regex: /ускорение[^0-9]*(\d+(?:\.\d+)?)\s*(?:м\/с|с|сек)/i, key: "Время ускорения", suffix: " сек" },
+    { regex: /запас\s+хода[^0-9]*(\d+)\s*км/i, key: "Запас хода", suffix: " км" },
+    { regex: /емкость\s+батареи[^0-9]*(\d+)\s*(?:кв?ч|kwh)/i, key: "Емкость батареи", suffix: " кВч" },
+    { regex: /напряжение[^0-9]*(\d+)\s*(?:в|вольт)/i, key: "Напряжение", suffix: " В" },
+  ]
+
+  const lowerLine = line.toLowerCase()
+
+  for (const pattern of additionalPatterns) {
+    if (pattern.regex.test(lowerLine) && !specs[pattern.key]) {
+      const match = line.match(pattern.regex)
+      if (match) {
+        const value = match[1] + pattern.suffix
+        specs[pattern.key] = value
+      }
+    }
   }
 }
 
