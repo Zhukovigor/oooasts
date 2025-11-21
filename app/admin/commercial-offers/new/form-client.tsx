@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { parseCommercialOfferText, formatSpecsForTable } from "@/app/lib/commercial-offer-parser"
 import type { CommercialOfferData } from "@/app/lib/commercial-offer-parser"
+import { parseCommercialOfferText, formatSpecsForTable } from "@/app/lib/commercial-offer-parser"
 
 export default function CommercialOfferForm() {
   const [rawText, setRawText] = useState("")
@@ -39,15 +39,15 @@ export default function CommercialOfferForm() {
       return
     }
     try {
-      console.log("[v0] Parsing text:", rawText.substring(0, 100))
+      console.log("[v0] Starting parse with text length:", rawText.length)
       const parsed = parseCommercialOfferText(rawText)
-      console.log("[v0] Parsed data:", parsed)
+      console.log("[v0] Successfully parsed data:", parsed)
       setParsedData(parsed)
       setShowParsed(true)
       setSaveMessage("")
     } catch (error) {
-      console.error("[v0] Parser error:", error)
-      setSaveMessage("❌ Ошибка при парсировании текста")
+      console.error("[v0] Parser error details:", error)
+      setSaveMessage("❌ Ошибка при парсировании текста: " + String(error))
     }
   }
 
@@ -61,7 +61,7 @@ export default function CommercialOfferForm() {
     setSaveMessage("")
 
     try {
-      console.log("Saving data:", parsedData)
+      console.log("[v0] Saving offer:", parsedData)
 
       const response = await fetch("/api/commercial-offers", {
         method: "POST",
@@ -77,20 +77,16 @@ export default function CommercialOfferForm() {
       })
 
       const result = await response.json()
-      console.log("Save response:", result)
+      console.log("[v0] Save response:", result)
 
       if (response.ok) {
         setOfferId(result.id)
         setSaveMessage("✅ Коммерческое предложение успешно создано!")
-        // Можно очистить форму после успешного сохранения
-        // setRawText("");
-        // setParsedData(null);
-        // setShowParsed(false);
       } else {
         setSaveMessage(`❌ Ошибка: ${result.error || "Неизвестная ошибка"}`)
       }
     } catch (error) {
-      console.error("Error saving offer:", error)
+      console.error("[v0] Error saving offer:", error)
       setSaveMessage("❌ Ошибка при сохранении КП")
     } finally {
       setLoading(false)
@@ -113,7 +109,6 @@ export default function CommercialOfferForm() {
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Создание коммерческого предложения</h1>
         <p className="text-gray-600 mb-8">Заполните данные о технике для автоматического формирования КП</p>
 
-        {/* Сообщения о статусе */}
         {saveMessage && (
           <div
             className={`mb-6 p-4 rounded-lg ${
