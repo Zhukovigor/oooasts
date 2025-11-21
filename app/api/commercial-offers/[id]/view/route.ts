@@ -25,17 +25,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const htmlContent = generateStrictFormatPDF(data)
-    const filename = `${data.title || "offer"}_${new Date().toISOString().split("T")[0]}.pdf`
 
     return new NextResponse(htmlContent, {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `inline; filename="${filename}"`,
       },
     })
   } catch (error: any) {
-    console.error("PDF generation error:", error)
+    console.error("View generation error:", error)
     return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
@@ -65,23 +63,24 @@ function generateStrictFormatPDF(data: any): string {
   <title>${escapeHtml(data.title || "КП")}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Arial', sans-serif; background: white; }
+    body { font-family: 'Arial', sans-serif; background: #f5f5f5; padding: 20px; }
     
     .page {
-      width: 210mm;
-      height: 297mm;
+      width: 100%;
+      max-width: 900px;
       margin: 0 auto;
-      padding: 20mm;
+      padding: 40px;
       background: white;
       display: flex;
       flex-direction: column;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 30px;
       border-bottom: 3px solid #000;
-      padding-bottom: 15px;
+      padding-bottom: 20px;
     }
 
     .header-small-text {
@@ -108,8 +107,8 @@ function generateStrictFormatPDF(data: any): string {
     .content {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 30px;
-      margin-bottom: 30px;
+      gap: 40px;
+      margin-bottom: 40px;
     }
 
     .image-box {
@@ -118,13 +117,13 @@ function generateStrictFormatPDF(data: any): string {
       justify-content: center;
       background: #f5f5f5;
       border-radius: 4px;
-      min-height: 280px;
+      min-height: 300px;
       overflow: hidden;
     }
 
     .image-box img {
       max-width: 100%;
-      max-height: 280px;
+      max-height: 300px;
       object-fit: contain;
     }
 
@@ -167,7 +166,7 @@ function generateStrictFormatPDF(data: any): string {
     }
 
     .specs-section {
-      margin-top: 30px;
+      margin-top: 40px;
     }
 
     .specs-title {
@@ -201,17 +200,9 @@ function generateStrictFormatPDF(data: any): string {
       width: 60%;
       text-align: right;
     }
-
-    @media print {
-      body { margin: 0; padding: 0; }
-      .page { margin: 0; padding: 20mm; break-after: avoid; }
-      .print-button { display: none; }
-    }
   </style>
 </head>
 <body>
-  <button class="print-button" style="position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; z-index: 1000; font-size: 14px;" onclick="window.print()">Печать/Сохранить как PDF</button>
-  
   <div class="page">
     <!-- Header -->
     <div class="header">
