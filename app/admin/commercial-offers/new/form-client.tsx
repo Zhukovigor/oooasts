@@ -34,11 +34,21 @@ export default function CommercialOfferForm() {
   }, [])
 
   const handleParseText = () => {
-    console.log("Parsing text:", rawText)
-    const parsed = parseCommercialOfferText(rawText)
-    console.log("Parsed data:", parsed)
-    setParsedData(parsed)
-    setShowParsed(true)
+    if (!rawText.trim()) {
+      setSaveMessage("❌ Пожалуйста введите текст для парсирования")
+      return
+    }
+    try {
+      console.log("[v0] Parsing text:", rawText.substring(0, 100))
+      const parsed = parseCommercialOfferText(rawText)
+      console.log("[v0] Parsed data:", parsed)
+      setParsedData(parsed)
+      setShowParsed(true)
+      setSaveMessage("")
+    } catch (error) {
+      console.error("[v0] Parser error:", error)
+      setSaveMessage("❌ Ошибка при парсировании текста")
+    }
   }
 
   const handleSave = async () => {

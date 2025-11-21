@@ -372,13 +372,17 @@ export async function POST(request: NextRequest) {
     let body: CommercialOfferData
     try {
       body = JSON.parse(text)
-    } catch {
+    } catch (error) {
+      console.error("[v0] JSON parse error:", error)
       return ErrorHandler.handleValidationError(["Неверный формат JSON"])
     }
+
+    console.log("[v0] Received POST data:", body)
 
     // Валидация данных
     const validation = OfferValidator.validateCreateData(body)
     if (!validation.isValid) {
+      console.error("[v0] Validation errors:", validation.errors)
       return ErrorHandler.handleValidationError(validation.errors)
     }
 
@@ -392,7 +396,11 @@ export async function POST(request: NextRequest) {
       .ilike("title", body.title.trim())
       .limit(1)
 
-    if (checkError) throw checkError
+    if (checkError) {
+      console.error("[v0] Check error:", checkError)
+      throw checkError
+    }
+
     if (existing?.length > 0) {
       return NextResponse.json(
         {
@@ -405,6 +413,7 @@ export async function POST(request: NextRequest) {
 
     // Подготовка и вставка данных
     const insertData = DataTransformer.transformOfferForInsert(body)
+    console.log("[v0] Insert data:", insertData)
 
     const { data, error } = await supabase
       .from("commercial_offers")
@@ -419,16 +428,17 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      console.error("[v0] Database error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    console.log(`✅ Создано коммерческое предложение: ${data.id} - ${data.title}`)
+    console.log("[v0] Created offer:", data.id)
 
     // Асинхронная публикация в Telegram (не блокируем ответ)
     if (body.postToTelegram && body.channelIds?.length) {
       setImmediate(() => {
         TelegramService.publishOffer(data.id, body.channelIds!, request.nextUrl.origin).catch((err) =>
-          console.error("Фоновая ошибка Telegram:", err),
+          console.error("[v0] Telegram error:", err),
         )
       })
     }
@@ -443,6 +453,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     )
   } catch (error: any) {
+    console.error("[v0] Server error:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
