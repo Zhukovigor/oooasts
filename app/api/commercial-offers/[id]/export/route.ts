@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const json = JSON.stringify(data, null, 2)
-    const filename = `${data.title || "offer"}_${new Date().toISOString().split("T")[0]}.json`
+    const filename = `offer_${new Date().toISOString().split("T")[0]}.json`
 
     return new NextResponse(json, {
       status: 200,

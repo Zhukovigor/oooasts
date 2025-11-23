@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const htmlContent = generateStrictFormatPDF(data)
-    const filename = `${data.title || "offer"}_${new Date().toISOString().split("T")[0]}.pdf`
+    const filename = `offer_${new Date().toISOString().split("T")[0]}.pdf`
 
     return new NextResponse(htmlContent, {
       status: 200,
