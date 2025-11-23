@@ -12,6 +12,7 @@ export default function CommercialOfferForm() {
   const [parsedData, setParsedData] = useState<CommercialOfferData | null>(null)
   const [showParsed, setShowParsed] = useState(false)
   const [imageUrl, setImageUrl] = useState("")
+  const [headerImageUrl, setHeaderImageUrl] = useState("")
   const [loading, setLoading] = useState(false)
   const [selectedChannels, setSelectedChannels] = useState<string[]>([])
   const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([])
@@ -71,6 +72,7 @@ export default function CommercialOfferForm() {
         body: JSON.stringify({
           ...parsedData,
           imageUrl,
+          headerImageUrl,
           postToTelegram: selectedChannels.length > 0,
           channelIds: selectedChannels,
         }),
@@ -127,6 +129,27 @@ export default function CommercialOfferForm() {
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Введите данные</h2>
 
             <div className="space-y-6">
+              {/* URL шапки (логотип компании) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">URL шапки (логотип компании)</label>
+                <Input
+                  value={headerImageUrl}
+                  onChange={(e) => setHeaderImageUrl(e.target.value)}
+                  placeholder="https://example.com/header.jpg"
+                  className="p-3 border border-gray-300 rounded-lg"
+                />
+                {headerImageUrl && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-300">
+                    <img
+                      src={headerImageUrl || "/placeholder.svg"}
+                      alt="Шапка"
+                      className="max-h-24 object-contain"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">Текст с характеристиками *</label>
                 <Textarea
@@ -195,6 +218,18 @@ export default function CommercialOfferForm() {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр КП</h2>
 
               <div className="space-y-6">
+                {/* URL шапки (логотип компании) */}
+                {headerImageUrl && (
+                  <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-center min-h-24">
+                    <img
+                      src={headerImageUrl || "/placeholder.svg"}
+                      alt="Шапка"
+                      className="max-h-20 object-contain"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  </div>
+                )}
+
                 {/* Отладочная информация */}
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <h3 className="font-semibold text-yellow-800 mb-2">Отладочная информация:</h3>

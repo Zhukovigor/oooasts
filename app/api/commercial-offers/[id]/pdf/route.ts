@@ -88,6 +88,23 @@ function generateStrictFormatPDF(data: any): string {
       flex-direction: column;
     }
 
+    .header-image {
+      width: 100%;
+      max-height: 80px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+    }
+
+    .header-image img {
+      max-height: 80px;
+      max-width: 100%;
+      object-fit: contain;
+    }
+
     .header {
       text-align: center;
       margin-bottom: 20px;
@@ -224,6 +241,15 @@ function generateStrictFormatPDF(data: any): string {
   <button class="print-button" style="position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; z-index: 1000; font-size: 14px;" onclick="window.print()">Печать/Сохранить как PDF</button>
   
   <div class="page">
+    <!-- Add header image section -->
+    ${
+      data.header_image_url
+        ? `<div class="header-image">
+      <img src="${escapeHtml(data.header_image_url)}" alt="Шапка" onerror="this.style.display='none'">
+    </div>`
+        : ""
+    }
+
     <!-- Header -->
     <div class="header">
       <div class="header-small-text">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
