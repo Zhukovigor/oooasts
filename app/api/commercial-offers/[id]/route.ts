@@ -496,10 +496,9 @@ export async function GET(request: NextRequest) {
 }
 
 // PATCH: Обновление коммерческого предложения
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get("id")
+    const id = params.id
 
     if (!id || !OfferValidator.validateId(id)) {
       return ErrorHandler.handleValidationError(["Некорректный ID предложения"])
