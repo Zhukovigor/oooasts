@@ -259,25 +259,6 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Наличие</label>
-                <Input
-                  value={offer.availability || ""}
-                  onChange={(e) => setOffer({ ...offer, availability: e.target.value })}
-                  placeholder="В наличии"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Способ оплаты</label>
-                <Input
-                  value={offer.payment_type || ""}
-                  onChange={(e) => setOffer({ ...offer, payment_type: e.target.value })}
-                  placeholder="Безналичная оплата с НДС"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -290,8 +271,8 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={offer.lease || false}
-                  onChange={(e) => setOffer({ ...offer, lease: e.target.checked })}
+                  checked={offer.lease && offer.lease !== ""}
+                  onChange={(e) => setOffer({ ...offer, lease: e.target.checked ? "Продажа в лизинг" : "" })}
                   className="mr-2 w-4 h-4"
                 />
                 <span className="text-sm font-medium text-gray-700">Продажа в лизинг</span>
@@ -450,7 +431,7 @@ function generatePreview(offer: any, styling: any): string {
         ${offer.vat_included ? `<div style="font-size: 12px; color: #666; margin-bottom: 15px;">Стоимость с НДС.</div>` : ""}
         <ul class="conditions-list">
           ${offer.availability ? `<li>${escapeHtml(offer.availability)}</li>` : ""}
-          ${offer.lease ? `<li>Продажа в лизинг.</li>` : ""}
+          ${offer.lease ? `<li>${escapeHtml(offer.lease)}</li>` : ""}
           ${offer.payment_type ? `<li>${escapeHtml(offer.payment_type)}</li>` : ""}
           ${offer.diagnostics_passed ? `<li>Диагностика пройдена.</li>` : ""}
         </ul>
