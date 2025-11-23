@@ -13,10 +13,10 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
   const [isLoading, setIsLoading] = useState(false)
   const [offer, setOffer] = useState(initialOffer)
 
-  const [titleFontSize, setTitleFontSize] = useState(28)
-  const [equipmentFontSize, setEquipmentFontSize] = useState(13)
-  const [priceBlockOffset, setPriceBlockOffset] = useState(0) // смещение в right (пиксели)
-  const [photoScale, setPhotoScale] = useState(100) // масштаб фото в процентах
+  const [titleFontSize, setTitleFontSize] = useState(initialOffer.titleFontSize || 28)
+  const [equipmentFontSize, setEquipmentFontSize] = useState(initialOffer.equipmentFontSize || 13)
+  const [priceBlockOffset, setPriceBlockOffset] = useState(initialOffer.priceBlockOffset || 0)
+  const [photoScale, setPhotoScale] = useState(initialOffer.photoScale || 100)
 
   const handleSave = async () => {
     setIsLoading(true)
@@ -146,6 +146,24 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
         <div className="grid grid-cols-2 gap-8">
           {/* Left: Form */}
           <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">URL Шапки (Header Image)</label>
+              <Input
+                value={offer.header_image_url || ""}
+                onChange={(e) => setOffer({ ...offer, header_image_url: e.target.value })}
+                placeholder="URL изображения шапки компании"
+              />
+              {offer.header_image_url && (
+                <div className="mt-2 p-2 bg-gray-100 rounded">
+                  <img
+                    src={offer.header_image_url || "/placeholder.svg"}
+                    alt="Header preview"
+                    className="max-w-full h-16 object-contain"
+                  />
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Название</label>
               <Input
@@ -395,6 +413,12 @@ function generatePreview(offer: any, styling: any): string {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; background: white; }
     .page { padding: 0; }
+    ${
+      offer.header_image_url
+        ? `.header-image { margin-bottom: 20px; text-align: center; }
+    .header-image img { max-width: 100%; height: auto; max-height: 80px; }`
+        : ""
+    }
     .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #000; padding-bottom: 15px; }
     .header-small-text { font-size: 11px; letter-spacing: 1px; color: #666; margin-bottom: 5px; }
     .header-category { font-size: ${styling.equipmentFontSize}px; color: #999; margin-bottom: 8px; }
@@ -416,6 +440,11 @@ function generatePreview(offer: any, styling: any): string {
 </head>
 <body>
   <div class="page">
+    ${
+      offer.header_image_url
+        ? `<div class="header-image"><img src="${escapeHtml(offer.header_image_url)}" onerror="this.style.display='none'"></div>`
+        : ""
+    }
     <div class="header">
       <div class="header-small-text">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
       ${offer.equipment ? `<div class="header-category">${escapeHtml(offer.equipment)}</div>` : ""}
