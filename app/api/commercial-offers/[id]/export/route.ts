@@ -10,7 +10,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const cookieStore = cookies()
-    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[v0] Missing Supabase env vars")
+      return NextResponse.json({ error: "Конфигурация сервера" }, { status: 500 })
+    }
+
+    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -20,7 +26,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const { data, error } = await supabase.from("commercial_offers").select("*").eq("id", offerId).single()
 
-    if (error || !data) {
+    if (error) {
+      console.error("[v0] Export Supabase error:", error)
+      return NextResponse.json({ error: "Коммерческое предложение не найдено" }, { status: 404 })
+    }
+
+    if (!data) {
       return NextResponse.json({ error: "Коммерческое предложение не найдено" }, { status: 404 })
     }
 
@@ -35,7 +46,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       },
     })
   } catch (error: any) {
-    console.error("Export error:", error)
-    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
+    console.error("[v0] Export error:", error)
+    return NextResponse.json({ error: "Внутренняя ошибка сервера", details: error.message }, { status: 500 })
   }
 }
