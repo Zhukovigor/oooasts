@@ -2,25 +2,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { type NextRequest, NextResponse } from "next/server"
-import crypto from "crypto"
-
-// Конфигурация
-const CONFIG = {
-  supabase: {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  },
-  rateLimit: {
-    max: parseInt(process.env.RATE_LIMIT_MAX || "100"),
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000"),
-  },
-} as const
 
 // Константы для валидации
 const VALIDATION_LIMITS = {
   TITLE_MAX_LENGTH: 200,
   DESCRIPTION_MAX_LENGTH: 2000,
-  PRICE_MAX: 100000000000,
+  PRICE_MAX: 1000000000,
   SPECIFICATIONS_MAX_KEYS: 50,
   CHANNEL_IDS_MAX: 10,
   SEARCH_MAX_LENGTH: 100,
@@ -28,167 +15,72 @@ const VALIDATION_LIMITS = {
   LIMIT_MAX: 100,
   STRING_FIELD_MAX_LENGTH: 500,
   IMAGE_URL_MAX_LENGTH: 2000,
-  SPECIFICATION_KEY_MAX_LENGTH: 100,
-  SPECIFICATION_VALUE_MAX_LENGTH: 500,
-  MODEL_MAX_LENGTH: 100,
-  CURRENCY_MAX_LENGTH: 10,
 } as const
 
-// Интерфейсы данных
+// Интерфейсы данных - ИСПРАВЛЕНЫ для соответствия фронтенду
 interface CommercialOfferData {
   title: string
-  description?: string | null
-  equipment?: string | null
-  model?: string | null
   price: number | string
   price_with_vat?: number | string | null
-  currency?: string
   availability?: string | null
   payment_type?: string | null
   lease?: string | null
+  conditions?: string | null
+  header_image_url?: string | null
+  footer_text?: string | null
+  footer_alignment?: string
+  footer_font_size?: number
   vat_included?: boolean
   diagnostics_passed?: boolean
   image_url?: string | null
   specifications?: Record<string, string> | string | null
+  equipment?: string | null
+  description?: string | null
   post_to_telegram?: boolean
   channel_ids?: string[]
   is_active?: boolean
   is_featured?: boolean
-  footer_text?: string | null
-  footer_font_size?: number
-  footer_alignment?: string
-  footer_padding?: number
-  header_image_url?: string | null
+  offer_title?: string | null
   title_font_size?: number
   equipment_font_size?: number
   price_block_offset?: number
   photo_scale?: string | number
-  offer_title?: string | null
+  footer_padding?: number
+  model?: string | null
+  currency?: string
 }
 
 interface CommercialOfferUpdateData {
   title?: string
-  description?: string | null
-  equipment?: string | null
-  model?: string | null
   price?: number | string
   price_with_vat?: number | string | null
-  currency?: string
   availability?: string | null
   payment_type?: string | null
   lease?: string | null
+  conditions?: string | null
+  header_image_url?: string | null
+  footer_text?: string | null
+  footer_alignment?: string
+  footer_font_size?: number
   vat_included?: boolean
   diagnostics_passed?: boolean
   image_url?: string | null
   specifications?: Record<string, string> | string | null
-  post_to_telegram?: boolean
-  channel_ids?: string[]
+  equipment?: string | null
+  description?: string | null
   is_active?: boolean
   is_featured?: boolean
-  footer_text?: string | null
-  footer_font_size?: number
-  footer_alignment?: string
-  footer_padding?: number
-  header_image_url?: string | null
+  offer_title?: string | null
   title_font_size?: number
   equipment_font_size?: number
   price_block_offset?: number
   photo_scale?: string | number
-  offer_title?: string | null
+  footer_padding?: number
+  model?: string | null
+  currency?: string
 }
 
-interface SupabaseError {
-  code: string
-  message: string
-  details?: string
-  hint?: string
-}
-
-// Логирование
-class Logger {
-  static info(message: string, metadata?: Record<string, any>) {
-    console.log(
-      JSON.stringify({
-        level: "info",
-        timestamp: new Date().toISOString(),
-        message,
-        ...metadata,
-      }),
-    )
-  }
-
-  static error(message: string, error?: any, metadata?: Record<string, any>) {
-    console.error(
-      JSON.stringify({
-        level: "error",
-        timestamp: new Date().toISOString(),
-        message,
-        error: error?.message,
-        stack: error?.stack,
-        ...metadata,
-      }),
-    )
-  }
-
-  static warn(message: string, metadata?: Record<string, any>) {
-    console.warn(
-      JSON.stringify({
-        level: "warn",
-        timestamp: new Date().toISOString(),
-        message,
-        ...metadata,
-      }),
-    )
-  }
-}
-
-// Утилиты безопасности
-class SecurityUtils {
-  static sanitizeInput(input: string): string {
-    if (!input) return ""
-    return input
-      .replace(/[<>]/g, "")
-      .replace(/javascript:/gi, "")
-      .trim()
-  }
-
-  static sanitizeSpecifications(specs: any): Record<string, string> {
-    if (!specs) return {}
-    
-    // Если спецификации приходят как строка JSON, парсим их
-    if (typeof specs === 'string') {
-      try {
-        specs = JSON.parse(specs)
-      } catch {
-        return {}
-      }
-    }
-    
-    if (typeof specs !== 'object' || Array.isArray(specs)) {
-      return {}
-    }
-    
-    const sanitized: Record<string, string> = {}
-    for (const [key, value] of Object.entries(specs)) {
-      if (typeof value === 'string') {
-        sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value)
-      }
-    }
-    return sanitized
-  }
-
-  static parsePrice(price: any): number {
-    if (typeof price === 'number') return Math.round(price)
-    if (typeof price === 'string') {
-      // Удаляем пробелы и преобразуем в число
-      const cleanPrice = price.replace(/\s/g, '')
-      return Math.round(parseFloat(cleanPrice) || 0)
-    }
-    return 0
-  }
-}
-
-// Валидация данных
+// Улучшенная валидация
 class OfferValidator {
   static validateCreateData(data: any): { isValid: boolean; errors: string[] } {
     const errors: string[] = []
@@ -204,7 +96,7 @@ class OfferValidator {
     if (data.price === undefined || data.price === null) {
       errors.push("Цена обязательна для заполнения")
     } else {
-      const price = SecurityUtils.parsePrice(data.price)
+      const price = this.parsePrice(data.price)
       if (price <= 0) {
         errors.push("Цена должна быть положительным числом")
       } else if (price > VALIDATION_LIMITS.PRICE_MAX) {
@@ -232,6 +124,7 @@ class OfferValidator {
       return { isValid: false, errors }
     }
 
+    // Для обновления title не обязателен, но если передан - валидируем
     if (data.title !== undefined) {
       if (!data.title.trim()) {
         errors.push("Название не может быть пустым")
@@ -240,8 +133,9 @@ class OfferValidator {
       }
     }
 
+    // Валидация цены если передана
     if (data.price !== undefined && data.price !== null) {
-      const price = SecurityUtils.parsePrice(data.price)
+      const price = this.parsePrice(data.price)
       if (price <= 0) {
         errors.push("Цена должна быть положительным числом")
       } else if (price > VALIDATION_LIMITS.PRICE_MAX) {
@@ -249,6 +143,7 @@ class OfferValidator {
       }
     }
 
+    // Валидация URL изображения если передан
     if (data.image_url && !this.isValidImageUrl(data.image_url)) {
       errors.push("Некорректный URL изображения")
     }
@@ -258,6 +153,16 @@ class OfferValidator {
     }
 
     return { isValid: errors.length === 0, errors }
+  }
+
+  static parsePrice(price: any): number {
+    if (typeof price === 'number') return Math.round(price)
+    if (typeof price === 'string') {
+      // Удаляем пробелы и преобразуем в число
+      const cleanPrice = price.replace(/\s/g, '')
+      return Math.round(parseFloat(cleanPrice) || 0)
+    }
+    return 0
   }
 
   static isValidImageUrl(url: string): boolean {
@@ -278,13 +183,13 @@ class OfferValidator {
 // Утилиты для работы с Supabase
 class SupabaseUtils {
   static createClient() {
-    if (!CONFIG.supabase.url || !CONFIG.supabase.serviceRoleKey) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Отсутствуют переменные окружения Supabase")
     }
 
     const cookieStore = cookies()
 
-    return createServerClient(CONFIG.supabase.url, CONFIG.supabase.serviceRoleKey, {
+    return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -297,32 +202,89 @@ class SupabaseUtils {
   }
 }
 
-// Трансформатор данных - ОСНОВНОЙ ИСПРАВЛЕНИЯ
+// Сервис для работы с Telegram
+class TelegramService {
+  static async publishOffer(offerId: string, channelIds: string[], origin: string) {
+    try {
+      const response = await fetch(`${origin}/api/telegram/post`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offerId,
+          channelIds: channelIds.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX),
+        }),
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`Telegram API error (${response.status}): ${text}`)
+      }
+
+      const result = await response.json()
+      console.log(`✅ Успешная публикация в Telegram для предложения ${offerId}`)
+      return result
+    } catch (error) {
+      console.error("❌ Ошибка при публикации в Telegram:", error)
+    }
+  }
+}
+
+// Трансформатор данных - ИСПРАВЛЕН для работы с фронтендом
 class DataTransformer {
+  static sanitizeInput(input: string): string {
+    if (!input) return ""
+    return input.trim()
+  }
+
+  static sanitizeSpecifications(specs: any): Record<string, string> {
+    if (!specs) return {}
+    
+    // Если спецификации приходят как строка JSON, парсим их
+    if (typeof specs === 'string') {
+      try {
+        specs = JSON.parse(specs)
+      } catch {
+        return {}
+      }
+    }
+    
+    if (typeof specs !== 'object' || Array.isArray(specs)) {
+      return {}
+    }
+    
+    const sanitized: Record<string, string> = {}
+    for (const [key, value] of Object.entries(specs)) {
+      if (typeof value === 'string') {
+        sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value)
+      }
+    }
+    return sanitized
+  }
+
   static transformOfferForInsert(data: CommercialOfferData) {
     const now = new Date().toISOString()
 
-    const transformedData: any = {
-      title: SecurityUtils.sanitizeInput(data.title.trim()),
-      description: data.description ? SecurityUtils.sanitizeInput(data.description.trim()) : null,
-      equipment: data.equipment ? SecurityUtils.sanitizeInput(data.equipment.trim()) : null,
-      model: data.model ? SecurityUtils.sanitizeInput(data.model.trim()) : null,
-      price: SecurityUtils.parsePrice(data.price),
-      price_with_vat: data.price_with_vat ? SecurityUtils.parsePrice(data.price_with_vat) : null,
+    return {
+      title: this.sanitizeInput(data.title),
+      description: data.description ? this.sanitizeInput(data.description) : null,
+      equipment: data.equipment ? this.sanitizeInput(data.equipment) : null,
+      model: data.model ? this.sanitizeInput(data.model) : null,
+      price: OfferValidator.parsePrice(data.price),
+      price_with_vat: data.price_with_vat ? OfferValidator.parsePrice(data.price_with_vat) : null,
       currency: data.currency || "RUB",
-      availability: data.availability ? SecurityUtils.sanitizeInput(data.availability.trim()) : "В наличии",
-      payment_type: data.payment_type ? SecurityUtils.sanitizeInput(data.payment_type.trim()) : null,
-      lease: data.lease ? SecurityUtils.sanitizeInput(data.lease.trim()) : null,
+      availability: data.availability ? this.sanitizeInput(data.availability) : "В наличии",
+      payment_type: data.payment_type ? this.sanitizeInput(data.payment_type) : null,
+      lease: data.lease ? this.sanitizeInput(data.lease) : null,
       vat_included: Boolean(data.vat_included),
       diagnostics_passed: Boolean(data.diagnostics_passed),
-      image_url: data.image_url?.trim() || null,
-      header_image_url: data.header_image_url?.trim() || null,
-      specifications: SecurityUtils.sanitizeSpecifications(data.specifications),
+      image_url: data.image_url ? this.sanitizeInput(data.image_url) : null,
+      header_image_url: data.header_image_url ? this.sanitizeInput(data.header_image_url) : null,
+      specifications: this.sanitizeSpecifications(data.specifications),
       post_to_telegram: Boolean(data.post_to_telegram),
       channel_ids: Array.isArray(data.channel_ids) ? data.channel_ids : [],
       is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
       is_featured: Boolean(data.is_featured) || false,
-      footer_text: data.footer_text ? SecurityUtils.sanitizeInput(data.footer_text.trim()) : "",
+      footer_text: data.footer_text ? this.sanitizeInput(data.footer_text) : "",
       footer_font_size: data.footer_font_size || 12,
       footer_alignment: data.footer_alignment || "center",
       footer_padding: data.footer_padding || 15,
@@ -330,19 +292,12 @@ class DataTransformer {
       equipment_font_size: data.equipment_font_size || 16,
       price_block_offset: data.price_block_offset || 0,
       photo_scale: data.photo_scale?.toString() || "1",
-      offer_title: data.offer_title ? SecurityUtils.sanitizeInput(data.offer_title.trim()) : "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ",
+      offer_title: data.offer_title ? this.sanitizeInput(data.offer_title) : "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ",
       created_at: now,
       updated_at: now,
       telegram_posted: false,
       telegram_message_id: null,
     }
-
-    // Убедимся, что все обязательные поля имеют значения
-    if (!transformedData.image_url) transformedData.image_url = null
-    if (!transformedData.header_image_url) transformedData.header_image_url = null
-    if (!transformedData.specifications) transformedData.specifications = {}
-
-    return transformedData
   }
 
   static transformOfferForUpdate(data: CommercialOfferUpdateData) {
@@ -350,27 +305,25 @@ class DataTransformer {
       updated_at: new Date().toISOString(),
     }
 
-    // Обрабатываем каждое поле индивидуально
-    if (data.title !== undefined) updateData.title = SecurityUtils.sanitizeInput(data.title.trim())
-    if (data.description !== undefined) updateData.description = data.description ? SecurityUtils.sanitizeInput(data.description.trim()) : null
-    if (data.equipment !== undefined) updateData.equipment = data.equipment ? SecurityUtils.sanitizeInput(data.equipment.trim()) : null
-    if (data.model !== undefined) updateData.model = data.model ? SecurityUtils.sanitizeInput(data.model.trim()) : null
-    if (data.price !== undefined) updateData.price = SecurityUtils.parsePrice(data.price)
-    if (data.price_with_vat !== undefined) updateData.price_with_vat = data.price_with_vat ? SecurityUtils.parsePrice(data.price_with_vat) : null
+    // Динамически добавляем только переданные поля
+    if (data.title !== undefined) updateData.title = this.sanitizeInput(data.title)
+    if (data.description !== undefined) updateData.description = data.description ? this.sanitizeInput(data.description) : null
+    if (data.equipment !== undefined) updateData.equipment = data.equipment ? this.sanitizeInput(data.equipment) : null
+    if (data.model !== undefined) updateData.model = data.model ? this.sanitizeInput(data.model) : null
+    if (data.price !== undefined) updateData.price = OfferValidator.parsePrice(data.price)
+    if (data.price_with_vat !== undefined) updateData.price_with_vat = data.price_with_vat ? OfferValidator.parsePrice(data.price_with_vat) : null
     if (data.currency !== undefined) updateData.currency = data.currency || "RUB"
-    if (data.availability !== undefined) updateData.availability = data.availability ? SecurityUtils.sanitizeInput(data.availability.trim()) : "В наличии"
-    if (data.payment_type !== undefined) updateData.payment_type = data.payment_type ? SecurityUtils.sanitizeInput(data.payment_type.trim()) : null
-    if (data.lease !== undefined) updateData.lease = data.lease ? SecurityUtils.sanitizeInput(data.lease.trim()) : null
+    if (data.availability !== undefined) updateData.availability = data.availability ? this.sanitizeInput(data.availability) : "В наличии"
+    if (data.payment_type !== undefined) updateData.payment_type = data.payment_type ? this.sanitizeInput(data.payment_type) : null
+    if (data.lease !== undefined) updateData.lease = data.lease ? this.sanitizeInput(data.lease) : null
     if (data.vat_included !== undefined) updateData.vat_included = Boolean(data.vat_included)
     if (data.diagnostics_passed !== undefined) updateData.diagnostics_passed = Boolean(data.diagnostics_passed)
-    if (data.image_url !== undefined) updateData.image_url = data.image_url?.trim() || null
-    if (data.header_image_url !== undefined) updateData.header_image_url = data.header_image_url?.trim() || null
-    if (data.specifications !== undefined) updateData.specifications = SecurityUtils.sanitizeSpecifications(data.specifications)
-    if (data.post_to_telegram !== undefined) updateData.post_to_telegram = Boolean(data.post_to_telegram)
-    if (data.channel_ids !== undefined) updateData.channel_ids = Array.isArray(data.channel_ids) ? data.channel_ids : []
+    if (data.image_url !== undefined) updateData.image_url = data.image_url ? this.sanitizeInput(data.image_url) : null
+    if (data.header_image_url !== undefined) updateData.header_image_url = data.header_image_url ? this.sanitizeInput(data.header_image_url) : null
+    if (data.specifications !== undefined) updateData.specifications = this.sanitizeSpecifications(data.specifications)
     if (data.is_active !== undefined) updateData.is_active = Boolean(data.is_active)
     if (data.is_featured !== undefined) updateData.is_featured = Boolean(data.is_featured)
-    if (data.footer_text !== undefined) updateData.footer_text = data.footer_text ? SecurityUtils.sanitizeInput(data.footer_text.trim()) : ""
+    if (data.footer_text !== undefined) updateData.footer_text = data.footer_text ? this.sanitizeInput(data.footer_text) : ""
     if (data.footer_font_size !== undefined) updateData.footer_font_size = data.footer_font_size || 12
     if (data.footer_alignment !== undefined) updateData.footer_alignment = data.footer_alignment || "center"
     if (data.footer_padding !== undefined) updateData.footer_padding = data.footer_padding || 15
@@ -378,7 +331,7 @@ class DataTransformer {
     if (data.equipment_font_size !== undefined) updateData.equipment_font_size = data.equipment_font_size || 16
     if (data.price_block_offset !== undefined) updateData.price_block_offset = data.price_block_offset || 0
     if (data.photo_scale !== undefined) updateData.photo_scale = data.photo_scale?.toString() || "1"
-    if (data.offer_title !== undefined) updateData.offer_title = data.offer_title ? SecurityUtils.sanitizeInput(data.offer_title.trim()) : "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ"
+    if (data.offer_title !== undefined) updateData.offer_title = data.offer_title ? this.sanitizeInput(data.offer_title) : "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ"
 
     return updateData
   }
@@ -386,8 +339,8 @@ class DataTransformer {
 
 // Обработчик ошибок
 class ErrorHandler {
-  static handleDatabaseError(error: SupabaseError): NextResponse {
-    Logger.error("Ошибка базы данных", error)
+  static handleDatabaseError(error: any): NextResponse {
+    console.error("Ошибка базы данных:", error)
 
     if (error.code === "23505") {
       return NextResponse.json({ error: "Предложение уже существует" }, { status: 409 })
@@ -397,36 +350,27 @@ class ErrorHandler {
       return NextResponse.json({ error: "Ошибка доступа к базе данных" }, { status: 403 })
     }
 
-    return NextResponse.json(
-      {
-        error: "Ошибка базы данных",
-        details: process.env.NODE_ENV === "development" ? error.message : undefined,
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Ошибка базы данных" }, { status: 500 })
   }
 
   static handleValidationError(errors: string[]): NextResponse {
-    Logger.warn("Ошибка валидации", { errors })
     return NextResponse.json({ error: errors.join("; ") }, { status: 400 })
   }
 
   static handleNotFoundError(message = "Ресурс не найден"): NextResponse {
-    Logger.warn("Ресурс не найден", { message })
     return NextResponse.json({ error: message }, { status: 404 })
   }
 
   static handleServerError(error: any): NextResponse {
-    Logger.error("Критическая ошибка сервера", error)
+    console.error("Критическая ошибка сервера:", error)
     return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
 
-// ОСНОВНЫЕ ОБРАБОТЧИКИ API
-
 // POST: Создание коммерческого предложения
 export async function POST(request: NextRequest) {
   try {
+    // Парсинг и валидация тела запроса
     const text = await request.text()
     if (!text.trim()) {
       return ErrorHandler.handleValidationError(["Тело запроса не может быть пустым"])
@@ -436,38 +380,69 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(text)
     } catch (error) {
-      Logger.error("JSON parse error:", error)
+      console.error("[API] JSON parse error:", error)
       return ErrorHandler.handleValidationError(["Неверный формат JSON"])
     }
 
-    Logger.info("Received POST data:", body)
+    console.log("[API] Received POST data:", body)
 
     // Валидация данных
     const validation = OfferValidator.validateCreateData(body)
     if (!validation.isValid) {
-      Logger.error("Validation errors:", { errors: validation.errors })
+      console.error("[API] Validation errors:", validation.errors)
       return ErrorHandler.handleValidationError(validation.errors)
     }
 
     // Создание клиента Supabase
     const supabase = SupabaseUtils.createClient()
 
+    // Проверка дубликатов
+    const { data: existing, error: checkError } = await supabase
+      .from("commercial_offers")
+      .select("id")
+      .ilike("title", body.title.trim())
+      .limit(1)
+
+    if (checkError) {
+      console.error("[API] Check error:", checkError)
+      throw checkError
+    }
+
+    if (existing?.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Коммерческое предложение с таким названием уже существует",
+          existingId: existing[0].id,
+        },
+        { status: 409 },
+      )
+    }
+
     // Подготовка и вставка данных
     const insertData = DataTransformer.transformOfferForInsert(body)
-    Logger.info("Insert data:", insertData)
+    console.log("[API] Insert data:", insertData)
 
     const { data, error } = await supabase
       .from("commercial_offers")
       .insert([insertData])
-      .select('*')
+      .select('*') // Выбираем ВСЕ поля
       .single()
 
     if (error) {
-      Logger.error("Database error:", error)
+      console.error("[API] Database error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    Logger.info(`Создано коммерческое предложение: ${data.id} - ${data.title}`)
+    console.log("[API] Created offer:", data.id)
+
+    // Асинхронная публикация в Telegram (не блокируем ответ)
+    if (body.post_to_telegram && body.channel_ids?.length) {
+      setImmediate(() => {
+        TelegramService.publishOffer(data.id, body.channel_ids!, request.nextUrl.origin).catch((err) =>
+          console.error("[API] Telegram error:", err),
+        )
+      })
+    }
 
     return NextResponse.json(
       {
@@ -479,7 +454,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     )
   } catch (error: any) {
-    Logger.error("Server error:", error)
+    console.error("[API] Server error:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
@@ -491,16 +466,26 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
 
     // Параметры пагинации
-    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"))
-    const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get("limit") || "10")))
+    const page = Math.max(
+      1,
+      Math.min(VALIDATION_LIMITS.PAGE_MAX, Number.parseInt(url.searchParams.get("page") || "1", 10)),
+    )
+    const limit = Math.max(
+      1,
+      Math.min(VALIDATION_LIMITS.LIMIT_MAX, Number.parseInt(url.searchParams.get("limit") || "10", 10)),
+    )
     const offset = (page - 1) * limit
 
     // Параметры фильтрации
-    const search = url.searchParams.get("search")?.trim() || null
+    let search = url.searchParams.get("search")?.trim() || null
+    if (search && search.length > VALIDATION_LIMITS.SEARCH_MAX_LENGTH) {
+      search = search.substring(0, VALIDATION_LIMITS.SEARCH_MAX_LENGTH)
+    }
+
     const isActive = url.searchParams.get("is_active")
     const isFeatured = url.searchParams.get("is_featured")
 
-    // Построение запроса
+    // Построение запроса - выбираем ВСЕ поля
     let query = supabase.from("commercial_offers").select('*', { count: "exact" })
 
     // Применение фильтров
@@ -519,15 +504,12 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1)
 
-    if (error) {
-      Logger.error("Database query error:", error)
-      throw error
-    }
+    if (error) throw error
 
     const total = count || 0
     const totalPages = Math.ceil(total / limit)
 
-    const responseData = {
+    return NextResponse.json({
       success: true,
       data: data || [],
       pagination: {
@@ -543,11 +525,9 @@ export async function GET(request: NextRequest) {
         isActive: isActive || null,
         isFeatured: isFeatured || null,
       },
-    }
-
-    return NextResponse.json(responseData)
+    })
   } catch (error) {
-    Logger.error("Ошибка получения списка предложений:", error)
+    console.error("Ошибка получения списка предложений:", error)
     return NextResponse.json({ error: "Ошибка сервера при получении данных" }, { status: 500 })
   }
 }
@@ -574,9 +554,12 @@ export async function PATCH(request: NextRequest) {
       return ErrorHandler.handleValidationError(["Неверный формат JSON"])
     }
 
+    console.log("[API] PATCH data received:", { id, body })
+
     // Валидация данных для обновления
     const validation = OfferValidator.validateUpdateData(body)
     if (!validation.isValid) {
+      console.error("[API] Validation errors:", validation.errors)
       return ErrorHandler.handleValidationError(validation.errors)
     }
 
@@ -595,21 +578,21 @@ export async function PATCH(request: NextRequest) {
 
     // Подготовка данных для обновления
     const updateData = DataTransformer.transformOfferForUpdate(body)
-    Logger.info("Update data:", { id, updateData })
+    console.log("[API] Update data:", updateData)
 
     const { data, error } = await supabase
       .from("commercial_offers")
       .update(updateData)
       .eq("id", id)
-      .select('*')
+      .select('*') // Выбираем ВСЕ поля
       .single()
 
     if (error) {
-      Logger.error("Database update error:", error)
+      console.error("[API] Database update error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    Logger.info(`Обновлено коммерческое предложение: ${data.id}`)
+    console.log(`✅ Обновлено коммерческое предложение: ${data.id}`)
 
     return NextResponse.json({
       success: true,
@@ -617,7 +600,7 @@ export async function PATCH(request: NextRequest) {
       message: "Коммерческое предложение успешно обновлено",
     })
   } catch (error: any) {
-    Logger.error("Ошибка обновления предложения:", error)
+    console.error("[API] Server error:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
@@ -637,7 +620,7 @@ export async function DELETE(request: NextRequest) {
     // Проверка существования предложения
     const { data: existing, error: checkError } = await supabase
       .from("commercial_offers")
-      .select("id, title")
+      .select("id")
       .eq("id", id)
       .single()
 
@@ -649,29 +632,16 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase.from("commercial_offers").delete().eq("id", id)
 
     if (error) {
-      Logger.error("Database delete error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    Logger.info(`Удалено коммерческое предложение: ${id} - ${existing.title}`)
+    console.log(`✅ Удалено коммерческое предложение: ${id}`)
 
     return NextResponse.json({
       success: true,
       message: "Коммерческое предложение успешно удалено",
     })
   } catch (error: any) {
-    Logger.error("Ошибка удаления предложения:", error)
     return ErrorHandler.handleServerError(error)
   }
-}
-
-// OPTIONS: Для CORS preflight
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    },
-  })
 }
