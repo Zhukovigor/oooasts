@@ -30,7 +30,6 @@ interface CommercialOfferData {
   footerText?: string
   footerAlignment?: string
   footerFontSize?: number
-  footerFontFamily?: string
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
@@ -61,7 +60,6 @@ interface CommercialOfferUpdateData {
   footerText?: string
   footerAlignment?: string
   footerFontSize?: number
-  footerFontFamily?: string
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
@@ -325,7 +323,6 @@ class DataTransformer {
       footer_text: data.footerText?.trim() || null,
       footer_alignment: data.footerAlignment || "center",
       footer_font_size: data.footerFontSize || 12,
-      footer_font_family: data.footerFontFamily || "Arial",
       vat_included: Boolean(data.vatIncluded),
       diagnostics_passed: Boolean(data.diagnosticsPassed),
       image_url: data.imageUrl?.trim() || null,
@@ -371,7 +368,6 @@ class DataTransformer {
     if (data.footerText !== undefined) updateData.footer_text = data.footerText?.trim() || null
     if (data.footerAlignment !== undefined) updateData.footer_alignment = data.footerAlignment || "center"
     if (data.footerFontSize !== undefined) updateData.footer_font_size = data.footerFontSize || 12
-    if (data.footerFontFamily !== undefined) updateData.footer_font_family = data.footerFontFamily || "Arial"
     if (data.vatIncluded !== undefined) updateData.vat_included = Boolean(data.vatIncluded)
     if (data.diagnosticsPassed !== undefined) updateData.diagnostics_passed = Boolean(data.diagnosticsPassed)
     if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl?.trim() || null
@@ -485,7 +481,7 @@ export async function POST(request: NextRequest) {
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, post_to_telegram, 
         channel_ids, telegram_posted, conditions, header_image_url, 
-        footer_text, footer_alignment, footer_font_size, footer_font_family,
+        footer_text, footer_alignment, footer_font_size,
         offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `)
       .single()
@@ -554,8 +550,8 @@ export async function GET(request: NextRequest) {
         image_url, created_at, updated_at, telegram_posted, 
         is_active, is_featured, equipment, payment_type, lease,
         diagnostics_passed, vat_included, specifications, conditions, 
-        header_image_url, footer_text, footer_alignment, footer_font_size, 
-        footer_font_family, offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
+        header_image_url, footer_text, footer_alignment, footer_font_size,
+        offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `,
       { count: "exact" },
     )
@@ -657,7 +653,7 @@ export async function PATCH(request: NextRequest) {
         payment_type, vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, conditions, header_image_url, 
-        footer_text, footer_alignment, footer_font_size, footer_font_family,
+        footer_text, footer_alignment, footer_font_size,
         offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `)
       .single()

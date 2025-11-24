@@ -589,10 +589,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .select(`
         id, title, description, price, price_with_vat, availability, 
         payment_type, conditions, header_image_url, footer_text,
-        footer_alignment, footer_font_size, footer_font_family,
+        footer_alignment, footer_font_size,
         vat_included, diagnostics_passed, 
         image_url, specifications, currency, equipment, lease, 
-        created_at, updated_at, is_active, is_featured
+        created_at, updated_at, is_active, is_featured,
+        offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `)
       .single()
 
