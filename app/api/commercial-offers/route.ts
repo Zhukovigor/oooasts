@@ -310,7 +310,7 @@ class DataTransformer {
       payment_type: data.paymentType?.trim() || null,
       conditions: data.conditions?.trim() || null,
       header_image_url: data.headerImageUrl?.trim() || null,
-      footer: data.footer?.trim() || null,
+      footer_text: data.footer?.trim() || null,
       footer_alignment: data.footerAlignment || "center",
       footer_font_size: data.footerFontSize || 12,
       footer_font_family: data.footerFontFamily || "Arial",
@@ -352,7 +352,7 @@ class DataTransformer {
     if (data.paymentType !== undefined) updateData.payment_type = data.paymentType?.trim() || null
     if (data.conditions !== undefined) updateData.conditions = data.conditions?.trim() || null
     if (data.headerImageUrl !== undefined) updateData.header_image_url = data.headerImageUrl?.trim() || null
-    if (data.footer !== undefined) updateData.footer = data.footer?.trim() || null
+    if (data.footer !== undefined) updateData.footer_text = data.footer?.trim() || null
     if (data.footerAlignment !== undefined) updateData.footer_alignment = data.footerAlignment || "center"
     if (data.footerFontSize !== undefined) updateData.footer_font_size = data.footerFontSize || 12
     if (data.footerFontFamily !== undefined) updateData.footer_font_family = data.footerFontFamily || "Arial"
@@ -463,7 +463,7 @@ export async function POST(request: NextRequest) {
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, post_to_telegram, 
         channel_ids, telegram_posted, conditions, header_image_url, 
-        footer, footer_alignment, footer_font_size, footer_font_family
+        footer_text, footer_alignment, footer_font_size, footer_font_family
       `)
       .single()
 
@@ -531,7 +531,7 @@ export async function GET(request: NextRequest) {
         image_url, created_at, updated_at, telegram_posted, 
         is_active, is_featured, equipment, payment_type, lease,
         diagnostics_passed, vat_included, specifications, conditions, 
-        header_image_url, footer, footer_alignment, footer_font_size, 
+        header_image_url, footer_text, footer_alignment, footer_font_size, 
         footer_font_family
       `,
       { count: "exact" },
@@ -634,7 +634,7 @@ export async function PATCH(request: NextRequest) {
         payment_type, vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, conditions, header_image_url, 
-        footer, footer_alignment, footer_font_size, footer_font_family
+        footer_text, footer_alignment, footer_font_size, footer_font_family
       `)
       .single()
 
