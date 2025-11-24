@@ -48,6 +48,14 @@ interface UpdateOfferData {
   description?: string
   isActive?: boolean
   isFeatured?: boolean
+  footerText?: string
+  footerPadding?: number
+  titleFontSize?: number
+  equipmentFontSize?: number
+  priceBlockOffset?: number
+  photoScale?: number
+  offerTitle?: string
+  currency?: string
 }
 
 // Константы для валидации
@@ -335,6 +343,14 @@ class DataTransformer {
     if (data.lease !== undefined) updateData.lease = data.lease?.trim() || null
     if (data.isActive !== undefined) updateData.is_active = Boolean(data.isActive)
     if (data.isFeatured !== undefined) updateData.is_featured = Boolean(data.isFeatured)
+    if (data.footerText !== undefined) updateData.footer_text = data.footerText?.trim() || null
+    if (data.footerPadding !== undefined) updateData.footer_padding = data.footerPadding || null
+    if (data.titleFontSize !== undefined) updateData.title_font_size = data.titleFontSize || null
+    if (data.equipmentFontSize !== undefined) updateData.equipment_font_size = data.equipmentFontSize || null
+    if (data.priceBlockOffset !== undefined) updateData.price_block_offset = data.priceBlockOffset || null
+    if (data.photoScale !== undefined) updateData.photo_scale = data.photoScale || null
+    if (data.offerTitle !== undefined) updateData.offer_title = data.offerTitle?.trim() || null
+    if (data.currency !== undefined) updateData.currency = data.currency?.trim() || null
 
     return updateData
   }
@@ -572,15 +588,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .eq("id", id)
       .select(`
         id, title, description, price, price_with_vat, availability, 
-        payment_type, conditions, header_image_url, footer, 
-        footer_alignment, footer_font_size, footer_font_family,
-        vat_included, diagnostics_passed, image_url, 
-        specifications, currency, equipment, lease, created_at, 
-        updated_at, is_active, is_featured
+        payment_type, conditions, header_image_url, footer_text,
+        footer_alignment, footer_font_size, footer_padding,
+        title_font_size, equipment_font_size, price_block_offset,
+        photo_scale, offer_title, vat_included, diagnostics_passed, 
+        image_url, specifications, currency, equipment, lease, 
+        created_at, updated_at, is_active, is_featured
       `)
       .single()
 
     if (error) {
+      console.error("[v0] Database error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
@@ -592,6 +610,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       message: "Коммерческое предложение успешно обновлено",
     })
   } catch (error: any) {
+    console.error("[v0] Server error:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
