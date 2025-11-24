@@ -17,6 +17,11 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
   const [equipmentFontSize, setEquipmentFontSize] = useState(initialOffer.equipmentFontSize || 13)
   const [priceBlockOffset, setPriceBlockOffset] = useState(initialOffer.priceBlockOffset || 0)
   const [photoScale, setPhotoScale] = useState(initialOffer.photoScale || 100)
+  const [footerText, setFooterText] = useState(initialOffer.footer_text || "")
+  const [footerFontSize, setFooterFontSize] = useState(initialOffer.footer_font_size || 12)
+  const [footerAlignment, setFooterAlignment] = useState(initialOffer.footer_alignment || "center")
+  const [footerPadding, setFooterPadding] = useState(initialOffer.footer_padding || 15)
+  const [offerTitle, setOfferTitle] = useState(initialOffer.offer_title || "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ")
 
   const handleSave = async () => {
     setIsLoading(true)
@@ -30,6 +35,11 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
           equipmentFontSize,
           priceBlockOffset,
           photoScale,
+          footer_text: footerText,
+          footer_font_size: footerFontSize,
+          footer_alignment: footerAlignment,
+          footer_padding: footerPadding,
+          offer_title: offerTitle,
         }),
       })
 
@@ -276,44 +286,19 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={offer.vat_included || false}
-                  onChange={(e) => setOffer({ ...offer, vat_included: e.target.checked })}
-                  className="mr-2 w-4 h-4"
-                />
-                <span className="text-sm font-medium text-gray-700">Стоимость с НДС</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Название КП (вместо "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ")
               </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={offer.lease && offer.lease !== ""}
-                  onChange={(e) => setOffer({ ...offer, lease: e.target.checked ? "Продажа в лизинг" : "" })}
-                  className="mr-2 w-4 h-4"
-                />
-                <span className="text-sm font-medium text-gray-700">Продажа в лизинг</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={offer.diagnostics_passed || false}
-                  onChange={(e) => setOffer({ ...offer, diagnostics_passed: e.target.checked })}
-                  className="mr-2 w-4 h-4"
-                />
-                <span className="text-sm font-medium text-gray-700">Диагностика пройдена</span>
-              </label>
+              <Input
+                value={offerTitle}
+                onChange={(e) => setOfferTitle(e.target.value)}
+                placeholder="КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ"
+              />
             </div>
 
             <div className="border-t pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Технические характеристики</h2>
-                <Button onClick={handleAddSpec} variant="outline" size="sm">
-                  + Добавить
-                </Button>
-              </div>
-
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Технические характеристики</h2>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {Object.entries(offer.specifications || {}).map(([key, value]: any) => (
                   <div key={key} className="flex gap-2 items-end">
@@ -346,6 +331,62 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
               </div>
             </div>
 
+            <div className="border-t pt-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Подвал (Footer)</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Текст подвала</label>
+                  <Textarea
+                    value={footerText}
+                    onChange={(e) => setFooterText(e.target.value)}
+                    placeholder="Например: Реквизиты компании, номер телефона, и т.д."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Размер шрифта: {footerFontSize}px
+                    </label>
+                    <input
+                      type="range"
+                      min="8"
+                      max="18"
+                      value={footerFontSize}
+                      onChange={(e) => setFooterFontSize(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Выравнивание</label>
+                    <select
+                      value={footerAlignment}
+                      onChange={(e) => setFooterAlignment(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="left">Левое</option>
+                      <option value="center">Центр</option>
+                      <option value="right">Правое</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Отступ: {footerPadding}px</label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="30"
+                      value={footerPadding}
+                      onChange={(e) => setFooterPadding(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-6 border-t">
               <Button onClick={handleSave} disabled={isLoading} className="flex-1 bg-blue-600 hover:bg-blue-700">
                 {isLoading ? "Сохранение..." : "Сохранить"}
@@ -369,7 +410,17 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-8 h-fit max-h-[calc(100vh-100px)] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Предпросмотр</h2>
             <iframe
-              srcDoc={generatePreview(offer, { titleFontSize, equipmentFontSize, priceBlockOffset, photoScale })}
+              srcDoc={generatePreview(offer, {
+                titleFontSize,
+                equipmentFontSize,
+                priceBlockOffset,
+                photoScale,
+                footerText,
+                footerFontSize,
+                footerAlignment,
+                footerPadding,
+                offerTitle,
+              })}
               className="w-full h-[600px] border border-gray-200 rounded"
               title="Preview"
             />
@@ -436,6 +487,7 @@ function generatePreview(offer: any, styling: any): string {
     .specs-table td { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; }
     .specs-table td:first-child { font-weight: 500; color: #666; width: 40%; }
     .specs-table td:last-child { color: #333; width: 60%; text-align: right; }
+    .footer { text-align: ${styling.footerAlignment}; padding: ${styling.footerPadding}px 0; font-size: ${styling.footerFontSize}px; color: #666; }
   </style>
 </head>
 <body>
@@ -446,7 +498,7 @@ function generatePreview(offer: any, styling: any): string {
         : ""
     }
     <div class="header">
-      <div class="header-small-text">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
+      <div class="header-small-text">${escapeHtml(styling.offerTitle)}</div>
       ${offer.equipment ? `<div class="header-category">${escapeHtml(offer.equipment)}</div>` : ""}
       <div class="header-title">${escapeHtml(offer.title || "Без названия")}</div>
     </div>
@@ -474,6 +526,7 @@ function generatePreview(offer: any, styling: any): string {
     `
         : ""
     }
+    <div class="footer">${escapeHtml(styling.footerText)}</div>
   </div>
 </body>
 </html>

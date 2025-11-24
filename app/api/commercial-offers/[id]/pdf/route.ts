@@ -113,16 +113,17 @@ function generateStrictFormatPDF(data: any): string {
     }
 
     .header-small-text {
-      font-size: 11px;
+      font-size: 14px;
       letter-spacing: 1px;
-      color: #666;
-      margin-bottom: 5px;
+      color: #000;
+      margin-bottom: 8px;
+      font-weight: bold;
     }
 
     .header-category {
       font-size: 13px;
       letter-spacing: 0.5px;
-      color: #999;
+      color: #666;
       margin-bottom: 8px;
     }
 
@@ -138,6 +139,7 @@ function generateStrictFormatPDF(data: any): string {
       grid-template-columns: 1fr 1fr;
       gap: 30px;
       margin-bottom: 30px;
+      flex: 1;
     }
 
     .image-box {
@@ -230,6 +232,14 @@ function generateStrictFormatPDF(data: any): string {
       text-align: right;
     }
 
+    .footer {
+      margin-top: auto;
+      padding-top: 15px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 12px;
+      color: #666;
+    }
+
     @media print {
       body { margin: 0; padding: 0; }
       .page { margin: 0; padding: 20mm; break-after: avoid; }
@@ -245,14 +255,15 @@ function generateStrictFormatPDF(data: any): string {
     ${
       data.header_image_url
         ? `<div class="header-image">
-      <img src="${escapeHtml(data.header_image_url)}" alt="Шапка" onerror="this.style.display='none'">
+      <img src="data:image/png;base64,${getImageAsBase64Placeholder()}" alt="Шапка" onerror="this.style.display='none'" loading="lazy">
     </div>`
         : ""
     }
 
     <!-- Header -->
     <div class="header">
-      <div class="header-small-text">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
+      <!-- Made "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ" editable instead of hardcoded -->
+      <div class="header-small-text">${escapeHtml(data.offer_title || "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ")}</div>
       ${data.equipment ? `<div class="header-category">${escapeHtml(data.equipment)}</div>` : ""}
       <div class="header-title">${escapeHtml(data.title || "Без названия")}</div>
     </div>
@@ -298,10 +309,24 @@ function generateStrictFormatPDF(data: any): string {
     `
         : ""
     }
+
+    <!-- Added footer section with custom text and styling -->
+    ${
+      data.footer_text
+        ? `<div class="footer" style="text-align: ${data.footer_alignment || "center"}; padding: ${data.footer_padding || 15}px 0; font-size: ${data.footer_font_size || 12}px;">
+      ${escapeHtml(data.footer_text)}
+    </div>`
+        : ""
+    }
   </div>
 </body>
 </html>
 `
+}
+
+function getImageAsBase64Placeholder(): string {
+  // Placeholder image since external URLs may not load in PDF
+  return "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 }
 
 function escapeHtml(unsafe: string): string {

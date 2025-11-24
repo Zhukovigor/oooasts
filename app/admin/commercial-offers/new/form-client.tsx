@@ -239,7 +239,7 @@ export default function CommercialOfferForm() {
                 {/* Заголовок - по центру */}
                 <div className="text-center border-b-2 border-blue-500 pb-4">
                   <h1 className="text-xl font-bold uppercase mb-2">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
-                  <div className="text-lg font-bold">СЕДЕЛЬНЫЙ ТЯГАЧ</div>
+                  {parsedData.equipment && <div className="text-lg font-bold">{parsedData.equipment}</div>}
                   {parsedData.title && <div className="text-xl font-bold text-blue-600 mt-1">{parsedData.title}</div>}
                 </div>
 
