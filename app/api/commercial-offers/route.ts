@@ -27,7 +27,7 @@ interface CommercialOfferData {
   lease?: string
   conditions?: string
   headerImageUrl?: string
-  footer?: string
+  footerText?: string
   footerAlignment?: string
   footerFontSize?: number
   footerFontFamily?: string
@@ -41,6 +41,12 @@ interface CommercialOfferData {
   channelIds?: string[]
   isActive?: boolean
   isFeatured?: boolean
+  offerTitle?: string
+  titleFontSize?: number
+  equipmentFontSize?: number
+  priceBlockOffset?: number
+  photoScale?: number
+  footerPadding?: number
 }
 
 interface CommercialOfferUpdateData {
@@ -52,7 +58,7 @@ interface CommercialOfferUpdateData {
   lease?: string
   conditions?: string
   headerImageUrl?: string
-  footer?: string
+  footerText?: string
   footerAlignment?: string
   footerFontSize?: number
   footerFontFamily?: string
@@ -64,6 +70,12 @@ interface CommercialOfferUpdateData {
   description?: string
   isActive?: boolean
   isFeatured?: boolean
+  offerTitle?: string
+  titleFontSize?: number
+  equipmentFontSize?: number
+  priceBlockOffset?: number
+  photoScale?: number
+  footerPadding?: number
 }
 
 // Улучшенная валидация
@@ -130,7 +142,7 @@ class OfferValidator {
       "equipment",
       "description",
       "conditions",
-      "footer",
+      "footerText",
     ] as const
 
     stringFields.forEach((field) => {
@@ -208,7 +220,7 @@ class OfferValidator {
       "equipment",
       "description",
       "conditions",
-      "footer",
+      "footerText",
     ] as const
 
     stringFields.forEach((field) => {
@@ -310,7 +322,7 @@ class DataTransformer {
       payment_type: data.paymentType?.trim() || null,
       conditions: data.conditions?.trim() || null,
       header_image_url: data.headerImageUrl?.trim() || null,
-      footer_text: data.footer?.trim() || null,
+      footer_text: data.footerText?.trim() || null,
       footer_alignment: data.footerAlignment || "center",
       footer_font_size: data.footerFontSize || 12,
       footer_font_family: data.footerFontFamily || "Arial",
@@ -332,8 +344,12 @@ class DataTransformer {
               .filter((id: any) => typeof id === "string" && id.trim())
               .slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
           : [],
-      telegram_posted: false,
-      telegram_message_id: null,
+      offer_title: data.offerTitle?.trim() || "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ",
+      title_font_size: data.titleFontSize || 24,
+      equipment_font_size: data.equipmentFontSize || 16,
+      price_block_offset: data.priceBlockOffset || 0,
+      photo_scale: data.photoScale || 1,
+      footer_padding: data.footerPadding || 0,
     }
   }
 
@@ -352,7 +368,7 @@ class DataTransformer {
     if (data.paymentType !== undefined) updateData.payment_type = data.paymentType?.trim() || null
     if (data.conditions !== undefined) updateData.conditions = data.conditions?.trim() || null
     if (data.headerImageUrl !== undefined) updateData.header_image_url = data.headerImageUrl?.trim() || null
-    if (data.footer !== undefined) updateData.footer_text = data.footer?.trim() || null
+    if (data.footerText !== undefined) updateData.footer_text = data.footerText?.trim() || null
     if (data.footerAlignment !== undefined) updateData.footer_alignment = data.footerAlignment || "center"
     if (data.footerFontSize !== undefined) updateData.footer_font_size = data.footerFontSize || 12
     if (data.footerFontFamily !== undefined) updateData.footer_font_family = data.footerFontFamily || "Arial"
@@ -364,6 +380,12 @@ class DataTransformer {
     if (data.lease !== undefined) updateData.lease = data.lease?.trim() || null
     if (data.isActive !== undefined) updateData.is_active = Boolean(data.isActive)
     if (data.isFeatured !== undefined) updateData.is_featured = Boolean(data.isFeatured)
+    if (data.offerTitle !== undefined) updateData.offer_title = data.offerTitle?.trim() || "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ"
+    if (data.titleFontSize !== undefined) updateData.title_font_size = data.titleFontSize || 24
+    if (data.equipmentFontSize !== undefined) updateData.equipment_font_size = data.equipmentFontSize || 16
+    if (data.priceBlockOffset !== undefined) updateData.price_block_offset = data.priceBlockOffset || 0
+    if (data.photoScale !== undefined) updateData.photo_scale = data.photoScale || 1
+    if (data.footerPadding !== undefined) updateData.footer_padding = data.footerPadding || 0
 
     return updateData
   }
@@ -463,7 +485,8 @@ export async function POST(request: NextRequest) {
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, post_to_telegram, 
         channel_ids, telegram_posted, conditions, header_image_url, 
-        footer_text, footer_alignment, footer_font_size, footer_font_family
+        footer_text, footer_alignment, footer_font_size, footer_font_family,
+        offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `)
       .single()
 
@@ -532,7 +555,7 @@ export async function GET(request: NextRequest) {
         is_active, is_featured, equipment, payment_type, lease,
         diagnostics_passed, vat_included, specifications, conditions, 
         header_image_url, footer_text, footer_alignment, footer_font_size, 
-        footer_font_family
+        footer_font_family, offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `,
       { count: "exact" },
     )
@@ -634,7 +657,8 @@ export async function PATCH(request: NextRequest) {
         payment_type, vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, conditions, header_image_url, 
-        footer_text, footer_alignment, footer_font_size, footer_font_family
+        footer_text, footer_alignment, footer_font_size, footer_font_family,
+        offer_title, title_font_size, equipment_font_size, price_block_offset, photo_scale, footer_padding
       `)
       .single()
 
