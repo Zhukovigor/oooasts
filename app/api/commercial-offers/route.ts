@@ -14,13 +14,6 @@ const CONFIG = {
     max: parseInt(process.env.RATE_LIMIT_MAX || "100"),
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000"),
   },
-  validation: {
-    maxImageSize: parseInt(process.env.MAX_IMAGE_SIZE_MB || "10") * 1024 * 1024,
-  },
-  telegram: {
-    enabled: process.env.TELEGRAM_ENABLED === "true",
-    maxChannels: parseInt(process.env.TELEGRAM_MAX_CHANNELS || "10"),
-  },
 } as const
 
 // Константы для валидации
@@ -41,14 +34,14 @@ const VALIDATION_LIMITS = {
   CURRENCY_MAX_LENGTH: 10,
 } as const
 
-// Интерфейсы данных на основе структуры таблицы
+// Интерфейсы данных
 interface CommercialOfferData {
   title: string
   description?: string | null
   equipment?: string | null
   model?: string | null
-  price: number
-  price_with_vat?: number | null
+  price: number | string
+  price_with_vat?: number | string | null
   currency?: string
   availability?: string | null
   payment_type?: string | null
@@ -56,7 +49,7 @@ interface CommercialOfferData {
   vat_included?: boolean
   diagnostics_passed?: boolean
   image_url?: string | null
-  specifications?: Record<string, string> | null
+  specifications?: Record<string, string> | string | null
   post_to_telegram?: boolean
   channel_ids?: string[]
   is_active?: boolean
@@ -78,8 +71,8 @@ interface CommercialOfferUpdateData {
   description?: string | null
   equipment?: string | null
   model?: string | null
-  price?: number
-  price_with_vat?: number | null
+  price?: number | string
+  price_with_vat?: number | string | null
   currency?: string
   availability?: string | null
   payment_type?: string | null
@@ -87,7 +80,7 @@ interface CommercialOfferUpdateData {
   vat_included?: boolean
   diagnostics_passed?: boolean
   image_url?: string | null
-  specifications?: Record<string, string> | null
+  specifications?: Record<string, string> | string | null
   post_to_telegram?: boolean
   channel_ids?: string[]
   is_active?: boolean
@@ -147,83 +140,6 @@ class Logger {
       }),
     )
   }
-
-  static debug(message: string, metadata?: Record<string, any>) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug(
-        JSON.stringify({
-          level: "debug",
-          timestamp: new Date().toISOString(),
-          message,
-          ...metadata,
-        }),
-      )
-    }
-  }
-}
-
-// Rate Limiting
-class RateLimiter {
-  private static limits = new Map<string, number[]>()
-
-  static check(identifier: string, limit: number = CONFIG.rateLimit.max, windowMs: number = CONFIG.rateLimit.windowMs): boolean {
-    const now = Date.now()
-    const windowStart = now - windowMs
-
-    if (!this.limits.has(identifier)) {
-      this.limits.set(identifier, [])
-    }
-
-    const requests = this.limits.get(identifier)!.filter((time) => time > windowStart)
-    this.limits.set(identifier, requests)
-
-    if (requests.length >= limit) {
-      return false
-    }
-
-    requests.push(now)
-    return true
-  }
-
-  static cleanup() {
-    const now = Date.now()
-    const windowStart = now - CONFIG.rateLimit.windowMs
-
-    for (const [identifier, requests] of this.limits.entries()) {
-      const filtered = requests.filter((time) => time > windowStart)
-      if (filtered.length === 0) {
-        this.limits.delete(identifier)
-      } else {
-        this.limits.set(identifier, filtered)
-      }
-    }
-  }
-}
-
-// Запускаем очистку каждые 5 минут
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => RateLimiter.cleanup(), 5 * 60 * 1000)
-}
-
-// Метрики
-class Metrics {
-  static async trackRequest(method: string, endpoint: string, duration: number, status: number, userId?: string) {
-    Logger.debug("Request metric", {
-      method,
-      endpoint,
-      duration,
-      status,
-      userId,
-    })
-  }
-
-  static async trackError(errorType: string, context: Record<string, any>) {
-    Logger.error(`Error metric: ${errorType}`, null, context)
-  }
-
-  static async trackBusinessEvent(event: string, offerId: string, metadata?: Record<string, any>) {
-    Logger.info(`Business event: ${event}`, { offerId, ...metadata })
-  }
 }
 
 // Утилиты безопасности
@@ -231,36 +147,48 @@ class SecurityUtils {
   static sanitizeInput(input: string): string {
     if (!input) return ""
     return input
-      .replace(/[<>]/g, "") // Удаляем опасные HTML теги
-      .replace(/javascript:/gi, "") // Удаляем JavaScript схемы
+      .replace(/[<>]/g, "")
+      .replace(/javascript:/gi, "")
       .trim()
   }
 
-  static validateCurrency(currency: string): boolean {
-    const allowedCurrencies = ["RUB", "USD", "EUR"]
-    return allowedCurrencies.includes(currency)
-  }
-
-  static generateId(): string {
-    return crypto.randomUUID()
-  }
-
-  static getClientIdentifier(request: NextRequest): string {
-    return request.ip || request.headers.get("x-forwarded-for") || "unknown"
-  }
-
-  static sanitizeSpecifications(specs: Record<string, string> | null): Record<string, string> {
+  static sanitizeSpecifications(specs: any): Record<string, string> {
     if (!specs) return {}
+    
+    // Если спецификации приходят как строка JSON, парсим их
+    if (typeof specs === 'string') {
+      try {
+        specs = JSON.parse(specs)
+      } catch {
+        return {}
+      }
+    }
+    
+    if (typeof specs !== 'object' || Array.isArray(specs)) {
+      return {}
+    }
     
     const sanitized: Record<string, string> = {}
     for (const [key, value] of Object.entries(specs)) {
-      sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value)
+      if (typeof value === 'string') {
+        sanitized[this.sanitizeInput(key)] = this.sanitizeInput(value)
+      }
     }
     return sanitized
   }
+
+  static parsePrice(price: any): number {
+    if (typeof price === 'number') return Math.round(price)
+    if (typeof price === 'string') {
+      // Удаляем пробелы и преобразуем в число
+      const cleanPrice = price.replace(/\s/g, '')
+      return Math.round(parseFloat(cleanPrice) || 0)
+    }
+    return 0
+  }
 }
 
-// Улучшенная валидация
+// Валидация данных
 class OfferValidator {
   static validateCreateData(data: any): { isValid: boolean; errors: string[] } {
     const errors: string[] = []
@@ -269,24 +197,18 @@ class OfferValidator {
     if (!data.title || !data.title.trim()) {
       errors.push("Название техники обязательно для заполнения")
     } else if (data.title.length > VALIDATION_LIMITS.TITLE_MAX_LENGTH) {
-      errors.push(`Название не может превышать ${VALIDIDATION_LIMITS.TITLE_MAX_LENGTH} символов`)
+      errors.push(`Название не может превышать ${VALIDATION_LIMITS.TITLE_MAX_LENGTH} символов`)
     }
 
     // Валидация цены
     if (data.price === undefined || data.price === null) {
       errors.push("Цена обязательна для заполнения")
-    } else if (typeof data.price !== "number" || isNaN(data.price) || data.price < 0) {
-      errors.push("Цена должна быть положительным числом")
-    } else if (data.price > VALIDATION_LIMITS.PRICE_MAX) {
-      errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString("ru-RU")} руб.`)
-    }
-
-    // Валидация цены с НДС
-    if (data.price_with_vat !== undefined && data.price_with_vat !== null) {
-      if (typeof data.price_with_vat !== "number" || isNaN(data.price_with_vat) || data.price_with_vat < 0) {
-        errors.push("Цена с НДС должна быть положительным числом")
-      } else if (data.price_with_vat > VALIDATION_LIMITS.PRICE_MAX) {
-        errors.push(`Цена с НДС не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString("ru-RU")} руб.`)
+    } else {
+      const price = SecurityUtils.parsePrice(data.price)
+      if (price <= 0) {
+        errors.push("Цена должна быть положительным числом")
+      } else if (price > VALIDATION_LIMITS.PRICE_MAX) {
+        errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString("ru-RU")} руб.`)
       }
     }
 
@@ -299,66 +221,6 @@ class OfferValidator {
       errors.push("Некорректный URL заголовочного изображения")
     }
 
-    // Валидация спецификаций
-    const specsValidation = this.validateSpecifications(data.specifications)
-    if (!specsValidation.isValid) {
-      errors.push(...specsValidation.errors)
-    }
-
-    // Валидация каналов Telegram
-    if (data.channel_ids) {
-      if (!Array.isArray(data.channel_ids)) {
-        errors.push("channel_ids должен быть массивом")
-      } else if (data.channel_ids.length > VALIDATION_LIMITS.CHANNEL_IDS_MAX) {
-        errors.push(`Слишком много каналов (максимум ${VALIDATION_LIMITS.CHANNEL_IDS_MAX})`)
-      } else if (data.channel_ids.some((id: any) => typeof id !== "string" || !id.trim())) {
-        errors.push("Все channel_ids должны быть непустыми строками")
-      }
-    }
-
-    // Валидация строковых полей
-    const stringFields = [
-      "description",
-      "equipment",
-      "model",
-      "availability",
-      "payment_type",
-      "lease",
-      "footer_text",
-      "offer_title",
-      "currency",
-    ] as const
-
-    stringFields.forEach((field) => {
-      if (data[field] !== undefined && data[field] !== null) {
-        if (typeof data[field] !== "string") {
-          errors.push(`Поле ${field} должно быть строкой`)
-        } else {
-          const maxLength = this.getMaxLengthForField(field)
-          if (data[field].length > maxLength) {
-            errors.push(`Поле ${field} не может превышать ${maxLength} символов`)
-          }
-        }
-      }
-    })
-
-    // Валидация числовых полей
-    const numericFields = [
-      "footer_font_size",
-      "footer_padding",
-      "title_font_size",
-      "equipment_font_size",
-      "price_block_offset",
-    ] as const
-
-    numericFields.forEach((field) => {
-      if (data[field] !== undefined && data[field] !== null) {
-        if (typeof data[field] !== "number" || isNaN(data[field])) {
-          errors.push(`Поле ${field} должно быть числом`)
-        }
-      }
-    })
-
     return { isValid: errors.length === 0, errors }
   }
 
@@ -370,7 +232,6 @@ class OfferValidator {
       return { isValid: false, errors }
     }
 
-    // Для обновления title не обязателен, но если передан - валидируем
     if (data.title !== undefined) {
       if (!data.title.trim()) {
         errors.push("Название не может быть пустым")
@@ -379,25 +240,15 @@ class OfferValidator {
       }
     }
 
-    // Валидация цены если передана
     if (data.price !== undefined && data.price !== null) {
-      if (typeof data.price !== "number" || isNaN(data.price) || data.price < 0) {
+      const price = SecurityUtils.parsePrice(data.price)
+      if (price <= 0) {
         errors.push("Цена должна быть положительным числом")
-      } else if (data.price > VALIDATION_LIMITS.PRICE_MAX) {
+      } else if (price > VALIDATION_LIMITS.PRICE_MAX) {
         errors.push(`Цена не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString("ru-RU")} руб.`)
       }
     }
 
-    // Валидация цены с НДС если передана
-    if (data.price_with_vat !== undefined && data.price_with_vat !== null) {
-      if (typeof data.price_with_vat !== "number" || isNaN(data.price_with_vat) || data.price_with_vat < 0) {
-        errors.push("Цена с НДС должна быть положительным числом")
-      } else if (data.price_with_vat > VALIDATION_LIMITS.PRICE_MAX) {
-        errors.push(`Цена с НДС не может превышать ${VALIDATION_LIMITS.PRICE_MAX.toLocaleString("ru-RU")} руб.`)
-      }
-    }
-
-    // Валидация URL изображения если передан
     if (data.image_url && !this.isValidImageUrl(data.image_url)) {
       errors.push("Некорректный URL изображения")
     }
@@ -406,83 +257,7 @@ class OfferValidator {
       errors.push("Некорректный URL заголовочного изображения")
     }
 
-    // Валидация спецификаций если переданы
-    if (data.specifications !== undefined) {
-      const specsValidation = this.validateSpecifications(data.specifications)
-      if (!specsValidation.isValid) {
-        errors.push(...specsValidation.errors)
-      }
-    }
-
-    // Валидация строковых полей
-    const stringFields = [
-      "description",
-      "equipment",
-      "model",
-      "availability",
-      "payment_type",
-      "lease",
-      "footer_text",
-      "offer_title",
-      "currency",
-    ] as const
-
-    stringFields.forEach((field) => {
-      if (data[field] !== undefined && data[field] !== null) {
-        if (typeof data[field] !== "string") {
-          errors.push(`Поле ${field} должно быть строкой`)
-        } else {
-          const maxLength = this.getMaxLengthForField(field)
-          if (data[field].length > maxLength) {
-            errors.push(`Поле ${field} не может превышать ${maxLength} символов`)
-          }
-        }
-      }
-    })
-
     return { isValid: errors.length === 0, errors }
-  }
-
-  static validateSpecifications(specs: any): { isValid: boolean; errors: string[] } {
-    const errors: string[] = []
-
-    if (specs === undefined || specs === null) {
-      return { isValid: true, errors }
-    }
-
-    if (typeof specs !== "object" || Array.isArray(specs)) {
-      errors.push("Спецификации должны быть объектом")
-      return { isValid: false, errors }
-    }
-
-    const entries = Object.entries(specs)
-
-    if (entries.length > VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS) {
-      errors.push(`Слишком много характеристик (максимум ${VALIDATION_LIMITS.SPECIFICATIONS_MAX_KEYS})`)
-    }
-
-    for (const [key, value] of entries) {
-      if (typeof key !== "string" || key.length > VALIDATION_LIMITS.SPECIFICATION_KEY_MAX_LENGTH) {
-        errors.push(`Ключ спецификации слишком длинный: ${key.substring(0, 50)}`)
-      }
-
-      if (typeof value !== "string" || value.length > VALIDATION_LIMITS.SPECIFICATION_VALUE_MAX_LENGTH) {
-        errors.push(`Значение спецификации слишком длинное для ключа: ${key.substring(0, 50)}`)
-      }
-    }
-
-    return { isValid: errors.length === 0, errors }
-  }
-
-  static getMaxLengthForField(field: string): number {
-    const maxLengths: Record<string, number> = {
-      description: VALIDATION_LIMITS.DESCRIPTION_MAX_LENGTH,
-      model: VALIDATION_LIMITS.MODEL_MAX_LENGTH,
-      currency: VALIDATION_LIMITS.CURRENCY_MAX_LENGTH,
-      offer_title: VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH,
-    }
-
-    return maxLengths[field] || VALIDATION_LIMITS.STRING_FIELD_MAX_LENGTH
   }
 
   static isValidImageUrl(url: string): boolean {
@@ -522,67 +297,32 @@ class SupabaseUtils {
   }
 }
 
-// Сервис для работы с Telegram
-class TelegramService {
-  static async publishOffer(offerId: string, channelIds: string[], origin: string) {
-    if (!CONFIG.telegram.enabled) {
-      Logger.debug("Telegram integration disabled", { offerId })
-      return
-    }
-
-    try {
-      const response = await fetch(`${origin}/api/telegram/post`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          offerId,
-          channelIds: channelIds.slice(0, CONFIG.telegram.maxChannels),
-        }),
-      })
-
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(`Telegram API error (${response.status}): ${text}`)
-      }
-
-      const result = await response.json()
-      Logger.info(`Успешная публикация в Telegram для предложения ${offerId}`)
-      Metrics.trackBusinessEvent("telegram_publish_success", offerId, { channelIds })
-      return result
-    } catch (error) {
-      Logger.error("Ошибка при публикации в Telegram:", error, { offerId, channelIds })
-      Metrics.trackBusinessEvent("telegram_publish_failed", offerId, { error: error.message })
-      throw error
-    }
-  }
-}
-
-// Трансформатор данных
+// Трансформатор данных - ОСНОВНОЙ ИСПРАВЛЕНИЯ
 class DataTransformer {
   static transformOfferForInsert(data: CommercialOfferData) {
     const now = new Date().toISOString()
 
-    return {
+    const transformedData: any = {
       title: SecurityUtils.sanitizeInput(data.title.trim()),
       description: data.description ? SecurityUtils.sanitizeInput(data.description.trim()) : null,
       equipment: data.equipment ? SecurityUtils.sanitizeInput(data.equipment.trim()) : null,
       model: data.model ? SecurityUtils.sanitizeInput(data.model.trim()) : null,
-      price: Math.round(data.price),
-      price_with_vat: data.price_with_vat ? Math.round(data.price_with_vat) : null,
+      price: SecurityUtils.parsePrice(data.price),
+      price_with_vat: data.price_with_vat ? SecurityUtils.parsePrice(data.price_with_vat) : null,
       currency: data.currency || "RUB",
-      availability: data.availability ? SecurityUtils.sanitizeInput(data.availability.trim()) : null,
+      availability: data.availability ? SecurityUtils.sanitizeInput(data.availability.trim()) : "В наличии",
       payment_type: data.payment_type ? SecurityUtils.sanitizeInput(data.payment_type.trim()) : null,
       lease: data.lease ? SecurityUtils.sanitizeInput(data.lease.trim()) : null,
       vat_included: Boolean(data.vat_included),
       diagnostics_passed: Boolean(data.diagnostics_passed),
       image_url: data.image_url?.trim() || null,
       header_image_url: data.header_image_url?.trim() || null,
-      specifications: data.specifications ? SecurityUtils.sanitizeSpecifications(data.specifications) : {},
+      specifications: SecurityUtils.sanitizeSpecifications(data.specifications),
       post_to_telegram: Boolean(data.post_to_telegram),
-      channel_ids: Array.isArray(data.channel_ids) ? data.channel_ids.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX) : [],
+      channel_ids: Array.isArray(data.channel_ids) ? data.channel_ids : [],
       is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
       is_featured: Boolean(data.is_featured) || false,
-      footer_text: data.footer_text ? SecurityUtils.sanitizeInput(data.footer_text.trim()) : null,
+      footer_text: data.footer_text ? SecurityUtils.sanitizeInput(data.footer_text.trim()) : "",
       footer_font_size: data.footer_font_size || 12,
       footer_alignment: data.footer_alignment || "center",
       footer_padding: data.footer_padding || 15,
@@ -596,6 +336,13 @@ class DataTransformer {
       telegram_posted: false,
       telegram_message_id: null,
     }
+
+    // Убедимся, что все обязательные поля имеют значения
+    if (!transformedData.image_url) transformedData.image_url = null
+    if (!transformedData.header_image_url) transformedData.header_image_url = null
+    if (!transformedData.specifications) transformedData.specifications = {}
+
+    return transformedData
   }
 
   static transformOfferForUpdate(data: CommercialOfferUpdateData) {
@@ -603,31 +350,35 @@ class DataTransformer {
       updated_at: new Date().toISOString(),
     }
 
-    // Динамически добавляем только переданные поля
-    const fields = [
-      "title", "description", "equipment", "model", "price", "price_with_vat", "currency",
-      "availability", "payment_type", "lease", "vat_included", "diagnostics_passed",
-      "image_url", "header_image_url", "specifications", "post_to_telegram", "channel_ids",
-      "is_active", "is_featured", "footer_text", "footer_font_size", "footer_alignment",
-      "footer_padding", "title_font_size", "equipment_font_size", "price_block_offset",
-      "photo_scale", "offer_title"
-    ] as const
-
-    fields.forEach(field => {
-      if (data[field] !== undefined) {
-        if (typeof data[field] === "string" && field !== "specifications" && field !== "channel_ids") {
-          updateData[field] = SecurityUtils.sanitizeInput(data[field] as string)
-        } else if (field === "specifications" && data.specifications) {
-          updateData[field] = SecurityUtils.sanitizeSpecifications(data.specifications)
-        } else if (field === "channel_ids" && data.channel_ids) {
-          updateData[field] = data.channel_ids.slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
-        } else if (field === "photo_scale" && data.photo_scale !== undefined) {
-          updateData[field] = data.photo_scale.toString()
-        } else {
-          updateData[field] = data[field]
-        }
-      }
-    })
+    // Обрабатываем каждое поле индивидуально
+    if (data.title !== undefined) updateData.title = SecurityUtils.sanitizeInput(data.title.trim())
+    if (data.description !== undefined) updateData.description = data.description ? SecurityUtils.sanitizeInput(data.description.trim()) : null
+    if (data.equipment !== undefined) updateData.equipment = data.equipment ? SecurityUtils.sanitizeInput(data.equipment.trim()) : null
+    if (data.model !== undefined) updateData.model = data.model ? SecurityUtils.sanitizeInput(data.model.trim()) : null
+    if (data.price !== undefined) updateData.price = SecurityUtils.parsePrice(data.price)
+    if (data.price_with_vat !== undefined) updateData.price_with_vat = data.price_with_vat ? SecurityUtils.parsePrice(data.price_with_vat) : null
+    if (data.currency !== undefined) updateData.currency = data.currency || "RUB"
+    if (data.availability !== undefined) updateData.availability = data.availability ? SecurityUtils.sanitizeInput(data.availability.trim()) : "В наличии"
+    if (data.payment_type !== undefined) updateData.payment_type = data.payment_type ? SecurityUtils.sanitizeInput(data.payment_type.trim()) : null
+    if (data.lease !== undefined) updateData.lease = data.lease ? SecurityUtils.sanitizeInput(data.lease.trim()) : null
+    if (data.vat_included !== undefined) updateData.vat_included = Boolean(data.vat_included)
+    if (data.diagnostics_passed !== undefined) updateData.diagnostics_passed = Boolean(data.diagnostics_passed)
+    if (data.image_url !== undefined) updateData.image_url = data.image_url?.trim() || null
+    if (data.header_image_url !== undefined) updateData.header_image_url = data.header_image_url?.trim() || null
+    if (data.specifications !== undefined) updateData.specifications = SecurityUtils.sanitizeSpecifications(data.specifications)
+    if (data.post_to_telegram !== undefined) updateData.post_to_telegram = Boolean(data.post_to_telegram)
+    if (data.channel_ids !== undefined) updateData.channel_ids = Array.isArray(data.channel_ids) ? data.channel_ids : []
+    if (data.is_active !== undefined) updateData.is_active = Boolean(data.is_active)
+    if (data.is_featured !== undefined) updateData.is_featured = Boolean(data.is_featured)
+    if (data.footer_text !== undefined) updateData.footer_text = data.footer_text ? SecurityUtils.sanitizeInput(data.footer_text.trim()) : ""
+    if (data.footer_font_size !== undefined) updateData.footer_font_size = data.footer_font_size || 12
+    if (data.footer_alignment !== undefined) updateData.footer_alignment = data.footer_alignment || "center"
+    if (data.footer_padding !== undefined) updateData.footer_padding = data.footer_padding || 15
+    if (data.title_font_size !== undefined) updateData.title_font_size = data.title_font_size || 28
+    if (data.equipment_font_size !== undefined) updateData.equipment_font_size = data.equipment_font_size || 16
+    if (data.price_block_offset !== undefined) updateData.price_block_offset = data.price_block_offset || 0
+    if (data.photo_scale !== undefined) updateData.photo_scale = data.photo_scale?.toString() || "1"
+    if (data.offer_title !== undefined) updateData.offer_title = data.offer_title ? SecurityUtils.sanitizeInput(data.offer_title.trim()) : "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ"
 
     return updateData
   }
@@ -669,64 +420,13 @@ class ErrorHandler {
     Logger.error("Критическая ошибка сервера", error)
     return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 })
   }
-
-  static handleRateLimitError(): NextResponse {
-    Logger.warn("Превышен лимит запросов")
-    return NextResponse.json({ error: "Слишком много запросов" }, { status: 429 })
-  }
-
-  static handleMethodNotAllowed(): NextResponse {
-    return NextResponse.json({ error: "Метод не разрешен" }, { status: 405 })
-  }
 }
 
-// Кэширование
-class CacheService {
-  private static cache = new Map<string, { data: any; timestamp: number }>()
-  private static readonly TTL = 5 * 60 * 1000 // 5 минут
-
-  static get(key: string): any | null {
-    const item = this.cache.get(key)
-    if (!item) return null
-
-    if (Date.now() - item.timestamp > this.TTL) {
-      this.cache.delete(key)
-      return null
-    }
-
-    return item.data
-  }
-
-  static set(key: string, data: any): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-    })
-  }
-
-  static delete(key: string): void {
-    this.cache.delete(key)
-  }
-
-  static clear(): void {
-    this.cache.clear()
-  }
-}
-
-// Основные обработчики API
+// ОСНОВНЫЕ ОБРАБОТЧИКИ API
 
 // POST: Создание коммерческого предложения
 export async function POST(request: NextRequest) {
-  const startTime = Date.now()
-  const clientId = SecurityUtils.getClientIdentifier(request)
-
   try {
-    // Rate limiting
-    if (!RateLimiter.check(clientId)) {
-      Metrics.trackError("rate_limit_exceeded", { clientId })
-      return ErrorHandler.handleRateLimitError()
-    }
-
     const text = await request.text()
     if (!text.trim()) {
       return ErrorHandler.handleValidationError(["Тело запроса не может быть пустым"])
@@ -740,44 +440,21 @@ export async function POST(request: NextRequest) {
       return ErrorHandler.handleValidationError(["Неверный формат JSON"])
     }
 
-    Logger.debug("Received POST data:", body)
+    Logger.info("Received POST data:", body)
 
     // Валидация данных
     const validation = OfferValidator.validateCreateData(body)
     if (!validation.isValid) {
-      Logger.error("Validation errors:", null, { errors: validation.errors })
+      Logger.error("Validation errors:", { errors: validation.errors })
       return ErrorHandler.handleValidationError(validation.errors)
     }
 
     // Создание клиента Supabase
     const supabase = SupabaseUtils.createClient()
 
-    // Проверка дубликатов
-    const { data: existing, error: checkError } = await supabase
-      .from("commercial_offers")
-      .select("id")
-      .ilike("title", body.title.trim())
-      .limit(1)
-
-    if (checkError) {
-      Logger.error("Check error:", checkError)
-      throw checkError
-    }
-
-    if (existing?.length > 0) {
-      Metrics.trackBusinessEvent("offer_creation_duplicate", existing[0].id, { title: body.title })
-      return NextResponse.json(
-        {
-          error: "Коммерческое предложение с таким названием уже существует",
-          existingId: existing[0].id,
-        },
-        { status: 409 },
-      )
-    }
-
     // Подготовка и вставка данных
     const insertData = DataTransformer.transformOfferForInsert(body)
-    Logger.debug("Insert data:", insertData)
+    Logger.info("Insert data:", insertData)
 
     const { data, error } = await supabase
       .from("commercial_offers")
@@ -787,33 +464,10 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       Logger.error("Database error:", error)
-      Metrics.trackError("database_insert_error", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    Logger.info(`Создано коммерческое предложение: ${data.id} - ${data.title}`, {
-      offerId: data.id,
-      title: data.title,
-      price: data.price,
-    })
-
-    Metrics.trackBusinessEvent("offer_created", data.id, {
-      title: data.title,
-      price: data.price,
-      hasImage: !!data.image_url,
-    })
-
-    // Асинхронная публикация в Telegram (не блокируем ответ)
-    if (body.post_to_telegram && body.channel_ids?.length) {
-      setImmediate(() => {
-        TelegramService.publishOffer(data.id, body.channel_ids!, request.nextUrl.origin).catch((err) =>
-          Logger.error("Фоновая ошибка Telegram:", err, { offerId: data.id }),
-        )
-      })
-    }
-
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("POST", "/api/commercial-offers", duration, 201)
+    Logger.info(`Создано коммерческое предложение: ${data.id} - ${data.title}`)
 
     return NextResponse.json(
       {
@@ -825,61 +479,26 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     )
   } catch (error: any) {
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("POST", "/api/commercial-offers", duration, 500)
-    Metrics.trackError("offer_creation_error", error, { clientId })
+    Logger.error("Server error:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
 
 // GET: Получение списка предложений
 export async function GET(request: NextRequest) {
-  const startTime = Date.now()
-  const clientId = SecurityUtils.getClientIdentifier(request)
-
   try {
-    // Rate limiting
-    if (!RateLimiter.check(clientId)) {
-      Metrics.trackError("rate_limit_exceeded", { clientId })
-      return ErrorHandler.handleRateLimitError()
-    }
-
     const supabase = SupabaseUtils.createClient()
     const url = new URL(request.url)
 
     // Параметры пагинации
-    const page = Math.max(
-      1,
-      Math.min(VALIDATION_LIMITS.PAGE_MAX, Number.parseInt(url.searchParams.get("page") || "1", 10)),
-    )
-    const limit = Math.max(
-      1,
-      Math.min(VALIDATION_LIMITS.LIMIT_MAX, Number.parseInt(url.searchParams.get("limit") || "10", 10)),
-    )
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"))
+    const limit = Math.max(1, Math.min(100, parseInt(url.searchParams.get("limit") || "10")))
     const offset = (page - 1) * limit
 
     // Параметры фильтрации
-    let search = url.searchParams.get("search")?.trim() || null
-    if (search && search.length > VALIDATION_LIMITS.SEARCH_MAX_LENGTH) {
-      search = search.substring(0, VALIDATION_LIMITS.SEARCH_MAX_LENGTH)
-    }
-
+    const search = url.searchParams.get("search")?.trim() || null
     const isActive = url.searchParams.get("is_active")
     const isFeatured = url.searchParams.get("is_featured")
-
-    // Ключ для кэша
-    const cacheKey = `offers:${page}:${limit}:${search}:${isActive}:${isFeatured}`
-
-    // Проверка кэша
-    if (process.env.NODE_ENV === "production") {
-      const cached = CacheService.get(cacheKey)
-      if (cached) {
-        const duration = Date.now() - startTime
-        Metrics.trackRequest("GET", "/api/commercial-offers", duration, 200)
-        Logger.debug("Cache hit", { cacheKey })
-        return NextResponse.json(cached)
-      }
-    }
 
     // Построение запроса
     let query = supabase.from("commercial_offers").select('*', { count: "exact" })
@@ -901,7 +520,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1)
 
     if (error) {
-      Metrics.trackError("database_query_error", error)
+      Logger.error("Database query error:", error)
       throw error
     }
 
@@ -926,35 +545,16 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    // Сохранение в кэш
-    if (process.env.NODE_ENV === "production") {
-      CacheService.set(cacheKey, responseData)
-    }
-
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("GET", "/api/commercial-offers", duration, 200)
-
     return NextResponse.json(responseData)
   } catch (error) {
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("GET", "/api/commercial-offers", duration, 500)
-    Logger.error("Ошибка получения списка предложений:", error, { clientId })
+    Logger.error("Ошибка получения списка предложений:", error)
     return NextResponse.json({ error: "Ошибка сервера при получении данных" }, { status: 500 })
   }
 }
 
 // PATCH: Обновление коммерческого предложения
 export async function PATCH(request: NextRequest) {
-  const startTime = Date.now()
-  const clientId = SecurityUtils.getClientIdentifier(request)
-
   try {
-    // Rate limiting
-    if (!RateLimiter.check(clientId)) {
-      Metrics.trackError("rate_limit_exceeded", { clientId })
-      return ErrorHandler.handleRateLimitError()
-    }
-
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 
@@ -990,12 +590,12 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (checkError || !existing) {
-      Metrics.trackError("offer_not_found", { offerId: id })
       return ErrorHandler.handleNotFoundError("Коммерческое предложение не найдено")
     }
 
     // Подготовка данных для обновления
     const updateData = DataTransformer.transformOfferForUpdate(body)
+    Logger.info("Update data:", { id, updateData })
 
     const { data, error } = await supabase
       .from("commercial_offers")
@@ -1005,24 +605,11 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      Metrics.trackError("database_update_error", error, { offerId: id })
+      Logger.error("Database update error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    // Очистка кэша
-    CacheService.clear()
-
-    Logger.info(`Обновлено коммерческое предложение: ${data.id}`, {
-      offerId: data.id,
-      updatedFields: Object.keys(body),
-    })
-
-    Metrics.trackBusinessEvent("offer_updated", data.id, {
-      updatedFields: Object.keys(body),
-    })
-
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("PATCH", `/api/commercial-offers?id=${id}`, duration, 200)
+    Logger.info(`Обновлено коммерческое предложение: ${data.id}`)
 
     return NextResponse.json({
       success: true,
@@ -1030,25 +617,14 @@ export async function PATCH(request: NextRequest) {
       message: "Коммерческое предложение успешно обновлено",
     })
   } catch (error: any) {
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("PATCH", "/api/commercial-offers", duration, 500)
-    Logger.error("Ошибка обновления предложения:", error, { clientId })
+    Logger.error("Ошибка обновления предложения:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
 
 // DELETE: Удаление коммерческого предложения
 export async function DELETE(request: NextRequest) {
-  const startTime = Date.now()
-  const clientId = SecurityUtils.getClientIdentifier(request)
-
   try {
-    // Rate limiting
-    if (!RateLimiter.check(clientId)) {
-      Metrics.trackError("rate_limit_exceeded", { clientId })
-      return ErrorHandler.handleRateLimitError()
-    }
-
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
 
@@ -1066,7 +642,6 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (checkError || !existing) {
-      Metrics.trackError("offer_not_found_delete", { offerId: id })
       return ErrorHandler.handleNotFoundError("Коммерческое предложение не найдено")
     }
 
@@ -1074,33 +649,18 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase.from("commercial_offers").delete().eq("id", id)
 
     if (error) {
-      Metrics.trackError("database_delete_error", error, { offerId: id })
+      Logger.error("Database delete error:", error)
       return ErrorHandler.handleDatabaseError(error)
     }
 
-    // Очистка кэша
-    CacheService.clear()
-
-    Logger.info(`Удалено коммерческое предложение: ${id} - ${existing.title}`, {
-      offerId: id,
-      title: existing.title,
-    })
-
-    Metrics.trackBusinessEvent("offer_deleted", id, {
-      title: existing.title,
-    })
-
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("DELETE", `/api/commercial-offers?id=${id}`, duration, 200)
+    Logger.info(`Удалено коммерческое предложение: ${id} - ${existing.title}`)
 
     return NextResponse.json({
       success: true,
       message: "Коммерческое предложение успешно удалено",
     })
   } catch (error: any) {
-    const duration = Date.now() - startTime
-    Metrics.trackRequest("DELETE", "/api/commercial-offers", duration, 500)
-    Logger.error("Ошибка удаления предложения:", error, { clientId })
+    Logger.error("Ошибка удаления предложения:", error)
     return ErrorHandler.handleServerError(error)
   }
 }
