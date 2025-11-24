@@ -25,6 +25,12 @@ interface CommercialOfferData {
   availability?: string
   paymentType?: string
   lease?: string
+  conditions?: string
+  headerImageUrl?: string
+  footer?: string
+  footerAlignment?: string
+  footerFontSize?: number
+  footerFontFamily?: string
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
@@ -44,6 +50,12 @@ interface CommercialOfferUpdateData {
   availability?: string
   paymentType?: string
   lease?: string
+  conditions?: string
+  headerImageUrl?: string
+  footer?: string
+  footerAlignment?: string
+  footerFontSize?: number
+  footerFontFamily?: string
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
@@ -111,7 +123,15 @@ class OfferValidator {
     }
 
     // Валидация строковых полей
-    const stringFields = ["availability", "paymentType", "lease", "equipment", "description"] as const
+    const stringFields = [
+      "availability",
+      "paymentType",
+      "lease",
+      "equipment",
+      "description",
+      "conditions",
+      "footer",
+    ] as const
 
     stringFields.forEach((field) => {
       if (data[field] !== undefined && data[field] !== null) {
@@ -181,7 +201,15 @@ class OfferValidator {
     }
 
     // Валидация строковых полей
-    const stringFields = ["availability", "paymentType", "lease", "equipment", "description"] as const
+    const stringFields = [
+      "availability",
+      "paymentType",
+      "lease",
+      "equipment",
+      "description",
+      "conditions",
+      "footer",
+    ] as const
 
     stringFields.forEach((field) => {
       if (data[field] !== undefined && data[field] !== null) {
@@ -280,6 +308,12 @@ class DataTransformer {
       price_with_vat: data.priceWithVat ? Math.round(data.priceWithVat) : null,
       availability: data.availability?.trim() || null,
       payment_type: data.paymentType?.trim() || null,
+      conditions: data.conditions?.trim() || null,
+      header_image_url: data.headerImageUrl?.trim() || null,
+      footer: data.footer?.trim() || null,
+      footer_alignment: data.footerAlignment || "center",
+      footer_font_size: data.footerFontSize || 12,
+      footer_font_family: data.footerFontFamily || "Arial",
       vat_included: Boolean(data.vatIncluded),
       diagnostics_passed: Boolean(data.diagnosticsPassed),
       image_url: data.imageUrl?.trim() || null,
@@ -292,13 +326,12 @@ class DataTransformer {
       is_active: data.isActive !== undefined ? Boolean(data.isActive) : true,
       is_featured: Boolean(data.isFeatured) || false,
       post_to_telegram: Boolean(data.postToTelegram),
-      // ИСПРАВЛЕНИЕ: используем пустой массив вместо null для text[]
       channel_ids:
         Array.isArray(data.channelIds) && data.channelIds.length > 0
           ? data.channelIds
               .filter((id: any) => typeof id === "string" && id.trim())
               .slice(0, VALIDATION_LIMITS.CHANNEL_IDS_MAX)
-          : [], // ← ВАЖНО: пустой массив вместо null
+          : [],
       telegram_posted: false,
       telegram_message_id: null,
     }
@@ -317,6 +350,12 @@ class DataTransformer {
       updateData.price_with_vat = data.priceWithVat ? Math.round(data.priceWithVat) : null
     if (data.availability !== undefined) updateData.availability = data.availability?.trim() || null
     if (data.paymentType !== undefined) updateData.payment_type = data.paymentType?.trim() || null
+    if (data.conditions !== undefined) updateData.conditions = data.conditions?.trim() || null
+    if (data.headerImageUrl !== undefined) updateData.header_image_url = data.headerImageUrl?.trim() || null
+    if (data.footer !== undefined) updateData.footer = data.footer?.trim() || null
+    if (data.footerAlignment !== undefined) updateData.footer_alignment = data.footerAlignment || "center"
+    if (data.footerFontSize !== undefined) updateData.footer_font_size = data.footerFontSize || 12
+    if (data.footerFontFamily !== undefined) updateData.footer_font_family = data.footerFontFamily || "Arial"
     if (data.vatIncluded !== undefined) updateData.vat_included = Boolean(data.vatIncluded)
     if (data.diagnosticsPassed !== undefined) updateData.diagnostics_passed = Boolean(data.diagnosticsPassed)
     if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl?.trim() || null
@@ -423,7 +462,8 @@ export async function POST(request: NextRequest) {
         payment_type, vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, post_to_telegram, 
-        channel_ids, telegram_posted
+        channel_ids, telegram_posted, conditions, header_image_url, 
+        footer, footer_alignment, footer_font_size, footer_font_family
       `)
       .single()
 
@@ -490,7 +530,9 @@ export async function GET(request: NextRequest) {
         id, title, description, price, price_with_vat, availability, 
         image_url, created_at, updated_at, telegram_posted, 
         is_active, is_featured, equipment, payment_type, lease,
-        diagnostics_passed, vat_included, specifications
+        diagnostics_passed, vat_included, specifications, conditions, 
+        header_image_url, footer, footer_alignment, footer_font_size, 
+        footer_font_family
       `,
       { count: "exact" },
     )
@@ -591,7 +633,8 @@ export async function PATCH(request: NextRequest) {
         id, title, description, price, price_with_vat, availability, 
         payment_type, vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
-        updated_at, is_active, is_featured
+        updated_at, is_active, is_featured, conditions, header_image_url, 
+        footer, footer_alignment, footer_font_size, footer_font_family
       `)
       .single()
 

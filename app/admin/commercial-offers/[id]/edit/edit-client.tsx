@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 export default function EditOfferClient({ initialOffer }: { initialOffer: any }) {
   const router = useRouter()
@@ -22,6 +23,8 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
   const [footerAlignment, setFooterAlignment] = useState(initialOffer.footer_alignment || "center")
   const [footerPadding, setFooterPadding] = useState(initialOffer.footer_padding || 15)
   const [offerTitle, setOfferTitle] = useState(initialOffer.offer_title || "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ")
+  const [conditions, setConditions] = useState(initialOffer.conditions || "")
+  const [headerImageUrl, setHeaderImageUrl] = useState(initialOffer.header_image_url || "")
 
   const handleSave = async () => {
     setIsLoading(true)
@@ -40,6 +43,8 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
           footer_alignment: footerAlignment,
           footer_padding: footerPadding,
           offer_title: offerTitle,
+          conditions,
+          header_image_url: headerImageUrl,
         }),
       })
 
@@ -157,21 +162,21 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
           {/* Left: Form */}
           <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">URL Шапки (Header Image)</label>
+              <Label>Дополнительные условия оплаты *</Label>
               <Input
-                value={offer.header_image_url || ""}
-                onChange={(e) => setOffer({ ...offer, header_image_url: e.target.value })}
-                placeholder="URL изображения шапки компании"
+                value={conditions}
+                onChange={(e) => setConditions(e.target.value)}
+                placeholder="Например: Беспроцентный кредит, Рассрочка 12 месяцев"
               />
-              {offer.header_image_url && (
-                <div className="mt-2 p-2 bg-gray-100 rounded">
-                  <img
-                    src={offer.header_image_url || "/placeholder.svg"}
-                    alt="Header preview"
-                    className="max-w-full h-16 object-contain"
-                  />
-                </div>
-              )}
+            </div>
+
+            <div>
+              <Label>URL шапки (Header Image)</Label>
+              <Input
+                value={headerImageUrl}
+                onChange={(e) => setHeaderImageUrl(e.target.value)}
+                placeholder="https://example.com/header.png"
+              />
             </div>
 
             <div>
@@ -335,53 +340,38 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
               <h2 className="text-lg font-bold text-gray-900 mb-4">Подвал (Footer)</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Текст подвала</label>
+                  <Label>Подвал (Footer текст)</Label>
                   <Textarea
                     value={footerText}
                     onChange={(e) => setFooterText(e.target.value)}
-                    placeholder="Например: Реквизиты компании, номер телефона, и т.д."
-                    rows={3}
+                    placeholder="Введите текст для подвала. Можно использовать переносы строк."
+                    rows={4}
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Размер шрифта: {footerFontSize}px
-                    </label>
-                    <input
-                      type="range"
-                      min="8"
-                      max="18"
+                    <Label>Размер шрифта подвала (px)</Label>
+                    <Input
+                      type="number"
                       value={footerFontSize}
                       onChange={(e) => setFooterFontSize(Number(e.target.value))}
-                      className="w-full"
+                      min="8"
+                      max="24"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Выравнивание</label>
+                    <Label>Выравнивание подвала</Label>
                     <select
                       value={footerAlignment}
                       onChange={(e) => setFooterAlignment(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      className="w-full px-3 py-2 border rounded"
                     >
-                      <option value="left">Левое</option>
-                      <option value="center">Центр</option>
-                      <option value="right">Правое</option>
+                      <option value="left">По левому краю</option>
+                      <option value="center">По центру</option>
+                      <option value="right">По правому краю</option>
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Отступ: {footerPadding}px</label>
-                    <input
-                      type="range"
-                      min="5"
-                      max="30"
-                      value={footerPadding}
-                      onChange={(e) => setFooterPadding(Number(e.target.value))}
-                      className="w-full"
-                    />
                   </div>
                 </div>
               </div>
@@ -420,6 +410,8 @@ export default function EditOfferClient({ initialOffer }: { initialOffer: any })
                 footerAlignment,
                 footerPadding,
                 offerTitle,
+                conditions,
+                headerImageUrl,
               })}
               className="w-full h-[600px] border border-gray-200 rounded"
               title="Preview"
@@ -515,6 +507,7 @@ function generatePreview(offer: any, styling: any): string {
           ${offer.lease ? `<li>${escapeHtml(offer.lease)}</li>` : ""}
           ${offer.payment_type ? `<li>${escapeHtml(offer.payment_type)}</li>` : ""}
           ${offer.diagnostics_passed ? `<li>Диагностика пройдена.</li>` : ""}
+          ${offer.conditions ? `<li>${escapeHtml(offer.conditions)}</li>` : ""}
         </ul>
       </div>
     </div>

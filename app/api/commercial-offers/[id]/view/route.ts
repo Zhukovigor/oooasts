@@ -54,6 +54,10 @@ function generateStrictFormatPDF(data: any): string {
 
   const formattedPrice = data.price ? data.price.toLocaleString("ru-RU") : "Не указана"
 
+  const footerAlignment = data.footer_alignment || "center"
+  const footerFontSize = data.footer_font_size || 12
+  const footerFontFamily = data.footer_font_family || "Arial"
+
   return `
 <!DOCTYPE html>
 <html lang="ru">
@@ -74,6 +78,13 @@ function generateStrictFormatPDF(data: any): string {
       display: flex;
       flex-direction: column;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header-image {
+      width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+      margin-bottom: 20px;
     }
 
     .header {
@@ -200,10 +211,25 @@ function generateStrictFormatPDF(data: any): string {
       width: 60%;
       text-align: right;
     }
+
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
   </style>
 </head>
 <body>
   <div class="page">
+    <!-- add header image at the top -->
+    ${
+      data.header_image_url
+        ? `<img src="${escapeHtml(data.header_image_url)}" alt="Header" class="header-image" onerror="this.style.display='none'">`
+        : ""
+    }
+
     <!-- Header -->
     <div class="header">
       <div class="header-small-text">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</div>
@@ -232,6 +258,7 @@ function generateStrictFormatPDF(data: any): string {
           ${data.availability ? `<li>${escapeHtml(data.availability)}</li>` : ""}
           ${data.lease ? `<li>Продажа в лизинг.</li>` : ""}
           ${data.payment_type ? `<li>${escapeHtml(data.payment_type)}</li>` : ""}
+          ${data.conditions ? `<li>${escapeHtml(data.conditions)}</li>` : ""}
           ${data.diagnostics_passed ? `<li>Диагностика пройдена.</li>` : ""}
         </ul>
       </div>
@@ -248,6 +275,17 @@ function generateStrictFormatPDF(data: any): string {
           ${specsHTML}
         </tbody>
       </table>
+    </div>
+    `
+        : ""
+    }
+
+    <!-- add footer with proper styling and line breaks -->
+    ${
+      data.footer
+        ? `
+    <div class="footer" style="text-align: ${footerAlignment}; font-size: ${footerFontSize}px; font-family: ${footerFontFamily};">
+      ${escapeHtml(data.footer)}
     </div>
     `
         : ""

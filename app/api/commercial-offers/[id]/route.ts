@@ -14,6 +14,11 @@ interface CreateOfferData {
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
+  headerImageUrl?: string
+  footer?: string
+  footerAlignment?: string
+  footerFontSize?: number
+  footerFontFamily?: string
   specifications?: Record<string, string>
   equipment?: string
   description?: string
@@ -33,6 +38,11 @@ interface UpdateOfferData {
   vatIncluded?: boolean
   diagnosticsPassed?: boolean
   imageUrl?: string
+  headerImageUrl?: string
+  footer?: string
+  footerAlignment?: string
+  footerFontSize?: number
+  footerFontFamily?: string
   specifications?: Record<string, string>
   equipment?: string
   description?: string
@@ -85,6 +95,10 @@ class OfferValidator {
       errors.push("Некорректный URL изображения")
     }
 
+    if (data.headerImageUrl && !this.isValidImageUrl(data.headerImageUrl)) {
+      errors.push("Некорректный URL заголовочного изображения")
+    }
+
     if (data.specifications && typeof data.specifications !== "object") {
       errors.push("Спецификации должны быть объектом")
     } else if (
@@ -104,7 +118,7 @@ class OfferValidator {
       }
     }
 
-    const stringFields = ["availability", "paymentType", "lease", "equipment", "description"] as const
+    const stringFields = ["availability", "paymentType", "lease", "equipment", "description", "footer"] as const
     stringFields.forEach((field) => {
       if (data[field] !== undefined && data[field] !== null) {
         if (typeof data[field] !== "string") {
@@ -156,6 +170,10 @@ class OfferValidator {
       errors.push("Некорректный URL изображения")
     }
 
+    if (data.headerImageUrl && !this.isValidImageUrl(data.headerImageUrl)) {
+      errors.push("Некорректный URL заголовочного изображения")
+    }
+
     if (data.specifications !== undefined) {
       if (data.specifications && typeof data.specifications !== "object") {
         errors.push("Спецификации должны быть объектом")
@@ -167,7 +185,7 @@ class OfferValidator {
       }
     }
 
-    const stringFields = ["availability", "paymentType", "lease", "equipment", "description"] as const
+    const stringFields = ["availability", "paymentType", "lease", "equipment", "description", "footer"] as const
     stringFields.forEach((field) => {
       if (data[field] !== undefined && data[field] !== null) {
         if (typeof data[field] !== "string") {
@@ -267,6 +285,11 @@ class DataTransformer {
       vat_included: Boolean(data.vatIncluded),
       diagnostics_passed: Boolean(data.diagnosticsPassed),
       image_url: data.imageUrl?.trim() || null,
+      header_image_url: data.headerImageUrl?.trim() || null,
+      footer: data.footer?.trim() || null,
+      footer_alignment: data.footerAlignment?.trim() || null,
+      footer_font_size: data.footerFontSize || null,
+      footer_font_family: data.footerFontFamily?.trim() || null,
       specifications: data.specifications || {},
       currency: "RUB",
       equipment: data.equipment?.trim() || null,
@@ -302,6 +325,11 @@ class DataTransformer {
     if (data.vatIncluded !== undefined) updateData.vat_included = Boolean(data.vatIncluded)
     if (data.diagnosticsPassed !== undefined) updateData.diagnostics_passed = Boolean(data.diagnosticsPassed)
     if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl?.trim() || null
+    if (data.headerImageUrl !== undefined) updateData.header_image_url = data.headerImageUrl?.trim() || null
+    if (data.footer !== undefined) updateData.footer = data.footer?.trim() || null
+    if (data.footerAlignment !== undefined) updateData.footer_alignment = data.footerAlignment?.trim() || null
+    if (data.footerFontSize !== undefined) updateData.footer_font_size = data.footerFontSize || null
+    if (data.footerFontFamily !== undefined) updateData.footer_font_family = data.footerFontFamily?.trim() || null
     if (data.specifications !== undefined) updateData.specifications = data.specifications || {}
     if (data.equipment !== undefined) updateData.equipment = data.equipment?.trim() || null
     if (data.lease !== undefined) updateData.lease = data.lease?.trim() || null
@@ -384,7 +412,9 @@ export async function POST(request: NextRequest) {
       .insert([insertData])
       .select(`
         id, title, description, price, price_with_vat, availability, 
-        payment_type, vat_included, diagnostics_passed, image_url, 
+        payment_type, conditions, header_image_url, footer, 
+        footer_alignment, footer_font_size, footer_font_family,
+        vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured, post_to_telegram, 
         channel_ids, telegram_posted
@@ -448,7 +478,8 @@ export async function GET(request: NextRequest) {
         id, title, description, price, price_with_vat, availability, 
         image_url, created_at, updated_at, telegram_posted, 
         is_active, is_featured, equipment, payment_type, lease,
-        diagnostics_passed, vat_included, specifications
+        diagnostics_passed, vat_included, specifications,
+        conditions, header_image_url, footer, footer_alignment, footer_font_size, footer_font_family
       `,
       { count: "exact" },
     )
@@ -541,7 +572,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .eq("id", id)
       .select(`
         id, title, description, price, price_with_vat, availability, 
-        payment_type, vat_included, diagnostics_passed, image_url, 
+        payment_type, conditions, header_image_url, footer, 
+        footer_alignment, footer_font_size, footer_font_family,
+        vat_included, diagnostics_passed, image_url, 
         specifications, currency, equipment, lease, created_at, 
         updated_at, is_active, is_featured
       `)
