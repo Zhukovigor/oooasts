@@ -14,10 +14,15 @@ import {
   Heart,
   ShoppingCart,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { createBrowserClient } from "@supabase/ssr"
+
+// Check if Supabase credentials are available
+const hasSupabaseCredentials = () => {
+  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+}
 
 interface HeroSlide {
   id: string
@@ -91,13 +96,19 @@ export default function HeroSection() {
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  // Create Supabase client only if credentials are available
+  const supabase = useMemo(() => {
+    if (!hasSupabaseCredentials()) return null
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+  }, [])
 
   useEffect(() => {
     const fetchSlides = async () => {
+      if (!supabase) return
+      
       const { data, error } = await supabase
         .from("hero_slides")
         .select("*")
@@ -113,7 +124,7 @@ export default function HeroSection() {
 
     fetchSlides()
     setMounted(true)
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     if (slides.length === 0) return

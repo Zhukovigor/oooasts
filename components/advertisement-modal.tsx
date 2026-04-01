@@ -2,8 +2,13 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { createBrowserClient } from "@supabase/ssr"
+
+// Check if Supabase credentials are available
+const hasSupabaseCredentials = () => {
+  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+}
 
 interface TextOverlay {
   enabled?: boolean
@@ -63,18 +68,24 @@ export default function AdvertisementModal() {
   const [canClose, setCanClose] = useState(false)
   const [textOverlay, setTextOverlay] = useState<TextOverlay | null>(null)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  // Create Supabase client only if credentials are available
+  const supabase = useMemo(() => {
+    if (!hasSupabaseCredentials()) return null
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+  }, [])
 
   useEffect(() => {
+    if (!supabase) return
     loadAdvertisement()
     const timer = setInterval(loadAdvertisement, 60000)
     return () => clearInterval(timer)
-  }, [])
+  }, [supabase])
 
   const loadAdvertisement = async () => {
+    if (!supabase) return
     try {
       const now = new Date()
       const { data, error } = await supabase
@@ -144,7 +155,7 @@ export default function AdvertisementModal() {
   }, [isVisible, ad])
 
   const handleClose = async () => {
-    if (!ad) return
+    if (!ad || !supabase) return
 
     try {
       await supabase

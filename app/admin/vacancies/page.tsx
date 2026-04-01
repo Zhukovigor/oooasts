@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import VacanciesListClient from "./list-client"
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminVacanciesPage() {
   const supabase = createAdminClient()
   const { data: vacancies } = await supabase.from("vacancies").select("*").order("sort_order", { ascending: true })

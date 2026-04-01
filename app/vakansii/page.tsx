@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import VacanciesClient from "./client"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "Вакансии - Менеджер по продажам спецтехники | ООО АСТС",
   description:

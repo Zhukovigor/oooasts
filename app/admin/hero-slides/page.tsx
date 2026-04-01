@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { createAdminClient } from "@/lib/supabase/admin"
 import HeroSlidesListClient from "./list-client"
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: "Управление баннером | Админ панель",
   description: "Управление слайдами главного баннера",

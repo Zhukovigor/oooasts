@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createBrowserClient } from "@supabase/ssr"
+import { createBrowserClientSafe } from "@/lib/supabase/client"
 
 interface Category {
   id: string
@@ -14,10 +14,8 @@ export function FooterCatalogMenu() {
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
+    const supabase = createBrowserClientSafe()
+    if (!supabase) return
 
     async function fetchCategories() {
       const { data } = await supabase

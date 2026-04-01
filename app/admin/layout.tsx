@@ -2,6 +2,9 @@ import type { ReactNode } from "react"
 import AdminSidebar from "@/components/admin-sidebar"
 import AdminAuth from "@/components/admin-auth"
 
+// Force all admin pages to be dynamically rendered
+export const dynamic = 'force-dynamic'
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <AdminAuth>
