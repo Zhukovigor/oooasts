@@ -1,0 +1,337 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import type { CommercialOfferData } from "@/app/lib/commercial-offer-parser"
+import { parseCommercialOfferText, formatSpecsForTable } from "@/app/lib/commercial-offer-parser"
+
+export default function CommercialOfferForm() {
+  const [rawText, setRawText] = useState("")
+  const [parsedData, setParsedData] = useState<CommercialOfferData | null>(null)
+  const [showParsed, setShowParsed] = useState(false)
+  const [imageUrl, setImageUrl] = useState("")
+  const [headerImageUrl, setHeaderImageUrl] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([])
+  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([])
+  const [offerId, setOfferId] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string>("")
+
+  useEffect(() => {
+    const loadChannels = async () => {
+      try {
+        const response = await fetch("/api/telegram/channels")
+        if (response.ok) {
+          const data = await response.json()
+          setChannels(data.channels || [])
+        }
+      } catch (error) {
+        console.error("Error loading channels:", error)
+      }
+    }
+    loadChannels()
+  }, [])
+
+  const handleParseText = () => {
+    if (!rawText.trim()) {
+      setSaveMessage("❌ Пожалуйста введите текст для парсирования")
+      return
+    }
+    try {
+      console.log("[v0] Starting parse with text length:", rawText.length)
+      const parsed = parseCommercialOfferText(rawText)
+      console.log("[v0] Successfully parsed data:", parsed)
+      setParsedData(parsed)
+      setShowParsed(true)
+      setSaveMessage("")
+    } catch (error) {
+      console.error("[v0] Parser error details:", error)
+      setSaveMessage("❌ Ошибка при парсировании текста: " + String(error))
+    }
+  }
+
+  const handleSave = async () => {
+    if (!parsedData) {
+      setSaveMessage("Ошибка: нет данных для сохранения")
+      return
+    }
+
+    setLoading(true)
+    setSaveMessage("")
+
+    try {
+      console.log("[v0] Saving offer:", parsedData)
+
+      const response = await fetch("/api/commercial-offers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...parsedData,
+          imageUrl,
+          headerImageUrl,
+          postToTelegram: selectedChannels.length > 0,
+          channelIds: selectedChannels,
+        }),
+      })
+
+      const result = await response.json()
+      console.log("[v0] Save response:", result)
+
+      if (response.ok) {
+        setOfferId(result.id)
+        setSaveMessage("✅ Коммерческое предложение успешно создано!")
+      } else {
+        setSaveMessage(`❌ Ошибка: ${result.error || "Неизвестная ошибка"}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error saving offer:", error)
+      setSaveMessage("❌ Ошибка при сохранении КП")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownloadPDF = () => {
+    if (!offerId) {
+      setSaveMessage("❌ Сначала сохраните предложение")
+      return
+    }
+    window.open(`/api/commercial-offers/${offerId}/pdf`, "_blank")
+  }
+
+  const specsRows = parsedData ? formatSpecsForTable(parsedData.specifications || {}) : []
+
+  return (
+    <div className="min-h-screen bg-white py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Создание коммерческого предложения</h1>
+        <p className="text-gray-600 mb-8">Заполните данные о технике для автоматического формирования КП</p>
+
+        {saveMessage && (
+          <div
+            className={`mb-6 p-4 rounded-lg ${
+              saveMessage.includes("✅")
+                ? "bg-green-100 text-green-800 border border-green-200"
+                : "bg-red-100 text-red-800 border border-red-200"
+            }`}
+          >
+            {saveMessage}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Левая часть - Ввод данных */}
+          <div className="bg-white rounded-xl border border-gray-200 p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Введите данные</h2>
+
+            <div className="space-y-6">
+              {/* URL шапки (логотип компании) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">URL шапки (логотип компании)</label>
+                <Input
+                  value={headerImageUrl}
+                  onChange={(e) => setHeaderImageUrl(e.target.value)}
+                  placeholder="https://example.com/header.jpg"
+                  className="p-3 border border-gray-300 rounded-lg"
+                />
+                {headerImageUrl && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-300">
+                    <img
+                      src={headerImageUrl || "/placeholder.svg"}
+                      alt="Шапка"
+                      className="max-h-24 object-contain"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Текст с характеристиками *</label>
+                <Textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder="Вставьте полный текст с информацией о технике..."
+                  className="min-h-80 p-4 border border-gray-300 rounded-lg font-mono text-sm resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">URL фото техники</label>
+                <Input
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="p-3 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Опубликовать в Telegram</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50">
+                  {channels.length === 0 ? (
+                    <p className="text-sm text-gray-500">Каналы не добавлены</p>
+                  ) : (
+                    channels.map((channel) => (
+                      <label
+                        key={channel.id}
+                        className="flex items-center gap-3 cursor-pointer hover:bg-gray-100 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedChannels.includes(channel.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedChannels([...selectedChannels, channel.id])
+                            } else {
+                              setSelectedChannels(selectedChannels.filter((id) => id !== channel.id))
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-gray-700">{channel.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleParseText}
+                  disabled={!rawText.trim()}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition"
+                >
+                  Распарсить характеристики
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Правая часть - Предпросмотр */}
+          {showParsed && parsedData && (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 overflow-y-auto max-h-[calc(100vh-200px)]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Предпросмотр КП</h2>
+
+              <div className="space-y-6">
+                {/* URL шапки (логотип компании) */}
+                {headerImageUrl && (
+                  <div className="border-2 border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-center min-h-24">
+                    <img
+                      src={headerImageUrl || "/placeholder.svg"}
+                      alt="Шапка"
+                      className="max-h-20 object-contain"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  </div>
+                )}
+
+                {/* Отладочная информация */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-yellow-800 mb-2">Отладочная информация:</h3>
+                  <pre className="text-xs text-yellow-700 overflow-auto">{JSON.stringify(parsedData, null, 2)}</pre>
+                </div>
+
+                {/* Заголовок - по центру */}
+                <div className="text-center border-b-2 border-blue-500 pb-4">
+                  <h1 className="text-xl font-bold uppercase mb-2">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h1>
+                  {parsedData.equipment && <div className="text-lg font-bold">{parsedData.equipment}</div>}
+                  {parsedData.title && <div className="text-xl font-bold text-blue-600 mt-1">{parsedData.title}</div>}
+                </div>
+
+                {/* Основной контент: фото слева, цена справа */}
+                <div className="grid grid-cols-2 gap-6 min-h-80">
+                  {/* Левая колонка - фото */}
+                  {imageUrl && (
+                    <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center p-4">
+                      <img
+                        src={imageUrl || "/placeholder.svg"}
+                        alt="техника"
+                        className="w-full h-auto max-h-72 object-contain rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = "/placeholder.svg"
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Правая колонка - цена и условия */}
+                  {parsedData.price && (
+                    <div className="border-2 border-gray-300 rounded-lg bg-white p-6 flex flex-col justify-between">
+                      <div>
+                        <div className="text-base font-bold text-black mb-3">Стоимость техники:</div>
+                        <div className="text-3xl font-bold text-black mb-4">
+                          {parsedData.price.toLocaleString("ru-RU")} руб.
+                        </div>
+                        <div className="space-y-2 mb-6">
+                          {parsedData.priceWithVat && <div className="text-sm text-black">Стоимость с НДС.</div>}
+                          {parsedData.availability && (
+                            <div className="text-sm text-black">{parsedData.availability}.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm text-black">
+                        {parsedData.lease && <div className="flex items-center">• Продажа в лизинг.</div>}
+                        {parsedData.paymentType && <div className="flex items-center">• {parsedData.paymentType}.</div>}
+                        {parsedData.diagnosticsPassed && (
+                          <div className="flex items-center">• Диагностика пройдена.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Таблица технических характеристик */}
+                {specsRows.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 text-center border-b-2 border-blue-500 pb-2">
+                      Технические характеристики
+                    </h3>
+                    <div className="border border-gray-300 rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <tbody>
+                          {specsRows.flat().map(([key, value], index) => (
+                            <tr key={index} className="border-b border-gray-300 last:border-b-0">
+                              <td className="py-3 px-4 border-r border-gray-300 bg-gray-50 font-semibold text-gray-700 w-2/5">
+                                {key}
+                              </td>
+                              <td className="py-3 px-4 text-gray-900 w-3/5">{value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Кнопки действий */}
+                <div className="flex flex-col gap-3 pt-4 border-t border-gray-200">
+                  <Button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition"
+                  >
+                    {loading ? "Сохранение..." : "Сохранить КП"}
+                  </Button>
+
+                  {offerId && (
+                    <Button
+                      onClick={handleDownloadPDF}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
+                    >
+                      Скачать PDF
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
