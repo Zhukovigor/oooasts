@@ -77,8 +77,8 @@ function initVKID() {
   const config = {
     app: VK_APP_ID,
     redirectUrl: VK_REDIRECT_URI,
-    responseMode: VKID.ConfigResponseMode?.Callback ?? 'callback',
-    scope: '',
+    responseMode: VKID.ConfigResponseMode?.Redirect ?? 'redirect',
+    scope: 'offline',
   };
 
   if (VKID.ConfigSource?.LOWCODE) {
@@ -87,39 +87,13 @@ function initVKID() {
 
   VKID.Config.init(config);
 
-  const oneTap = new VKID.OneTap();
+  const oAuth = new VKID.OAuthList();
 
-  oneTap.render({
+  oAuth.render({
     container: authBox,
-    showAlternativeLogin: true,
-    oauthList: ['mail_ru', 'ok_ru']
+    oauthList: ['vkid']
   })
     .on(VKID.WidgetEvents.ERROR, vkidOnError);
-
-  if (VKID.OneTapInternalEvents?.LOGIN_SUCCESS) {
-    oneTap.on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload) {
-      const code = payload?.code;
-      const deviceId = payload?.device_id;
-
-      if (!code || !deviceId) {
-        vkidOnError({ message: 'VK ID did not return code or device_id' });
-        return;
-      }
-
-      VKID.Auth.exchangeCode(code, deviceId)
-        .then(vkidOnSuccess)
-        .catch(vkidOnError);
-    });
-  }
-
-  function vkidOnSuccess(data) {
-    console.log('VKID success:', data);
-
-    if (resultBox) {
-      resultBox.innerHTML =
-        '<pre style="color:green;">' + JSON.stringify(data, null, 2) + '</pre>';
-    }
-  }
 
   function vkidOnError(error) {
     console.error('VKID error:', error);
