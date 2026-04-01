@@ -1,15 +1,8 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import type { Metadata } from "next"
 
-export const metadata: Metadata = {
-  title: "Страница не найдена | ООО АСТС",
-  description: "Запрашиваемая страница не найдена. Вернитесь на главную страницу ООО АСТС - поставщика спецтехники из Китая.",
-  robots: {
-    index: false,
-    follow: false,
-  },
-}
+// Note: metadata export is not supported in not-found.tsx
+// Title and description are handled by the layout
 
 export default function NotFound() {
   return (
