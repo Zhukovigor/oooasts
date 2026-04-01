@@ -4,6 +4,10 @@ import Script from "next/script";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+const VK_APP_ID = Number(process.env.NEXT_PUBLIC_VK_APP_ID || 54519669);
+const VK_REDIRECT_URI =
+  process.env.NEXT_PUBLIC_VK_REDIRECT_URI || "https://asts.vercel.app/api/vk/callback";
+
 function VkAuthContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
@@ -13,12 +17,12 @@ function VkAuthContent() {
   return (
     <main style={{ padding: 24, maxWidth: 600, margin: '0 auto' }}>
       <h1 style={{ marginBottom: 24 }}>Авторизация VK</h1>
-      
+
       {error && (
-        <div style={{ 
-          padding: 16, 
-          marginBottom: 24, 
-          backgroundColor: '#fee2e2', 
+        <div style={{
+          padding: 16,
+          marginBottom: 24,
+          backgroundColor: '#fee2e2',
           border: '1px solid #ef4444',
           borderRadius: 8,
           color: '#b91c1c'
@@ -28,10 +32,10 @@ function VkAuthContent() {
       )}
 
       {success && (
-        <div style={{ 
-          padding: 16, 
-          marginBottom: 24, 
-          backgroundColor: '#dcfce7', 
+        <div style={{
+          padding: 16,
+          marginBottom: 24,
+          backgroundColor: '#dcfce7',
           border: '1px solid #22c55e',
           borderRadius: 8,
           color: '#166534'
@@ -52,6 +56,12 @@ function VkAuthContent() {
             initVKID();
           }
         }}
+        onError={() => {
+          const resultBox = document.getElementById('vk-result');
+          if (resultBox) {
+            resultBox.innerHTML = '<pre style="color:red;">Не удалось загрузить VK ID SDK</pre>';
+          }
+        }}
       />
     </main>
   );
@@ -62,15 +72,20 @@ function initVKID() {
   const resultBox = document.getElementById('vk-result');
   const authBox = document.getElementById('vk-auth');
 
-  if (!authBox) return;
+  if (!authBox || !VKID) return;
 
-  VKID.Config.init({
-    app: 54519669,
-    redirectUrl: 'https://asts.vercel.app/api/vk/callback',
-    responseMode: VKID.ConfigResponseMode.Redirect,
-    source: VKID.ConfigSource.LOWCODE,
+  const config = {
+    app: VK_APP_ID,
+    redirectUrl: VK_REDIRECT_URI,
+    responseMode: VKID.ConfigResponseMode?.Redirect ?? 'redirect',
     scope: 'wall photos groups offline',
-  });
+  };
+
+  if (VKID.ConfigSource?.LOWCODE) {
+    config.source = VKID.ConfigSource.LOWCODE;
+  }
+
+  VKID.Config.init(config);
 
   const oAuth = new VKID.OAuthList();
 
@@ -78,7 +93,7 @@ function initVKID() {
     container: authBox,
     oauthList: ['vkid']
   })
-  .on(VKID.WidgetEvents.ERROR, vkidOnError);
+    .on(VKID.WidgetEvents.ERROR, vkidOnError);
 
   function vkidOnError(error) {
     console.error('VKID error:', error);
