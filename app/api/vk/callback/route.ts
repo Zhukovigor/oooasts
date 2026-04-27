@@ -5,9 +5,20 @@ const VK_APP_ID = process.env.VK_APP_ID || "54519669"
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || ""
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || "https://asts.vercel.app/api/vk/callback"
 
+function getVkRedirectUri(request: NextRequest) {
+  const requestUrl = new URL(request.url)
+
+  if (requestUrl.hostname === "localhost" || requestUrl.hostname === "127.0.0.1") {
+    return `${requestUrl.origin}/api/vk/callback`
+  }
+
+  return VK_REDIRECT_URI
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
-  
+  const redirectUri = getVkRedirectUri(request)
+
   // Получаем параметры от VK
   const code = searchParams.get("code")
   const deviceId = searchParams.get("device_id")
@@ -15,12 +26,12 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get("error")
   const errorDescription = searchParams.get("error_description")
 
-  console.log("[v0] VK callback received:", { 
-    code: code ? "present" : "missing", 
-    deviceId, 
-    state, 
-    error, 
-    errorDescription 
+  console.log("[v0] VK callback received:", {
+    code: code ? "present" : "missing",
+    deviceId,
+    state,
+    error,
+    errorDescription
   })
 
   // Если VK вернул ошибку
@@ -57,14 +68,14 @@ export async function GET(request: NextRequest) {
         <h3>Настройки VK приложения:</h3>
         <div class="config">
           <p><strong>App ID:</strong> ${VK_APP_ID}</p>
-          <p><strong>Redirect URI:</strong> ${VK_REDIRECT_URI}</p>
+          <p><strong>Redirect URI:</strong> ${redirectUri}</p>
           <p><strong>Client Secret:</strong> ${VK_CLIENT_SECRET ? "настроен" : "НЕ НАСТРОЕН!"}</p>
         </div>
         <h3>Инструкция по настройке VK приложения:</h3>
         <ol>
           <li>Перейдите в <a href="https://vk.com/editapp?id=${VK_APP_ID}" target="_blank">настройки VK приложения</a></li>
           <li>В разделе "Настройки" найдите "Базовый домен" и укажите: <code>asts.vercel.app</code></li>
-          <li>В разделе "Авторизованные redirect URI" добавьте: <code>${VK_REDIRECT_URI}</code></li>
+          <li>В разделе "Авторизованные redirect URI" добавьте: <code>${redirectUri}</code></li>
           <li>Сохраните изменения</li>
         </ol>
       </body>
@@ -78,12 +89,11 @@ export async function GET(request: NextRequest) {
 
   try {
     // Обмениваем code на access_token
-    const tokenUrl = new URL("https://id.vk.com/oauth2/auth")
     const tokenParams = new URLSearchParams({
       grant_type: "authorization_code",
       code: code,
       client_id: VK_APP_ID,
-      redirect_uri: VK_REDIRECT_URI,
+      redirect_uri: redirectUri,
       code_verifier: "", // Для PKCE, если используется
     })
 
@@ -123,12 +133,12 @@ export async function GET(request: NextRequest) {
     if (!accessToken) {
       // Попробуем альтернативный метод через oauth.vk.com
       console.log("[v0] Trying alternative token exchange via oauth.vk.com...")
-      
+
       const altTokenResponse = await fetch(
-        `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_CLIENT_SECRET}&redirect_uri=${encodeURIComponent(VK_REDIRECT_URI)}&code=${code}`,
+        `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_CLIENT_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`,
         { method: "GET" }
       )
-      
+
       const altTokenData = await altTokenResponse.json()
       console.log("[v0] Alt token response:", JSON.stringify(altTokenData, null, 2))
 
@@ -164,7 +174,7 @@ async function handleSuccessfulAuth(request: NextRequest, accessToken: string, u
     const userInfoResponse = await fetch(
       `https://api.vk.com/method/users.get?user_ids=${userId}&fields=photo_200,first_name,last_name&access_token=${accessToken}&v=5.131`
     )
-    
+
     const userInfoData = await userInfoResponse.json()
     console.log("[v0] User info:", JSON.stringify(userInfoData, null, 2))
 
@@ -173,7 +183,7 @@ async function handleSuccessfulAuth(request: NextRequest, accessToken: string, u
     // Сохраняем токен в Supabase (опционально)
     try {
       const supabase = await createClient()
-      
+
       // Проверяем, есть ли уже такой пользователь
       const { data: existingUser } = await supabase
         .from("user_profiles")
@@ -185,8 +195,8 @@ async function handleSuccessfulAuth(request: NextRequest, accessToken: string, u
         // Создаем запись о VK пользователе
         await supabase.from("site_settings").upsert({
           key: `vk_token_${userId}`,
-          value: { 
-            access_token: accessToken, 
+          value: {
+            access_token: accessToken,
             user_id: userId,
             user_name: user ? `${user.first_name} ${user.last_name}` : null,
             updated_at: new Date().toISOString()
@@ -204,7 +214,7 @@ async function handleSuccessfulAuth(request: NextRequest, accessToken: string, u
     successUrl.searchParams.set("success", "true")
     successUrl.searchParams.set("user_id", String(userId))
     if (user) {
-      successUrl.searchParams.set("name", `${user.first_name} ${user.last_name}`)
+      successUrl.searchParams.set("user_name", `${user.first_name} ${user.last_name}`)
     }
 
     return NextResponse.redirect(successUrl)
