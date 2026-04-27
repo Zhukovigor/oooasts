@@ -31,11 +31,48 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Если нет кода авторизации
+  // Если нет кода авторизации - показываем информационную страницу
   if (!code) {
-    console.error("[v0] No authorization code received")
-    return NextResponse.redirect(
-      new URL("/vk-auth?error=Код авторизации не получен", request.url)
+    console.log("[v0] Direct access to callback without code - showing info page")
+    return new NextResponse(
+      `<!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="UTF-8">
+        <title>VK OAuth Callback</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+          h1 { color: #0077ff; }
+          .info { background: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .config { background: #f5f5f5; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; }
+          a { color: #0077ff; }
+        </style>
+      </head>
+      <body>
+        <h1>VK OAuth Callback Endpoint</h1>
+        <div class="info">
+          <p>Это callback URL для авторизации через VK. Он работает корректно.</p>
+          <p>Для авторизации перейдите на <a href="/vk-auth">/vk-auth</a></p>
+        </div>
+        <h3>Настройки VK приложения:</h3>
+        <div class="config">
+          <p><strong>App ID:</strong> ${VK_APP_ID}</p>
+          <p><strong>Redirect URI:</strong> ${VK_REDIRECT_URI}</p>
+          <p><strong>Client Secret:</strong> ${VK_CLIENT_SECRET ? "настроен" : "НЕ НАСТРОЕН!"}</p>
+        </div>
+        <h3>Инструкция по настройке VK приложения:</h3>
+        <ol>
+          <li>Перейдите в <a href="https://vk.com/editapp?id=${VK_APP_ID}" target="_blank">настройки VK приложения</a></li>
+          <li>В разделе "Настройки" найдите "Базовый домен" и укажите: <code>asts.vercel.app</code></li>
+          <li>В разделе "Авторизованные redirect URI" добавьте: <code>${VK_REDIRECT_URI}</code></li>
+          <li>Сохраните изменения</li>
+        </ol>
+      </body>
+      </html>`,
+      {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+      }
     )
   }
 
