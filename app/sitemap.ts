@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next"
 import { createAdminClient } from "@/lib/supabase/admin"
 
+// Делаем sitemap динамическим, чтобы избежать ошибок при статической сборке
+export const dynamic = 'force-dynamic'
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://asts.vercel.app"
   const supabase = createAdminClient()
